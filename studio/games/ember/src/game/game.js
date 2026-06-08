@@ -226,7 +226,12 @@
     key: 'Play',
     preload: function () {
       this.load.image('bg_cave', 'assets/backdrop.jpg');
-      this.load.image('hero_art', 'assets/hero.png');
+      this.load.image('hero_art', 'assets/hero.png');               // static fallback
+      // ANIMATED hero: a uniform 8-cell sheet (6 run + idle + jump), chroma-keyed
+      // + re-packed from REF-conditioned Gemini frames (tools/art/key-anim.mjs).
+      // Cells are equal so generateFrameNumbers works; if it fails to load the
+      // static 'hero_art' image still renders the hero (see create()).
+      this.load.spritesheet('hero_sheet', 'assets/hero_sheet.png', { frameWidth: 288, frameHeight: 338 });
       this.load.image('enemy_art', 'assets/enemy.png');
       this.load.image('rock', 'assets/ground.jpg');
       this.load.image('lavatile', 'assets/lava.jpg');
@@ -250,8 +255,23 @@
       // velocity to the tune's caps so the integrator can't outrun the controller.
       pc = Studio.Platformer.create();
       player.setMaxVelocity(pc.tune.maxRun, pc.tune.maxFall);
-      heroArt = this.add.image(player.x, player.y, 'hero_art').setDepth(6);
-      heroArt.setScale(54 / heroArt.height);
+
+      // ANIMATED hero — a follower SPRITE over the (invisible) physics body. The
+      // body is untouched (gate/autopilot depend on it); this is visual-only.
+      // Define idle/run/jump from the uniform sheet; if the sheet didn't load,
+      // fall back to the static 'hero_art' image so the hero still renders.
+      var sheetOK = this.textures.exists('hero_sheet') && this.textures.get('hero_sheet').frameTotal > 8;
+      if (sheetOK) {
+        var A = this.anims;
+        if (!A.exists('hero_run')) A.create({ key: 'hero_run', frames: A.generateFrameNumbers('hero_sheet', { start: 0, end: 5 }), frameRate: 14, repeat: -1 });
+        if (!A.exists('hero_idle')) A.create({ key: 'hero_idle', frames: [{ key: 'hero_sheet', frame: 6 }], frameRate: 1, repeat: -1 });
+        if (!A.exists('hero_jump')) A.create({ key: 'hero_jump', frames: [{ key: 'hero_sheet', frame: 7 }], frameRate: 1, repeat: -1 });
+        heroArt = this.add.sprite(player.x, player.y, 'hero_sheet', 6).setDepth(6);
+        heroArt.play('hero_idle');
+      } else {
+        heroArt = this.add.image(player.x, player.y, 'hero_art').setDepth(6);
+      }
+      heroArt.setScale(60 / heroArt.height);
 
       // ---- Art Direction: molten-cave grade + vignette (WebGL filters; canvas no-ops) ----
       // Warm push (more red, less blue) + slight darkening for a cavern mood.
@@ -328,7 +348,16 @@
         if (m._art) m._art.setPosition(m.spr.x, m.spr.y);
       });
 
-      if (heroArt) { heroArt.setPosition(player.x, player.y - 3); heroArt.setFlipX(player.flipX); }
+      if (heroArt) {
+        heroArt.setPosition(player.x, player.y - 3); heroArt.setFlipX(player.flipX);
+        // state-driven animation (visual-only): run when grounded & moving, jump
+        // when airborne, else idle. Guarded so the static-image fallback no-ops.
+        if (heroArt.play) {
+          var want = !onGround ? 'hero_jump' : (Math.abs(b.velocity.x) > 20 ? 'hero_run' : 'hero_idle');
+          var cur = heroArt.anims && heroArt.anims.currentAnim;
+          if (!cur || cur.key !== want) heroArt.play(want, true);
+        }
+      }
       world.enemies.getChildren().forEach(function (e) {
         if (!e.active) return; e.x += e.dir * 0.6; if (Math.abs(e.x - e.homeX) > e.patrol) e.dir *= -1;
         if (e._art) { e._art.setPosition(e.x, e.y); e._art.setFlipX(e.dir > 0); }
