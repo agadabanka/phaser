@@ -110,7 +110,8 @@
   function manual() { var c = scene.cursors; if (!c) return input; return { left: c.left.isDown, right: c.right.isDown, jump: c.up.isDown || c.space.isDown }; }
 
   var config = {
-    type: Phaser.AUTO, width: 960, height: 540, backgroundColor: '#1d2b53', seed: ['game-template'],
+    type: Phaser.AUTO, backgroundColor: '#1d2b53', seed: ['game-template'],
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
     render: { preserveDrawingBuffer: true, pixelArt: true },
     physics: { default: 'arcade', arcade: { gravity: { y: GRAV }, debug: false } },
     scene: [Play]

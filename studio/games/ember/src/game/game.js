@@ -349,7 +349,8 @@
   function manual() { var c = scene.cursors, t = touchState || {}; var kl = c && c.left.isDown, kr = c && c.right.isDown, kj = c && (c.up.isDown || c.space.isDown), kd = c && c.down.isDown; return { left: kl || t.left, right: kr || t.right, jump: kj || t.jump, down: kd || t.down }; }
 
   var config = {
-    type: Phaser.AUTO, width: 960, height: 540, backgroundColor: '#140a08', seed: ['ember-depths'],
+    type: Phaser.AUTO, backgroundColor: '#140a08', seed: ['ember-depths'],
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
     render: { preserveDrawingBuffer: true, pixelArt: true },
     physics: { default: 'arcade', arcade: { gravity: { y: GRAV }, debug: false } },
     scene: [Play]
