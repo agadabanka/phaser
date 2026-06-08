@@ -16,6 +16,7 @@
   "builder": "/",
   "designLens": "/",
   "scaffolded_from": "agadabanka/phaser-private",
+  "url": "https://ember-depths-production.up.railway.app",
   "gate": "0-death pass (webgl + canvas)",
-  "stages": { "scaffold": true, "identity": true, "levels": true, "gate": true, "feel": true, "hero": true, "art": true, "music": false, "deploy": false, "videos": false, "book": false, "loop": false }
+  "stages": { "scaffold": true, "identity": true, "levels": true, "gate": true, "feel": true, "hero": true, "art": true, "music": false, "deploy": true, "videos": false, "book": false, "loop": false }
 }
