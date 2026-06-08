@@ -19,10 +19,13 @@
 (function () {
   'use strict';
   // Physics contract — MUST match levels.js geometry assumptions.
-  var T = 40, SPEED = 220, JUMP_V = -600, GRAV = 1300;
-  var scene, player, world, spawn, levelGoalX = 0;
-  var input = { left: false, right: false, jump: false };
-  var auto = false, jumpLatch = false;
+  // Movement is now the Studio.Platformer controller (coyote/buffer/variable-jump/
+  // asymmetric gravity/skid + per-surface friction); GRAV is the world's BASE pull
+  // the controller layers its asymmetric gravity on top of.
+  var T = 40, GRAV = 1300;
+  var scene, player, world, spawn, levelGoalX = 0, pc = null;
+  var input = { left: false, right: false, jump: false, down: false };
+  var auto = false;
   var deaths = 0, won = false, frame = 0, coins = 0, lastDeathX = 0, maxX = 0;
   var levelIndex = 0;                 // which LEVELS[] entry is live
   var colliders = [];                 // physics colliders/overlaps to tear down on rebuild
@@ -32,13 +35,32 @@
 
   function sense(onGround) {
     var probeX = player.x + 26, footY = player.y + 22;
-    var groundAhead = Studio.Autopilot.groundAt(world.platforms, probeX, footY, T);
+    var groundAhead = Studio.Autopilot.groundAt(world.platforms, probeX, footY, T)
+      || Studio.Autopilot.groundAt(world.moverGroup, probeX, footY, T);   // a mover counts as ground ahead
     var blockedRight = player.body.blocked.right; // solid walls only (overlaps set touching.*)
     var enemyAhead = false;
     world.enemies.getChildren().forEach(function (e) {
       if (e.active && e.x > player.x && e.x - player.x < 64 && Math.abs(e.y - player.y) < 52) enemyAhead = true;
     });
-    return { onGround: onGround, groundAhead: groundAhead, blockedRight: blockedRight, enemyAhead: enemyAhead, x: player.x, goalX: levelGoalX };
+    // vy lets the variable-jump-aware policy keep holding jump through the ascent
+    return { onGround: onGround, groundAhead: groundAhead, blockedRight: blockedRight, enemyAhead: enemyAhead, x: player.x, goalX: levelGoalX, vy: player.body.velocity.y };
+  }
+
+  // Read the foot friction of whatever slab the player is standing on (probe the
+  // body just under the feet). ice -> slick, mud -> sticky, else solid (1).
+  function footFrictionUnder() {
+    var px = player.x, py = player.body.bottom + 4, best = 1;
+    var groups = [world.platforms, world.moverGroup];
+    for (var gi = 0; gi < groups.length; gi++) {
+      var kids = groups[gi].getChildren();
+      for (var i = 0; i < kids.length; i++) {
+        var s = kids[i], bdy = s && s.body; if (!bdy) continue;
+        if (px >= bdy.left - 2 && px <= bdy.right + 2 && py >= bdy.top - 8 && py <= bdy.top + 14) {
+          best = Studio.Materials.get(s.mat || 'solid').friction; return best;
+        }
+      }
+    }
+    return best;
   }
 
   function snapshot() {
@@ -122,22 +144,44 @@
     colliders.push(scene.physics.add.overlap(player, world.enemies, function (p, e) {
       if (!e.active) return;
       if (p.body.velocity.y > 40 && p.y < e.y - 6) { // stomp from above
-        e.disableBody(true, true); if (e._art) e._art.setVisible(false); p.setVelocityY(-380); Studio.Audio.sfx('stomp');
+        e.disableBody(true, true); if (e._art) e._art.setVisible(false); pc.launch(p, 380); Studio.Audio.sfx('stomp');
         Studio.Juice.squash(scene, p); Studio.Juice.shake(scene, 90, 0.006);
         Studio.Juice.burst(scene, e.x, e.y, { texture: 'ember', n: 12, tint: 0xff5a3c, life: 420 });
       } // side contact is non-lethal (a design choice, mirrors the template)
     }));
+
+    // SPRINGS — run-into bounce pads. On overlap (arriving level/downward, with a
+    // short cooldown so one touch = one launch) the controller flings the player up.
+    world.springs.getChildren().forEach(function (s) { s.setDepth(3); var art = scene.add.image(s.x, s.y, 'spring').setDepth(8); decor.push(art); s._art = art; });
+    colliders.push(scene.physics.add.overlap(player, world.springs, function (p, s) {
+      if (p.body.velocity.y < -120) return;          // already rocketing up
+      if (s.cool > 0) return;                         // one launch per contact (frame cooldown)
+      s.cool = 12;
+      pc.launch(p, s.vel);                            // fixed-height spring arc (variable-jump exempt)
+      Studio.Audio.sfx('jump'); Studio.Juice.squash(scene, p, 0.8, 1.2);
+      Studio.Juice.burst(scene, p.x, p.body.bottom, { texture: 'ember', n: 8, tint: 0xffd166, life: 320 });
+    }));
+
+    // MOVERS — kinematic platforms. Solid collider; the rider is carried by the
+    // mover's per-tick delta (added in update) while standing on top.
+    if (world.moverGroup) colliders.push(scene.physics.add.collider(player, world.moverGroup));
+    world.movers.forEach(function (m) {
+      var art = scene.add.tileSprite(m.spr.x, m.spr.y, m.spr.displayWidth, m.spr.displayHeight, 'rock').setDepth(2);
+      art.setTileScale(0.085); decor.push(art); m._art = art;
+      m.spr.setVisible(false);
+    });
 
     player.setVelocity(0, 0);
     player.setPosition(spawn.x, spawn.y);
   }
 
   function reset() {
-    deaths = 0; won = false; frame = 0; coins = 0; auto = false; jumpLatch = false; landGuard = false;
+    deaths = 0; won = false; frame = 0; coins = 0; auto = false; landGuard = false;
+    if (pc) pc.reset();
     loadLevel(0);             // always restart the chain at level 1 (deterministic)
     hud();
   }
-  function respawn() { player.setVelocity(0, 0); player.setPosition(spawn.x, spawn.y); jumpLatch = false; }
+  function respawn() { player.setVelocity(0, 0); player.setPosition(spawn.x, spawn.y); if (pc) pc.reset(); }
   function die() { deaths++; lastDeathX = Math.round(player.x); respawn(); }
   function hud() { if (scene._hud) scene._hud.setText('coins ' + coins + '   depth ' + (levelIndex + 1) + '/' + window.LEVELS.length); }
 
@@ -165,6 +209,10 @@
       // body keeps the small baked box (gate-stable); the AI hero is a follower visual.
       player = this.physics.add.sprite(60, 360, 'hero');
       player.setVisible(false);
+      // the Studio.Platformer controller owns movement feel; clamp Phaser's own
+      // velocity to the tune's caps so the integrator can't outrun the controller.
+      pc = Studio.Platformer.create();
+      player.setMaxVelocity(pc.tune.maxRun, pc.tune.maxFall);
       heroArt = this.add.image(player.x, player.y, 'hero_art').setDepth(6);
       heroArt.setScale(54 / heroArt.height);
 
@@ -191,20 +239,27 @@
 
       Studio.harness.install(window.game, {
         snapshot: snapshot,
-        setInput: function (o) { input = Object.assign({ left: false, right: false, jump: false }, o || {}); },
-        autopilot: function (on) { auto = !!on; input = { left: false, right: false, jump: false }; },
+        setInput: function (o) { input = Object.assign({ left: false, right: false, jump: false, down: false }, o || {}); },
+        autopilot: function (on) { auto = !!on; input = { left: false, right: false, jump: false, down: false }; },
         reset: reset
       });
       window.__sense = function () { var og = player.body.blocked.down || player.body.touching.down; var s = sense(og); s.decision = Studio.Autopilot.platformer(s); return s; };
     },
-    update: function () {
+    update: function (time, delta) {
       if (!player) return; frame++;
       if (player.x > maxX) maxX = player.x;
       var b = player.body, onGround = b.blocked.down || b.touching.down;
+      // FIXED dt: the harness steps at 1000/60; clamp so a hitchy live frame can't
+      // perturb the controller (keeps motion identical run-to-run -> deterministic).
+      var dt = Math.min((delta || (1000 / 60)) / 1000, 1 / 30);
 
       // landing shake (edge-triggered: only when transitioning air -> ground)
       if (onGround && !landGuard) { landGuard = true; Studio.Juice.shake(scene, 60, 0.004); }
       if (!onGround) landGuard = false;
+
+      // advance moving platforms (deterministic phase clock) BEFORE reading footing
+      world.tick(dt);
+      world.springs.getChildren().forEach(function (s) { if (s.cool > 0) s.cool--; });
 
       var mv;
       if (auto) {
@@ -212,11 +267,19 @@
         if (window.__trace) window.__trace.push({ f: frame, lvl: levelIndex, x: Math.round(player.x), g: onGround ? 1 : 0, gA: sn.groundAhead ? 1 : 0, bR: sn.blockedRight ? 1 : 0, eA: sn.enemyAhead ? 1 : 0, J: mv.jump ? 1 : 0 });
       } else mv = manual();
 
-      if (mv.left) { player.setVelocityX(-SPEED); player.setFlipX(true); }
-      else if (mv.right) { player.setVelocityX(SPEED); player.setFlipX(false); }
-      else player.setVelocityX(0);
-      if (mv.jump && onGround && !jumpLatch) { player.setVelocityY(JUMP_V); jumpLatch = true; Studio.Audio.sfx('jump'); }
-      if (!mv.jump) jumpLatch = false;
+      // Studio.Platformer owns all of movement: run accel/skid, variable jump,
+      // asymmetric gravity, foot-friction scaling (ice/mud), terminal-fall clamp.
+      var ff = footFrictionUnder();
+      pc.update(player, mv, { onGround: onGround, footFriction: ff, dt: dt });
+
+      // ride movers: carry the player by the platform's per-tick delta when on top
+      world.movers.forEach(function (m) {
+        var mb = m.spr.body;
+        var onTop = player.body.bottom <= mb.top + 9 && player.body.bottom >= mb.top - 12
+          && player.body.right > mb.left + 2 && player.body.left < mb.right - 2 && player.body.velocity.y >= -30;
+        if (onTop) { player.x += m.vx; player.y += m.vy; }
+        if (m._art) m._art.setPosition(m.spr.x, m.spr.y);
+      });
 
       if (heroArt) { heroArt.setPosition(player.x, player.y - 3); heroArt.setFlipX(player.flipX); }
       world.enemies.getChildren().forEach(function (e) {
@@ -228,7 +291,7 @@
       if (!won && player.x >= levelGoalX - 8) {
         if (levelIndex < window.LEVELS.length - 1) {
           Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 140, 255, 150, 60);
-          loadLevel(levelIndex + 1); jumpLatch = false; landGuard = false;
+          loadLevel(levelIndex + 1); if (pc) pc.reset(); landGuard = false;
         } else {
           won = true; Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 220, 255, 170, 70);
         }
@@ -236,7 +299,7 @@
       if (player.y > scene.scale.height + 120) die();
     }
   };
-  function manual() { var c = scene.cursors, t = touchState || {}; var kl = c && c.left.isDown, kr = c && c.right.isDown, kj = c && (c.up.isDown || c.space.isDown); return { left: kl || t.left, right: kr || t.right, jump: kj || t.jump }; }
+  function manual() { var c = scene.cursors, t = touchState || {}; var kl = c && c.left.isDown, kr = c && c.right.isDown, kj = c && (c.up.isDown || c.space.isDown), kd = c && c.down.isDown; return { left: kl || t.left, right: kr || t.right, jump: kj || t.jump, down: kd || t.down }; }
 
   var config = {
     type: Phaser.AUTO, width: 960, height: 540, backgroundColor: '#140a08', seed: ['ember-depths'],

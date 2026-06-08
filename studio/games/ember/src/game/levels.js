@@ -58,5 +58,38 @@ window.LEVELS = [
       { x: 1840, y: 360 }, { x: 1920, y: 440 }
     ],
     enemies: [{ x: 1040, patrol: 60 }]              // between wall 820 and gap 1180 (template shape)
+  },
+  {
+    // Level 3 — "The Vents": showcases the new Studio.Platformer mechanics. Each is
+    // placed so the EXISTING gap-jump / run-right autopilot clears it 0-death:
+    //   * MUD zone (360-560): footFriction 2.2 -> snappier grip; the bot just runs over it.
+    //   * SPRING (x=820) on a long flat stone run: launched ~6 tiles up, it drifts ~210px
+    //       right and lands back on the SAME stone slab (no gap within the arc) -> safe.
+    //   * MOVING PLATFORM over the lava gap 1180-1300 (120px, w=120, tiny range): it bridges
+    //       the gap almost fully, so the bot either RIDES it across or (if it has drifted)
+    //       JUMPS the <=140px gap — EITHER outcome lands on stone. groundAhead now also
+    //       probes the mover group, so the bot reads it as walkable ground.
+    //   * ICE zone (1640-1840): footFriction 0.05 -> glides; entered at full run speed off
+    //       stone, it keeps ~maxRun across and steps onto solid stone (NO gap at the end).
+    name: 'The Vents', tile: 40, width: 2240, height: 540, groundY: 470, sky: 0x120806,
+    spawn: { x: 60, y: 360 }, goal: 2180,
+    ground: [
+      [0, 360, 'stone'],
+      [360, 560, 'mud'],            // trudge zone (continuous, safe)
+      [560, 1180, 'stone'],         // long flat run: the spring sits here & its arc lands here
+      [1180, 1300, 'lava'],         // GAP bridged by a mover (ride-or-jump, both safe)
+      [1300, 1640, 'stone'],        // mover landing + runway
+      [1640, 1840, 'ice'],          // glide zone (continuous, solid stone after it)
+      [1840, 2240, 'stone']         // final approach to the goal
+    ],
+    springs: [{ x: 820 }],          // bounce pad on the long stone slab
+    movers: [{ x: 1240, y: 452, w: 120, axis: 'x', range: 24, speed: 50, mat: 'stone' }],
+    coins: [
+      { x: 300, y: 440 }, { x: 460, y: 440 },
+      { x: 820, y: 300 }, { x: 820, y: 360 },   // a coin ladder above the spring (reward for the launch)
+      { x: 1240, y: 360 }, { x: 1500, y: 440 },
+      { x: 1740, y: 440 }, { x: 2040, y: 440 }
+    ],
+    enemies: [{ x: 980, patrol: 50 }]            // on the flat stone, before the mover gap
   }
 ];

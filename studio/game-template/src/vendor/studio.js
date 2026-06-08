@@ -90,6 +90,15 @@
       });
       this.bake(scene, 'dot', 8, 8, function (g) { g.fillStyle(0xffffff, 1).fillCircle(4, 4, 4); });
       this.bake(scene, 'block', T, T, function (g) { g.fillStyle(0xffffff, 1).fillRect(0, 0, T, T); });
+      // spring / bounce pad: a coiled base + a bright top plate (reads as "boing")
+      var spring = opt.spring || 0xffd166;
+      this.bake(scene, 'spring', T, 18, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, T, 18, 4);
+        g.fillStyle(Studio._darken(spring, 0.4), 1).fillRect(6, 8, T - 12, 8);   // coils
+        for (var i = 0; i < 3; i++) g.fillStyle(Studio._darken(spring, 0.55), 1).fillRect(6, 9 + i * 3, T - 12, 1);
+        g.fillStyle(spring, 1).fillRoundedRect(2, 0, T - 4, 8, 3);               // top plate
+        g.fillStyle(Studio._lighten(spring, 0.4), 1).fillRect(4, 1, T - 8, 2);
+      });
     }
   };
 
@@ -111,8 +120,131 @@
     });
   };
 
+  // ---------------------------------------------------------------- Platformer
+  // A reusable, DETERMINISTIC movement controller carrying the proven jazz feel
+  // (coyote time, jump buffer, variable jump, asymmetric gravity, run-accel/skid)
+  // ported & scaled to the Studio 960x540 / 40px world. No Date.now/Math.random
+  // touches motion — it is driven only by input + a fixed dt the caller supplies.
+  //
+  //   var pc = Studio.Platformer.create({ tune: {...} });
+  //   // each frame, after computing onGround + foot friction:
+  //   pc.update(player, { left, right, jump, down }, { onGround, footFriction, dt });
+  //
+  // The controller owns horizontal velocity (accel toward ±maxRun, skid on
+  // reversal, friction when idle — all scaled by footFriction) and the jump arc
+  // (variable height + asymmetric gravity via body.setGravityY relative to the
+  // world's base gravity). It leaves collisions/overlaps to the game.
+  Studio.Platformer = {
+    // Ported from jazz/consts.js TUNE, scaled to 40px tiles & the ~1300 base
+    // gravity this template runs at. Tuned so a full (held) jump clears ~3 tiles
+    // up / ~4-5 tiles across, matching (and slightly exceeding) the proven
+    // -600/1300 ember hop the 0-death gate was built around.
+    DEFAULT_TUNE: {
+      maxRun: 220,          // top run speed (px/s) — matches the proven gate horizontal reach
+      runAccel: 1800,       // ground accel toward maxRun (reaches top in ~8 frames)
+      airAccel: 1200,       // weaker steering in the air
+      skidDecel: 2600,      // turnaround decel on reversal (~1.45x accel, SMB skid)
+      groundFriction: 1500, // decel when no input is held (per second)
+      jumpVel: 540,         // full-jump launch velocity (apex ~3 tiles w/ riseGravity)
+      jumpCut: 0.35,        // release-while-rising cuts upward velocity to this fraction
+      riseGravity: 1200,    // while holding jump + ascending (floaty climb)
+      apexGravity: 1000,    // near the top of the arc (|vy| < apexThreshold) -> brief hang
+      fallGravity: 1900,    // descending (heavier -> snappy fall, keeps air-time near the proven hop)
+      apexThreshold: 60,    // |vy| under which apex-hang gravity applies (brief, so reach stays bounded)
+      maxFall: 980,         // terminal fall speed clamp
+      springVel: 920,       // bounce-pad launch (~6 tiles up, well above a normal jump)
+      coyoteMs: 120,        // grace window to still jump just after leaving a ledge
+      bufferMs: 140         // a jump pressed just before landing still fires on touch
+    },
+    create: function (opt) {
+      opt = opt || {};
+      var tune = Object.assign({}, Studio.Platformer.DEFAULT_TUNE, opt.tune || {});
+      return {
+        tune: tune,
+        // per-controller state (NOT globals) so determinism holds across resets
+        coyote: 0, buffer: 0, jumpHeld: false, springLatch: false, facing: 1,
+        reset: function () { this.coyote = 0; this.buffer = 0; this.jumpHeld = false; this.springLatch = false; this.facing = 1; },
+        // Launch the player upward at a fixed velocity (springs / bounce tiles).
+        // Exempt from the variable-jump clamp until the player next lands.
+        launch: function (player, vel) {
+          player.body.velocity.y = -(vel != null ? vel : this.tune.springVel);
+          player.body.blocked.down = player.body.touching.down = false;
+          this.coyote = 0; this.buffer = 0; this.jumpHeld = true; this.springLatch = true;
+        },
+        update: function (player, input, ctx) {
+          ctx = ctx || {};
+          var t = this.tune, b = player.body;
+          var dt = ctx.dt != null ? ctx.dt : (1 / 60);          // caller-managed FIXED dt (deterministic)
+          var ms = dt * 1000;
+          var onGround = !!ctx.onGround;
+          var ff = ctx.footFriction != null ? ctx.footFriction : 1; // from Studio.Materials.<mat>.friction
+          var left = !!input.left, right = !!input.right, jump = !!input.jump;
+
+          // ---- horizontal: accel toward ±maxRun, skid on reversal, friction idle ----
+          var vx = b.velocity.x;
+          var accel = onGround ? t.runAccel : t.airAccel;
+          if (onGround) accel *= ff;                            // grip scales with the surface (ice sluggish, mud snappy)
+          if (left && !right) {
+            this.facing = -1;
+            // reversing direction at speed -> skid (stronger decel) before re-accelerating
+            var aL = (vx > 0 ? t.skidDecel * (onGround ? ff : 1) : accel);
+            vx -= aL * dt;
+            if (vx < -t.maxRun) vx = -t.maxRun;
+          } else if (right && !left) {
+            this.facing = 1;
+            var aR = (vx < 0 ? t.skidDecel * (onGround ? ff : 1) : accel);
+            vx += aR * dt;
+            if (vx > t.maxRun) vx = t.maxRun;
+          } else if (onGround) {
+            // no input: bleed speed by ground friction (scaled by footing)
+            var dec = t.groundFriction * ff * dt;
+            if (Math.abs(vx) <= dec) vx = 0; else vx -= Math.sign(vx) * dec;
+          }
+          b.velocity.x = vx;
+
+          // ---- coyote time + jump buffer (forgiving, gate-safe windows) ----
+          if (onGround) this.coyote = t.coyoteMs; else this.coyote -= ms;
+          var pressed = jump && !this.jumpHeld;
+          if (pressed) this.buffer = t.bufferMs; else this.buffer -= ms;
+          this.jumpHeld = jump;
+
+          // start a jump on a buffered press within the coyote window
+          if (this.buffer > 0 && this.coyote > 0) {
+            b.velocity.y = -t.jumpVel;
+            this.buffer = 0; this.coyote = 0; this.springLatch = false;
+          }
+
+          // variable jump height: a SPRING/bounce launch is fixed-height (exempt
+          // until landing); a normal jump cut to jumpCut% if released while rising.
+          if (this.springLatch) {
+            if (onGround && b.velocity.y >= 0) this.springLatch = false;
+          } else if (!jump && b.velocity.y < -t.jumpVel * t.jumpCut) {
+            b.velocity.y = -t.jumpVel * t.jumpCut;
+          }
+
+          // ---- asymmetric gravity: light rise (held), hang at apex, heavy fall ----
+          // Applied as an OFFSET on top of the world's base gravity so the body's
+          // own integrator stays the single source of vertical motion.
+          var base = (b.world && b.world.gravity ? b.world.gravity.y : 0);
+          var gNow = t.fallGravity;
+          if (!onGround) {
+            if (b.velocity.y < 0 && jump && !this.springLatch) gNow = t.riseGravity;
+            if (Math.abs(b.velocity.y) < t.apexThreshold) gNow = t.apexGravity;
+          }
+          b.setGravityY(gNow - base);
+
+          // clamp terminal fall
+          if (b.velocity.y > t.maxFall) b.velocity.y = t.maxFall;
+
+          if (player.setFlipX) player.setFlipX(this.facing < 0);
+          return { vx: b.velocity.x, vy: b.velocity.y, facing: this.facing, onGround: onGround };
+        }
+      };
+    }
+  };
+
   // --------------------------------------------------------------- Level DSL
-  // A level is data. build() returns { platforms, hazards, coins, enemies, spawn, goalX }.
+  // A level is data. build() returns { platforms, hazards, coins, enemies, spawn, goalX, springs, movers, tick }.
   Studio.Level = {
     build: function (scene, spec) {
       var T = spec.tile || 40, H = spec.height || 540;
@@ -124,6 +256,7 @@
         // one wide static body, textured with the material's vertical gradient
         // (bright lit top -> dark depth); no separate decor objects to leak on rebuild.
         var img = group.create(cx, cy, 'grad_' + (mat || 'solid')); img.setDisplaySize(w, h).refreshBody();
+        img.mat = mat || 'solid';            // stash the material name so the game can read foot friction
         return img;
       }
       (spec.ground || []).forEach(function (seg) {
@@ -140,8 +273,60 @@
       (spec.enemies || []).forEach(function (e) {
         var s = enemies.create(e.x, spec.groundY - 14, 'enemy'); s.patrol = e.patrol || 60; s.homeX = e.x; s.dir = 1;
       });
+
+      // SPRINGS — bounce pads sitting on the ground line. A static body the game
+      // overlaps to fling the player up (Studio.Platformer .launch). Run INTO at
+      // speed, so no pixel-perfect landing is needed and it is NOT a step to hop.
+      var springs = scene.physics.add.staticGroup();
+      (spec.springs || []).forEach(function (s) {
+        var img = springs.create(s.x, spec.groundY - 9, 'spring'); img.refreshBody();
+        img.vel = s.vel || null;        // optional per-spring launch override (else controller default)
+        img.cool = 0;                   // launch cooldown (frames), driven by world.tick
+      });
+
+      // MOVERS — kinematic platforms that patrol along an axis within ±range and
+      // CARRY a rider. Dynamic body w/ no gravity + immovable, repositioned each
+      // world.tick(dt) off an internal phase clock (deterministic: driven only by
+      // the caller's fixed dt). The game reads .vx/.vy (per-tick delta) to carry.
+      var moverGroup = scene.physics.add.group({ allowGravity: false, immovable: true });
+      var movers = [];
+      (spec.movers || []).forEach(function (m) {
+        var w = m.w || (3 * T), h = m.h || Math.round(T * 0.5);
+        var img = moverGroup.create(m.x, m.y, 'grad_' + (m.mat || 'stone'));
+        img.setDisplaySize(w, h); img.body.setSize(w, h); img.body.setAllowGravity(false); img.body.setImmovable(true);
+        img.mat = m.mat || 'stone';
+        var rec = {
+          spr: img, axis: m.axis || 'x', range: m.range || (2 * T), speed: m.speed || 60,
+          homeX: m.x, homeY: m.y, phase: m.phase || 0, vx: 0, vy: 0, _prevX: m.x, _prevY: m.y
+        };
+        movers.push(rec);
+      });
+
+      // deterministic phase clock for movers — advanced by the caller's fixed dt
+      var clock = 0;
+      function tick(dt) {
+        if (!movers.length) return;
+        clock += (dt != null ? dt : (1 / 60));
+        for (var i = 0; i < movers.length; i++) {
+          var m = movers[i];
+          // smooth ping-pong: a triangle wave over a full period (cover 2*range each way)
+          var period = (4 * m.range) / m.speed;                 // seconds for a full back-and-forth
+          var ph = ((clock / period) + m.phase) % 1; if (ph < 0) ph += 1;
+          var tri = ph < 0.5 ? (ph * 2) : (2 - ph * 2);          // 0..1..0
+          var off = (tri * 2 - 1) * m.range;                     // -range .. +range
+          var nx = m.homeX + (m.axis === 'x' ? off : 0);
+          var ny = m.homeY + (m.axis === 'y' ? off : 0);
+          m.vx = nx - m._prevX; m.vy = ny - m._prevY;
+          var sp = m.spr;
+          sp.setPosition(nx, ny);
+          sp.body.x = nx - sp.body.halfWidth; sp.body.y = ny - sp.body.halfHeight;
+          m._prevX = nx; m._prevY = ny;
+        }
+      }
+
       return {
         platforms: platforms, hazards: hazards, coins: coins, enemies: enemies,
+        springs: springs, movers: movers, moverGroup: moverGroup, tick: tick,
         spawn: spec.spawn || { x: 60, y: spec.groundY - 80 }, goalX: spec.goal != null ? spec.goal : (spec.width - 60)
       };
     }
@@ -149,11 +334,21 @@
 
   // --------------------------------------------------------------- Autopilot
   // Generic platformer policy. Feed it a "sense" object each frame; it returns input.
-  // sense = { onGround, groundAhead, blockedRight, enemyAhead, x, goalX }
+  // sense = { onGround, groundAhead, blockedRight, enemyAhead, x, goalX, vy }
+  //
+  // Variable-jump aware: with Studio.Platformer, a one-frame jump press would be
+  // read as an early release and cut to ~35% height. So the driver HOLDS jump
+  // through the whole ascent — it decides to jump on the ground, then keeps the
+  // button down while still rising (vy < 0) so the controller delivers the FULL
+  // height needed to clear a wide gap / tall wall, releasing once it tops out so
+  // the next ground contact registers as a fresh press. Springs (run-into) and
+  // movers (carry) need no special input; the existing run-right policy rides them.
   Studio.Autopilot = {
     platformer: function (sense) {
       var out = { left: false, right: true, jump: false };
-      if (sense.onGround && (!sense.groundAhead || sense.blockedRight || sense.enemyAhead)) out.jump = true;
+      var need = sense.onGround && (!sense.groundAhead || sense.blockedRight || sense.enemyAhead);
+      if (need) out.jump = true;                                  // launch from the ground
+      else if (!sense.onGround && (sense.vy != null) && sense.vy < -10) out.jump = true; // keep holding while rising -> full height
       return out;
     },
     // convenience: probe a static group for ground under a point
@@ -293,6 +488,143 @@
       return root.__game;
     }
   };
+
+  // -------------------------------------------------------------------- Feel
+  // A PURE, DETERMINISTIC fun-score predictor — the Studio port of jazz's
+  // feelmodel.js. It predicts a per-window INTEREST curve straight from a
+  // level spec's element placement (no pixels, no Date.now, no Math.random),
+  // then runs the EXACT four-component math feel.mjs / the jazz model use:
+  //
+  //   FUN = 100 * (0.35*engagement + 0.15*dynamics + 0.25*arc + 0.25*flow)
+  //
+  // Inputs : ONE Studio Level spec ({ width, tile, groundY, ground:[[x1,x2,mat]],
+  //          walls, platforms, coins, enemies, springs, movers, ... }).
+  // Outputs: { fun, engagement, dynamics, arc, flow, peakPos, weakest, ... }.
+  //
+  // Adapted to the Studio DSL: positions are PIXELS (not tiles), and a GAP is a
+  // DEADLY ground segment (lava) or a genuine uncovered hole in the floor — both
+  // route to "jump it or die", exactly the jazz `gap` verb. Material changes
+  // (stone->mud->ice...) are scored as variety beats. Additive: touches nothing.
+  Studio.Feel = (function () {
+    // per-element interest weights (mirrors jazz INTEREST, mapped to Studio verbs)
+    var INTEREST = {
+      ground: 1, ledge: 4, gap: 5, spring: 8, mover: 8, walker: 6,
+      ice: 6, mud: 6, lava: 5, matchg: 4, coin: 2
+    };
+    var clamp = function (v, lo, hi) { lo = lo == null ? 0 : lo; hi = hi == null ? 1 : hi; return Math.max(lo, Math.min(hi, v)); };
+    var mean = function (a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : 0; };
+    function pearson(a, b) {
+      var n = a.length, ma = mean(a), mb = mean(b), nu = 0, da = 0, db = 0;
+      for (var i = 0; i < n; i++) { nu += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) * (a[i] - ma); db += (b[i] - mb) * (b[i] - mb); }
+      return da && db ? nu / Math.sqrt(da * db) : 0;
+    }
+    function slope(y) {
+      var n = y.length; if (n < 2) return 0;
+      var mx = (n - 1) / 2, my = mean(y), nu = 0, de = 0;
+      for (var i = 0; i < n; i++) { nu += (i - mx) * (y[i] - my); de += (i - mx) * (i - mx); }
+      return de ? nu / de : 0;
+    }
+    // the ideal interest envelope: gentle rise + a peak near ~84% of the level
+    var idealAt = function (t) { return 4 + 4 * t + 2.2 * Math.exp(-(((t - 0.84) / 0.11) * ((t - 0.84) / 0.11))); };
+
+    // every "beat" in the level -> { x (px), type, interest }
+    function collectBeats(spec) {
+      var b = [], W = spec.width || 960, T = spec.tile || 40;
+      // GAPS: deadly ground segments (lava) + genuine uncovered holes in the floor
+      var segs = (spec.ground || []).slice().sort(function (p, q) { return p[0] - q[0]; });
+      var prevMat = null, cursor = 0;
+      segs.forEach(function (seg) {
+        var x0 = seg[0], x1 = seg[1], mat = seg[2] || 'solid';
+        var m = (Studio.Materials && Studio.Materials.get) ? Studio.Materials.get(mat) : null;
+        var deadly = m ? !!m.deadly : (mat === 'lava');
+        if (x0 > cursor + 2) b.push({ x: (cursor + x0) / 2, type: 'gap', interest: INTEREST.gap }); // a true hole
+        if (deadly) b.push({ x: (x0 + x1) / 2, type: 'gap', interest: INTEREST.gap });             // lava-as-gap
+        else if (mat === 'ice') b.push({ x: (x0 + x1) / 2, type: 'ice', interest: INTEREST.ice });
+        else if (mat === 'mud') b.push({ x: (x0 + x1) / 2, type: 'mud', interest: INTEREST.mud });
+        // MATERIAL CHANGE between adjacent walkable segments = a small variety beat
+        if (prevMat != null && mat !== prevMat && !deadly) b.push({ x: x0, type: 'matchg', interest: INTEREST.matchg });
+        prevMat = deadly ? prevMat : mat;
+        cursor = Math.max(cursor, x1);
+      });
+      (spec.walls || []).forEach(function (w) { b.push({ x: w.x + T / 2, type: 'ledge', interest: INTEREST.ledge }); });
+      (spec.platforms || []).forEach(function (p) { b.push({ x: p.x + (p.w || T) / 2, type: 'ledge', interest: INTEREST.ledge }); });
+      (spec.enemies || []).forEach(function (e) { b.push({ x: e.x, type: 'walker', interest: INTEREST.walker }); });
+      (spec.springs || []).forEach(function (s) { b.push({ x: s.x, type: 'spring', interest: INTEREST.spring }); });
+      (spec.movers || []).forEach(function (m) { b.push({ x: m.x, type: 'mover', interest: INTEREST.mover }); });
+      return b;
+    }
+
+    // predict the interest curve from placement alone (jazz novelty/fatigue/combo)
+    function predict(spec, opt) {
+      opt = opt || {};
+      var W = spec.width || 960, T = spec.tile || 40;
+      // ~6-tile windows, clamped to a sane count so short/long levels both behave
+      var n = opt.nWin || Math.max(8, Math.min(40, Math.round(W / (6 * T))));
+      var beats = collectBeats(spec);
+      var win = [], i;
+      for (i = 0; i < n; i++) win.push({ peak: 0, dom: null, count: 0, coins: 0 });
+      var wi = function (x) { return Math.max(0, Math.min(n - 1, Math.floor((x / W) * n))); };
+      beats.forEach(function (bt) { var w = win[wi(bt.x)]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
+      (spec.coins || []).forEach(function (c) { win[wi(c.x)].coins++; });
+      var seen = {}, prevDom = null;
+      var curve = win.map(function (w) {
+        var v = 2.4;                                              // bare ground is a touch dull
+        if (w.peak > 0) v = 2.0 + w.peak * 0.72;                  // dominant beat sets the height
+        if (w.count > 1) v += Math.min(1.2, (w.count - 1) * 0.4); // combos add interest
+        v += w.coins >= 3 ? 0.8 : w.coins > 0 ? 0.3 : 0;          // a collectible beat
+        if (w.dom && !seen[w.dom]) { seen[w.dom] = 1; v += 1.1; } // NOVELTY — first time we meet a verb
+        else if (w.dom && w.dom === prevDom) v *= 0.84;           // FATIGUE — same verb twice running
+        prevDom = w.dom || prevDom;
+        return Math.max(0, Math.min(10, +v.toFixed(2)));
+      });
+      return { curve: curve, n: n, W: W };
+    }
+
+    // the EXACT feel.mjs / jazz component math, over a predicted curve
+    function scoreCurve(curve, W, n) {
+      var ideal = curve.map(function (_, i) { return idealAt(n > 1 ? i / (n - 1) : 0); });
+      var engagement = clamp(mean(curve) / 8);
+      var meanAbsDiff = curve.length > 1 ? mean(curve.slice(1).map(function (v, i) { return Math.abs(v - curve[i]); })) : 0;
+      var dynamics = clamp(meanAbsDiff / 2.5);
+      var arcCorr = (pearson(curve, ideal) + 1) / 2;
+      var peakPos = curve.indexOf(Math.max.apply(Math, curve)) / Math.max(1, n - 1);
+      var lateBonus = clamp(1 - Math.abs(peakPos - 0.84) / 0.45);
+      var trend = clamp((slope(curve) + 0.1) / 0.4);
+      var arc = 0.5 * arcCorr + 0.3 * lateBonus + 0.2 * trend;
+      var longestFlat = 0, run = 0;
+      for (var i = 1; i < curve.length; i++) { if (Math.abs(curve[i] - curve[i - 1]) <= 1 && curve[i] <= 5) { run++; longestFlat = Math.max(longestFlat, run); } else run = 0; }
+      var deadIdx = []; for (i = 0; i < curve.length; i++) if (curve[i] < 3.4) deadIdx.push(i);
+      var flow = clamp(1 - (deadIdx.length / n) * 1.5 - (longestFlat / n) * 1.0);
+      var comps = { engagement: engagement, dynamics: dynamics, arc: arc, flow: flow };
+      // weighted FUN
+      var fun = +(100 * (0.35 * engagement + 0.15 * dynamics + 0.25 * arc + 0.25 * flow)).toFixed(1);
+      // weakest component name (drives the feel-guided next step)
+      var weakest = Object.keys(comps).reduce(function (lo, k) { return comps[k] < comps[lo] ? k : lo; }, 'engagement');
+      var deadAir = deadIdx.map(function (i) { return Math.round(i * W / n) + '-' + Math.round((i + 1) * W / n); });
+      return {
+        fun: fun,
+        engagement: +engagement.toFixed(2), dynamics: +dynamics.toFixed(2),
+        arc: +arc.toFixed(2), flow: +flow.toFixed(2),
+        peakPos: +peakPos.toFixed(2), weakest: weakest,
+        deadAir: deadAir, curve: curve
+      };
+    }
+
+    return {
+      INTEREST: INTEREST,
+      idealAt: idealAt,
+      collectBeats: collectBeats,
+      predict: predict,
+      // PUBLIC: score ONE level spec -> { fun, engagement, dynamics, arc, flow, peakPos, weakest, ... }
+      score: function (spec) {
+        if (!spec) return { fun: 0, engagement: 0, dynamics: 0, arc: 0, flow: 0, peakPos: 0, weakest: 'engagement', curve: [] };
+        var p = predict(spec);
+        var s = scoreCurve(p.curve, p.W, p.n);
+        s.name = spec.name || null;
+        return s;
+      }
+    };
+  })();
 
   root.Studio = Studio;
   if (typeof module !== 'undefined' && module.exports) module.exports = Studio;
