@@ -28,6 +28,7 @@
   var colliders = [];                 // physics colliders/overlaps to tear down on rebuild
   var decor = [];                     // goal image + ambient emitters to destroy on rebuild
   var landGuard = false;             // edge-trigger for landing shake
+  var heroArt = null;                // AI hero sprite (follows the invisible physics body)
 
   function sense(onGround) {
     var probeX = player.x + 26, footY = player.y + 22;
@@ -79,6 +80,12 @@
     scene.cameras.main.setBackgroundColor(spec.sky || 0x140a08);
     world = Studio.Level.build(scene, spec);
     spawn = world.spawn; levelGoalX = world.goalX;
+    // AI enemy art as follower visuals over the (hidden) physics bodies
+    world.enemies.getChildren().forEach(function (e) {
+      e.setVisible(false);
+      var art = scene.add.image(e.x, e.y, 'enemy_art').setDepth(5); art.setScale(50 / art.height);
+      e._art = art; decor.push(art);
+    });
 
     // glowing exit gate
     decor.push(scene.add.image(levelGoalX, spec.groundY - 42, 'goal'));
@@ -104,7 +111,7 @@
     colliders.push(scene.physics.add.overlap(player, world.enemies, function (p, e) {
       if (!e.active) return;
       if (p.body.velocity.y > 40 && p.y < e.y - 6) { // stomp from above
-        e.disableBody(true, true); p.setVelocityY(-380); Studio.Audio.sfx('stomp');
+        e.disableBody(true, true); if (e._art) e._art.setVisible(false); p.setVelocityY(-380); Studio.Audio.sfx('stomp');
         Studio.Juice.squash(scene, p); Studio.Juice.shake(scene, 90, 0.006);
         Studio.Juice.burst(scene, e.x, e.y, { texture: 'ember', n: 12, tint: 0xff5a3c, life: 420 });
       } // side contact is non-lethal (a design choice, mirrors the template)
@@ -125,6 +132,11 @@
 
   var Play = {
     key: 'Play',
+    preload: function () {
+      this.load.image('bg_cave', 'assets/backdrop.jpg');
+      this.load.image('hero_art', 'assets/hero.png');
+      this.load.image('enemy_art', 'assets/enemy.png');
+    },
     create: function () {
       scene = this;
       Studio.Textures.kit(this, { tile: T, hero: 0xffb24a, enemy: 0xff5a3c, goal: 0x39d98a });
@@ -133,14 +145,15 @@
         g.fillStyle(0xff7a18, 1).fillCircle(5, 5, 5);
         g.fillStyle(0xffd27a, 1).fillCircle(5, 5, 2.4);
       });
-      // molten-cave backdrop: warm gradient sky + parallax cavern silhouettes
-      Studio.Backdrop(this, { top: 0x3a1410, bottom: 0x0e0606, worldWidth: 4200, layers: [
-        { color: 0x231009, scroll: 0.2, amp: 120, step: 210, y: 360 },
-        { color: 0x3a1812, scroll: 0.45, amp: 80, step: 130, y: 430 }
-      ] });
+      // painted molten-cave backdrop (AI-generated via nano-banana-pro), pinned to camera
+      this.add.image(480, 270, 'bg_cave').setScrollFactor(0).setDepth(-100).setDisplaySize(960, 540);
 
-      // player exists before loadLevel so colliders can bind to it
+      // player exists before loadLevel so colliders can bind to it. The physics
+      // body keeps the small baked box (gate-stable); the AI hero is a follower visual.
       player = this.physics.add.sprite(60, 360, 'hero');
+      player.setVisible(false);
+      heroArt = this.add.image(player.x, player.y, 'hero_art').setDepth(6);
+      heroArt.setScale(54 / heroArt.height);
 
       // ---- Art Direction: molten-cave grade + vignette (WebGL filters; canvas no-ops) ----
       // Warm push (more red, less blue) + slight darkening for a cavern mood.
@@ -154,7 +167,7 @@
         }
       });
       Studio.Juice.vignette(this, 0.62);
-      Studio.Juice.glow(player, 0xffb24a, 3);
+      Studio.Juice.glow(heroArt, 0xffb24a, 3);
 
       loadLevel(0);
 
@@ -191,8 +204,10 @@
       if (mv.jump && onGround && !jumpLatch) { player.setVelocityY(JUMP_V); jumpLatch = true; Studio.Audio.sfx('jump'); }
       if (!mv.jump) jumpLatch = false;
 
+      if (heroArt) { heroArt.setPosition(player.x, player.y - 3); heroArt.setFlipX(player.flipX); }
       world.enemies.getChildren().forEach(function (e) {
         if (!e.active) return; e.x += e.dir * 0.6; if (Math.abs(e.x - e.homeX) > e.patrol) e.dir *= -1;
+        if (e._art) { e._art.setPosition(e.x, e.y); e._art.setFlipX(e.dir > 0); }
       });
 
       // reaching a level's exit: descend to the next depth, or WIN on the last.

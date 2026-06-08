@@ -242,6 +242,7 @@
         on: false, t: 0, dt: 1000 / 60,
         begin: function () { if (this.on) return; game.loop.sleep(); this.on = true; this.t = 1000; },
         step: function (n) { n = n || 1; for (var i = 0; i < n; i++) { this.t += this.dt; game.step(this.t, this.dt); } },
+        tick: function (n) { n = n || 1; for (var i = 0; i < n; i++) { this.t += this.dt; game.headlessStep(this.t, this.dt); } }, // physics only (no render) — fast gate
         end: function () { if (!this.on) return; this.on = false; game.loop.wake(); }
       };
       root.__game = {
@@ -255,7 +256,7 @@
       root.__gate = function (maxF) {
         root.__game.reset(); root.__game.autopilot(true); root.__rec.begin();
         var s = root.__game.snapshot();
-        while (!s.won && !s.dead && s.frame < maxF) { root.__rec.step(1); s = root.__game.snapshot(); }
+        while (!s.won && !s.dead && s.frame < maxF) { root.__rec.tick(1); s = root.__game.snapshot(); } // headless physics — gate needs no pixels
         return s;
       };
       root.__ready = true;
