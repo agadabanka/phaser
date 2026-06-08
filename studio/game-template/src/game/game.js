@@ -45,6 +45,7 @@
       scene = this;
       var spec = window.LEVELS[0];
       this.cameras.main.setBackgroundColor(spec.sky || 0x1d2b53);
+      Studio.Backdrop(this, { top: 0x2a3a64, bottom: 0x0b1021, worldWidth: spec.width, layers: [{ color: 0x16203a, scroll: 0.25, amp: 90, y: spec.groundY - 30 }, { color: 0x222f4e, scroll: 0.5, amp: 55, y: spec.groundY }] });
       Studio.Textures.kit(this, { tile: T });
       world = Studio.Level.build(this, spec);
       spawn = world.spawn; levelGoalX = world.goalX;

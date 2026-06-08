@@ -32,44 +32,83 @@
     get: function (name) { return this.table[name] || this.table.solid; }
   };
 
+  // ---------- color helpers (hex int math) for the texture bakery ----------
+  Studio._mix = function (a, b, t) {
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255, br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return ((Math.round(ar + (br - ar) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t));
+  };
+  Studio._lighten = function (c, t) { return Studio._mix(c, 0xffffff, t); };
+  Studio._darken = function (c, t) { return Studio._mix(c, 0x000000, t); };
+
   // ----------------------------------------------------------- TextureFactory
+  // Procedural art: shaded, outlined sprites + gradient ground (no AI required).
   Studio.Textures = {
-    // bake one texture from a draw callback(g, w, h)
     bake: function (scene, key, w, h, draw) {
-      var g = scene.add.graphics();
-      draw(g, w, h);
-      g.generateTexture(key, w, h);
-      g.destroy();
-      return key;
+      if (scene.textures.exists(key)) scene.textures.remove(key);
+      var g = scene.add.graphics(); draw(g, w, h); g.generateTexture(key, w, h); g.destroy(); return key;
     },
-    // a standard kit: ground/stone tiles, hero, coin, goal, particle dot, enemy
+    // vertical gradient as horizontal bands — cross-renderer safe; stretches cleanly across a slab
+    gradStrip: function (scene, key, top, bottom, h) {
+      h = h || 64;
+      this.bake(scene, key, 16, h, function (g) {
+        var bands = 24, bh = Math.ceil(h / bands) + 1;
+        for (var i = 0; i < bands; i++) { var t = i / (bands - 1); g.fillStyle(Studio._mix(top, bottom, t), 1).fillRect(0, Math.round(t * (h - bh)), 16, bh); }
+      });
+    },
     kit: function (scene, opt) {
-      opt = opt || {};
-      var T = opt.tile || 40, M = Studio.Materials;
-      var self = this;
+      opt = opt || {}; var T = opt.tile || 40, M = Studio.Materials, self = this;
       Object.keys(M.table).forEach(function (name) {
         var m = M.get(name);
-        self.bake(scene, 'tile_' + name, T, T, function (g) {
-          g.fillStyle(m.color, 1).fillRect(0, 0, T, T);
-          g.fillStyle(m.top, 1).fillRect(0, 0, T, 6);
-        });
+        self.gradStrip(scene, 'grad_' + name, Studio._lighten(m.top, 0.12), Studio._darken(m.color, 0.34));
       });
-      this.bake(scene, 'hero', 28, 36, function (g) {
-        g.fillStyle(opt.hero || 0xffd166, 1).fillRect(0, 0, 28, 36);
-        g.fillStyle(0x1d1d1d, 1).fillRect(19, 7, 5, 5);
+      var hero = opt.hero || 0xffd166, enemy = opt.enemy || 0xef476f, goal = opt.goal || 0x06d6a0;
+      this.bake(scene, 'hero', 30, 38, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, 30, 38, 8);
+        g.fillStyle(hero, 1).fillRoundedRect(2, 2, 26, 34, 6);
+        g.fillStyle(Studio._lighten(hero, 0.32), 1).fillRoundedRect(2, 2, 26, 13, 6);
+        g.fillStyle(Studio._darken(hero, 0.22), 1).fillRect(2, 29, 26, 7);
+        g.fillStyle(0xffffff, 1).fillCircle(11, 18, 4).fillCircle(20, 18, 4);
+        g.fillStyle(0x141414, 1).fillCircle(12, 18, 2).fillCircle(21, 18, 2);
       });
-      this.bake(scene, 'enemy', 30, 26, function (g) {
-        g.fillStyle(opt.enemy || 0xef476f, 1).fillRect(0, 0, 30, 26);
-        g.fillStyle(0x1d1d1d, 1).fillRect(6, 6, 5, 5).fillRect(19, 6, 5, 5);
+      this.bake(scene, 'enemy', 32, 28, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, 32, 26, 9);
+        g.fillStyle(enemy, 1).fillRoundedRect(2, 2, 28, 22, 7);
+        g.fillStyle(Studio._darken(enemy, 0.28), 1).fillRect(2, 15, 28, 9);
+        g.fillStyle(0xffffff, 1).fillCircle(11, 12, 4).fillCircle(21, 12, 4);
+        g.fillStyle(0x141414, 1).fillCircle(12, 13, 2).fillCircle(22, 13, 2);
+        g.fillStyle(0x141414, 1).fillRect(7, 24, 6, 4).fillRect(19, 24, 6, 4);
       });
-      this.bake(scene, 'coin', 18, 18, function (g) {
-        g.fillStyle(0xffd700, 1).fillCircle(9, 9, 9);
-        g.fillStyle(0xfff3b0, 1).fillCircle(6, 6, 3);
+      this.bake(scene, 'coin', 20, 20, function (g) {
+        g.fillStyle(0x9a6a00, 1).fillCircle(10, 10, 10);
+        g.fillStyle(0xffd700, 1).fillCircle(10, 10, 8);
+        g.fillStyle(0xfff3b0, 1).fillCircle(7, 7, 3);
       });
-      this.bake(scene, 'goal', 16, 84, function (g) { g.fillStyle(opt.goal || 0x06d6a0, 1).fillRect(0, 0, 16, 84); });
+      this.bake(scene, 'goal', 18, 90, function (g) {
+        g.fillStyle(Studio._darken(goal, 0.25), 1).fillRoundedRect(0, 0, 18, 90, 5);
+        g.fillStyle(goal, 1).fillRoundedRect(2, 2, 14, 86, 4);
+        g.fillStyle(Studio._lighten(goal, 0.35), 1).fillRect(3, 3, 4, 84);
+      });
       this.bake(scene, 'dot', 8, 8, function (g) { g.fillStyle(0xffffff, 1).fillCircle(4, 4, 4); });
       this.bake(scene, 'block', T, T, function (g) { g.fillStyle(0xffffff, 1).fillRect(0, 0, T, T); });
     }
+  };
+
+  // ----------------------------------------------------------------- Backdrop
+  // Gradient sky (pinned to camera) + parallax silhouette layers — instant depth.
+  Studio.Backdrop = function (scene, opt) {
+    opt = opt || {};
+    var W = scene.scale.width, H = scene.scale.height;
+    Studio.Textures.gradStrip(scene, '_sky', opt.top != null ? opt.top : 0x24304f, opt.bottom != null ? opt.bottom : 0x0b1021, 160);
+    scene.add.image(W / 2, H / 2, '_sky').setDisplaySize(W, H).setScrollFactor(0).setDepth(-100);
+    var span = opt.worldWidth || (W * 2);
+    (opt.layers || []).forEach(function (L, li) {
+      var g = scene.add.graphics().setScrollFactor(L.scroll != null ? L.scroll : 0.3, 1).setDepth(-90 + li);
+      g.fillStyle(L.color, L.alpha != null ? L.alpha : 1);
+      var base = L.y != null ? L.y : H * 0.74, step = L.step || 150, amp = L.amp || 70, ph = li * 9 + 1;
+      g.beginPath(); g.moveTo(-60, H + 30);
+      for (var x = -60; x <= span + 60; x += step) { var y = base - (Math.sin(x * 0.011 + ph) * 0.5 + 0.5) * amp; g.lineTo(x, y); }
+      g.lineTo(span + 60, H + 30); g.closePath(); g.fillPath();
+    });
   };
 
   // --------------------------------------------------------------- Level DSL
@@ -82,9 +121,9 @@
       // ONE wide static body per slab — the player slides smoothly with no seams
       // to catch on (which would spoof blocked.right and break the autopilot).
       function slab(group, cx, cy, w, h, mat) {
-        var m = Studio.Materials.get(mat || 'solid');
-        var img = group.create(cx, cy, 'block'); img.setDisplaySize(w, h).refreshBody(); img.setTint(m.color);
-        scene.add.rectangle(cx, cy - h / 2 + 3, w, 6, m.top).setDepth(1); // grass/edge line
+        // one wide static body, textured with the material's vertical gradient
+        // (bright lit top -> dark depth); no separate decor objects to leak on rebuild.
+        var img = group.create(cx, cy, 'grad_' + (mat || 'solid')); img.setDisplaySize(w, h).refreshBody();
         return img;
       }
       (spec.ground || []).forEach(function (seg) {

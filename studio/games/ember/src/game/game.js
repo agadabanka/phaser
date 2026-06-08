@@ -133,6 +133,11 @@
         g.fillStyle(0xff7a18, 1).fillCircle(5, 5, 5);
         g.fillStyle(0xffd27a, 1).fillCircle(5, 5, 2.4);
       });
+      // molten-cave backdrop: warm gradient sky + parallax cavern silhouettes
+      Studio.Backdrop(this, { top: 0x3a1410, bottom: 0x0e0606, worldWidth: 4200, layers: [
+        { color: 0x231009, scroll: 0.2, amp: 120, step: 210, y: 360 },
+        { color: 0x3a1812, scroll: 0.45, amp: 80, step: 130, y: 430 }
+      ] });
 
       // player exists before loadLevel so colliders can bind to it
       player = this.physics.add.sprite(60, 360, 'hero');
