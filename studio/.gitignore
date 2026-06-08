@@ -4,3 +4,4 @@ node_modules/
 *.log
 live-shot.png
 spike-matter/phaser.min.js
+tools/contraptions/phaser.min.js

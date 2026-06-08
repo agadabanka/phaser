@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contraption Playground · Studio</title>
+  <style>
+    :root { --bg:#0b1021; --panel:#141a30; --ink:#e8ecf7; --muted:#9aa6c8; --line:#2a3556; --accent:#ffd34d; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family:system-ui, sans-serif; }
+    #wrap { display:flex; gap:16px; padding:16px; box-sizing:border-box; align-items:flex-start; flex-wrap:wrap; }
+    #stage { position:relative; }
+    canvas { display:block; border:1px solid var(--line); border-radius:8px; background:#0b1021; }
+    #panel { width:320px; min-width:300px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; box-sizing:border-box; }
+    h1 { font-size:17px; margin:0 0 4px; letter-spacing:.4px; }
+    .sub { color:var(--muted); font-size:12px; margin:0 0 14px; line-height:1.4; }
+    label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:12px 0 4px; }
+    select, input { width:100%; box-sizing:border-box; background:#0d1226; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font-size:13px; font-family:inherit; }
+    .row { display:flex; gap:8px; }
+    .row > div { flex:1; }
+    #params { margin-top:4px; }
+    #readout { margin-top:16px; border-top:1px solid var(--line); padding-top:14px; }
+    .feel-tag { display:inline-block; background:#1d2746; border:1px solid var(--line); color:var(--accent); border-radius:20px; padding:3px 11px; font-size:12px; margin:2px 4px 2px 0; }
+    .kv { display:flex; justify-content:space-between; font-size:13px; padding:3px 0; border-bottom:1px dashed #20294a; }
+    .kv span:first-child { color:var(--muted); }
+    .kv span:last-child { font-variant-numeric:tabular-nums; }
+    .delta-card { margin-top:12px; background:#0d1226; border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+    .delta-card .big { font-size:26px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; }
+    .delta-card .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+    .pos { color:#5fe39a !important; }
+    .neg { color:#ff7a8a !important; }
+    .hint { color:var(--muted); font-size:11px; margin-top:8px; line-height:1.4; }
+    code { color:#bcd0ff; }
+  </style>
+</head>
+<body>
+  <!-- Studio's Arcade Phaser build, then the SDK (load order is load-bearing). -->
+  <script src="./phaser.min.js"></script>
+  <script src="./studio.js"></script>
+
+  <div id="wrap">
+    <div id="stage">
+      <!-- Phaser injects the canvas here (see app.js parent: 'stage'). -->
+    </div>
+
+    <div id="panel">
+      <h1>Contraption Playground</h1>
+      <p class="sub">A live test bench for <code>Studio.Contraptions</code>. Pick a contraption + a material, tweak params, and watch it MOVE on a themed slab. The readout shows its feeling / lens / weight and the live FUN delta it adds.</p>
+
+      <label for="type">Contraption</label>
+      <select id="type"></select>
+
+      <label for="mat">Material (theme the slab)</label>
+      <select id="mat"></select>
+
+      <div id="params"><!-- per-type param inputs injected here --></div>
+
+      <div id="readout">
+        <label style="margin-top:0">Feeling dictionary <span style="text-transform:none;color:#6b769c">(Studio.Contraptions.meta)</span></label>
+        <div id="feeling"></div>
+        <div class="kv"><span>lens</span><span id="lens">–</span></div>
+        <div class="kv"><span>interest weight</span><span id="weight">–</span></div>
+
+        <div class="delta-card">
+          <div class="lbl">Live FUN contribution <span style="text-transform:none">(Studio.Feel.score)</span></div>
+          <div><span class="big" id="funDelta">–</span></div>
+          <div class="kv" style="border:0"><span>without contraption</span><span id="funBase">–</span></div>
+          <div class="kv" style="border:0"><span>with contraption</span><span id="funWith">–</span></div>
+          <div class="hint" id="arcHint"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
