@@ -55,6 +55,10 @@ window.LEVELS = [
     walls: [{ x: 295, tiles: 1, mat: 'stone' }],
     platforms: [{ x: 140, y: 350, w: 90, mat: 'stone' }],
     enemies: [{ x: 1285, patrol: 18 }],
+    // CRUMBLE — a fragile riser on the continuous stone slab (630-840). The run
+    // crosses it and it collapses a few frames later, dropping the player onto the
+    // solid stone below: urgency/dread FLAIR over a safe path (never blocks the gate).
+    contraptions: [{ type: 'crumble', x: 730, w: 120, top: 446 }],
     coins: [
       { x: 185, y: 310 }, { x: 315, y: 320 },
       { x: 495, y: 430 }, { x: 525, y: 430 }, { x: 555, y: 430 },
@@ -111,6 +115,10 @@ window.LEVELS = [
     platforms: [{ x: 140, y: 350, w: 90, mat: 'stone' }],
     enemies: [{ x: 985, patrol: 40 }],
     springs: [{ x: 1800 }],        // climax (~84%): on the stone slab, arc lands on stone/mud
+    // SEESAW — a tilting balance plank on the continuous stone slab (720-1020). It
+    // reads as flat ground (the autopilot runs straight across); the gentle downhill
+    // nudge is bounded flair: balance/tension/control over a safe path.
+    contraptions: [{ type: 'seesaw', x: 870, w: 200 }],
     coins: [
       { x: 185, y: 310 }, { x: 360, y: 320 },
       { x: 840, y: 430 },
@@ -143,6 +151,11 @@ window.LEVELS = [
     enemies: [{ x: 1080, patrol: 40 }],
     springs: [{ x: 1320 }],        // on the stone slab (lands on stone/mud)
     movers: [{ x: 1800, y: 452, w: 120, axis: 'x', range: 20, speed: 50, mat: 'stone' }],
+    // LAUNCHER — a geyser/bounce pad on the wide stone slab (960-1440), placed in
+    // the clear grounded stretch BETWEEN the enemy (patrols ~1040-1120) and the
+    // spring (1320). Run through it and get lofted (pc.launch); the arc lands back
+    // on the same safe slab. Exhilaration/release FLAIR — adds height, never timing.
+    contraptions: [{ type: 'launcher', x: 1200, vel: 820 }],
     coins: [
       { x: 185, y: 310 }, { x: 360, y: 320 },
       { x: 900, y: 350 },

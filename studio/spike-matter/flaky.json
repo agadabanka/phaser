@@ -1,0 +1,16 @@
+{
+  "webgl": {
+    "trials": 10,
+    "matchedRef": 2,
+    "diverged": 8,
+    "maxRawDelta": 0.00416471652204109,
+    "worst": "box3.x"
+  },
+  "canvas": {
+    "trials": 10,
+    "matchedRef": 8,
+    "diverged": 2,
+    "maxRawDelta": 0.004162366994023614,
+    "worst": "box3.x"
+  }
+}

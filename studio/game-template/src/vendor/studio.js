@@ -99,6 +99,59 @@
         g.fillStyle(spring, 1).fillRoundedRect(2, 0, T - 4, 8, 3);               // top plate
         g.fillStyle(Studio._lighten(spring, 0.4), 1).fillRect(4, 1, T - 8, 2);
       });
+
+      // -------- CONTRAPTION ART (themed via the palette; baked procedurally) --------
+      // A contraption's texture key is namespaced 'cx_<type>' so games can override.
+      // Colors pull from the level's stone material so they read as "machined rock".
+      var rockM = Studio.Materials.get('stone');
+      var cxBeam = opt.contraption || Studio._lighten(rockM.top, 0.05);   // base structural tone
+      var cxBolt = Studio._darken(cxBeam, 0.5);
+
+      // SEESAW — a long tilting plank with a center pivot wedge (drawn flat; the
+      // game rotates the art). Reads as a balance beam.
+      var seesawW = (opt.seesawW || 5 * T);
+      this.bake(scene, 'cx_seesaw', seesawW, 16, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, seesawW, 16, 5);
+        g.fillStyle(cxBeam, 1).fillRoundedRect(2, 2, seesawW - 4, 12, 4);          // plank face
+        g.fillStyle(Studio._lighten(cxBeam, 0.3), 1).fillRect(3, 3, seesawW - 6, 3); // lit top edge
+        g.fillStyle(Studio._darken(cxBeam, 0.3), 1).fillRect(3, 11, seesawW - 6, 2); // shaded underside
+        // end caps + a few rivets so the plank reads as machined
+        for (var i = 1; i < 5; i++) { var rx = i * (seesawW / 5); g.fillStyle(cxBolt, 1).fillCircle(rx, 8, 2); }
+      });
+      this.bake(scene, 'cx_pivot', 26, 22, function (g) {                          // the fulcrum wedge
+        g.fillStyle(0x141414, 1).fillTriangle(0, 22, 13, 0, 26, 22);
+        g.fillStyle(Studio._darken(cxBeam, 0.2), 1).fillTriangle(2, 21, 13, 3, 24, 21);
+        g.fillStyle(cxBolt, 1).fillCircle(13, 12, 3);
+      });
+
+      // LAUNCHER — a geyser/vent nozzle: a flared metal base + a bright plume mouth.
+      // Themed warm (uses the spring accent) so it reads as "release/exhilaration".
+      this.bake(scene, 'cx_launcher', T, 22, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 6, T, 16, 4);                  // nozzle body
+        g.fillStyle(Studio._darken(spring, 0.35), 1).fillRect(4, 10, T - 8, 10);
+        g.fillStyle(spring, 1).fillRoundedRect(2, 4, T - 4, 8, 3);                 // flared mouth
+        g.fillStyle(Studio._lighten(spring, 0.5), 1).fillRect(6, 0, T - 12, 6);    // bright plume core
+        g.fillStyle(Studio._lighten(spring, 0.3), 1).fillRect(4, 5, T - 8, 2);
+      });
+
+      // CRUMBLE — a cracked, fragile ledge. A second 'cx_crumble_x' frame shows it
+      // fracturing (the game swaps to it once contact starts the collapse timer).
+      var crumbleW = (opt.crumbleW || 3 * T);
+      this.bake(scene, 'cx_crumble', crumbleW, T, function (g) {
+        g.fillStyle(0x141414, 1).fillRect(0, 0, crumbleW, T);
+        g.fillStyle(Studio._darken(cxBeam, 0.1), 1).fillRect(2, 2, crumbleW - 4, T - 4);
+        g.fillStyle(Studio._lighten(cxBeam, 0.22), 1).fillRect(2, 2, crumbleW - 4, 4); // lit top
+        // a few hairline cracks
+        g.lineStyle(2, Studio._darken(cxBeam, 0.55), 1);
+        g.beginPath(); g.moveTo(crumbleW * 0.3, 2); g.lineTo(crumbleW * 0.36, T - 4); g.strokePath();
+        g.beginPath(); g.moveTo(crumbleW * 0.66, 2); g.lineTo(crumbleW * 0.6, T - 4); g.strokePath();
+      });
+      this.bake(scene, 'cx_crumble_x', crumbleW, T, function (g) {                 // fracturing frame
+        g.fillStyle(0x141414, 1).fillRect(0, 0, crumbleW, T);
+        g.fillStyle(Studio._darken(cxBeam, 0.28), 1).fillRect(2, 2, crumbleW - 4, T - 4);
+        g.lineStyle(3, Studio._darken(cxBeam, 0.6), 1);
+        for (var c = 1; c < 5; c++) { var cx = c * (crumbleW / 5); g.beginPath(); g.moveTo(cx, 2); g.lineTo(cx + 6, T - 4); g.strokePath(); }
+      });
     }
   };
 
@@ -243,8 +296,242 @@
     }
   };
 
+  // ------------------------------------------------------------- Contraptions
+  // A REGISTRY/dictionary of KINEMATIC contraptions — themed, deterministic
+  // machines that layer "feeling" over a level WITHOUT ever becoming a forced
+  // precision wall. Each entry is:
+  //
+  //   { feeling, lens, weight, build(scene, spec, world) }
+  //
+  //   feeling  human-readable emotional payload (balance, exhilaration, dread…)
+  //   lens     the design lens it serves (Challenge / Sensation / Tension / …),
+  //            so Studio.Feel + docs can group beats by intent
+  //   weight   the INTEREST weight a beat of this type contributes to Studio.Feel
+  //            (mirrors INTEREST.spring/mover so the fun model "sees" contraptions)
+  //   build()  -> a contraption RECORD the Level + game drive generically:
+  //              { type, spr, x, y,
+  //                tick(dt, ctx),                 advance motion off a phase clock
+  //                interact(player, ctx),         per-frame player interaction
+  //                reset() }                      restore state on level reset
+  //
+  // DETERMINISM CONTRACT (identical to movers): a contraption's motion is a PURE
+  // function of an internal phase clock advanced ONLY by world.tick(dt) with the
+  // caller's FIXED dt. No Matter.js, no Math.random / Date.now touches motion.
+  // Resets re-seed the clock to 0 so every gate run is bit-identical.
+  //
+  // AUTOPILOT-SAFETY CONTRACT ("spice over a safe path"): every contraption is
+  // FLAIR over ground the plain run/jump traversal already clears. The 0-death
+  // driver (run right, hop gaps/walls) must finish the level whether or not it
+  // engages the contraption. Each build() below documents how it stays safe.
+  Studio.Contraptions = (function () {
+    var TWO_PI = Math.PI * 2;
+
+    var REGISTRY = {
+      // --------------------------------------------------------------- seesaw
+      // A plank that TILTS on a sine (deterministic phase clock). A rider standing
+      // on it gets a small horizontal velocity NUDGE in the downhill direction —
+      // balance/tension/control. The plank sits FLAT-on-average on a continuous
+      // walkable slab, so the autopilot just runs across it; the nudge is bounded
+      // (|nudge| <= nudgeMax, default small) and never reverses a rightward runner,
+      // so it can't stall the gate. Pure flair on safe ground.
+      seesaw: {
+        feeling: 'balance / tension / control',
+        lens: 'Challenge',
+        weight: 7,
+        build: function (scene, spec, world) {
+          var T = spec.tile || 40;
+          var w = spec.w || (5 * T), artH = spec.h || 16;
+          var gy = spec.groundY || (spec.y != null ? spec.y : 0);
+          var amp = spec.tilt != null ? spec.tilt : 0.16;          // peak tilt (radians, ~9deg)
+          var period = spec.period || 2.2;                          // seconds per full tilt cycle
+          var phase0 = spec.phase || 0;
+          var nudgeMax = spec.nudge != null ? spec.nudge : 70;      // px/s of downhill carry at full tilt
+          // DETERMINISM + AUTOPILOT-SAFE design: the collision body is a STATIC strip
+          // whose TOP sits FLUSH with the floor line (groundY) — so the plank is NOT a
+          // step/wall (a rightward runner glides straight across at ground level: no
+          // blocked.right, no hop) AND, being STATIC + axis-aligned + NEVER rotated, it
+          // adds no floating-point jitter to the physics step (a dynamic, rotated body
+          // sitting on the floor does). The tilt is a SEPARATE art image (`_art`) that
+          // rotates for the visual; the physics sprite stays invisible & flat. The
+          // rider "feeling" is a bounded CARRY (applied post-controller by the game,
+          // like a mover) downhill — small, never reverses a runner, gate-safe.
+          var bodyH = 10;
+          var topY = spec.top != null ? spec.top : gy;             // flush with the floor by default
+          var y = topY + bodyH / 2;
+          var spr = scene.physics.add.staticImage(spec.x, y, 'cx_seesaw');
+          spr.setDisplaySize(w, bodyH); spr.refreshBody();         // thin flat collision strip
+          spr.setVisible(false);                                   // body is invisible; art carries the look
+          spr.setDepth(spec.depth || 3);
+          spr.mat = spec.mat || 'stone';
+          // the visible, tilting plank + its pivot wedge (pure visuals — no physics)
+          var art = scene.add.image(spec.x, topY, 'cx_seesaw').setDisplaySize(w, artH).setDepth(spec.depth || 3);
+          var pivot = scene.add.image(spec.x, topY + 9, 'cx_pivot').setDepth((spec.depth || 3) - 1);
+          var clock = 0, angle = 0, carry = 0, nudges = 0;
+          return {
+            type: 'seesaw', spr: spr, x: spec.x, y: y, _extra: [art, pivot],
+            // the game reads .carry (px to add to the rider's x this frame) post-controller
+            carry: 0,
+            state: function () { return { angle: +angle.toFixed(3), carry: +carry.toFixed(2), nudges: nudges }; },
+            tick: function (dt) {
+              clock += (dt != null ? dt : (1 / 60));
+              angle = Math.sin((clock / period) * TWO_PI + phase0 * TWO_PI) * amp;
+              art.setRotation(angle);                               // tilt the VISUAL only (body never rotates)
+              carry = Math.sin(angle) * nudgeMax * (dt != null ? dt : (1 / 60)); // downhill px this frame
+              this.carry = carry;
+            },
+            interact: function (player, ctx) {
+              // bounded downhill CARRY while standing on the plank — applied to POSITION
+              // after the controller (so it survives pc.update, exactly like a mover
+              // carry) and never overrides the run. Deterministic: carry is a pure fn
+              // of the phase clock.
+              var b = player.body, pb = spr.body;
+              var onTop = b.bottom <= pb.top + 10 && b.bottom >= pb.top - 12
+                && b.right > pb.left + 2 && b.left < pb.right - 2 && b.velocity.y >= -30;
+              if (!onTop) { this._riding = false; return; }
+              this._riding = true; nudges++;
+              player.x += carry;                                    // gentle downhill drift (position, post-tick)
+            },
+            reset: function () { clock = 0; angle = 0; carry = 0; this.carry = 0; this._riding = false; art.setRotation(0); }
+          };
+        }
+      },
+
+      // ------------------------------------------------------------- launcher
+      // A geyser / bounce pad that BOOSTS the player upward via pc.launch — pure
+      // exhilaration / release. Two trigger modes, both autopilot-safe:
+      //   - 'contact' (default): launches on overlap (like a spring) with a short
+      //     cooldown — run into it, get flung up. No timing required.
+      //   - 'cycle' : the geyser also auto-fires on its phase clock IF the player
+      //     is resting on/near the mouth, so even a stationary bot gets lofted.
+      // It sits on a continuous slab so the arc lands back on ground; it only ADDS
+      // height/route and NEVER forces a precise landing, so the gate is unaffected.
+      launcher: {
+        feeling: 'exhilaration / release',
+        lens: 'Sensation',
+        weight: 9,
+        build: function (scene, spec, world) {
+          var T = spec.tile || 40;
+          var gy = spec.groundY || 0;
+          var y = spec.y != null ? spec.y : (gy - 11);
+          var vel = spec.vel || 920;                                // launch velocity (~spring height)
+          var mode = spec.mode || 'contact';
+          var period = spec.period || 1.4;                          // cycle-fire period (seconds)
+          var spr = scene.physics.add.staticImage(spec.x, y, 'cx_launcher');
+          spr.refreshBody(); spr.setDepth(spec.depth || 3);
+          var clock = 0, cool = 0, fired = 0;
+          function fire(player, pc) {
+            if (cool > 0) return false;
+            if (player.body.velocity.y < -120) return false;        // already rocketing up
+            cool = 14; fired++;                                     // one launch per contact window
+            if (pc && pc.launch) pc.launch(player, vel);
+            else { player.body.velocity.y = -vel; }                 // fallback if no controller
+            if (spr._onFire) spr._onFire(spr);
+            return true;
+          }
+          var rec = {
+            type: 'launcher', spr: spr, x: spec.x, y: y, fire: fire,
+            state: function () { return { fired: fired, cool: cool }; },
+            tick: function (dt) {
+              clock += (dt != null ? dt : (1 / 60));
+              if (cool > 0) cool--;
+            },
+            interact: function (player, ctx) {
+              var pc = ctx && ctx.pc, b = player.body, pb = spr.body;
+              // overlap with the mouth (a touch above the nozzle)
+              var over = b.right > pb.left && b.left < pb.right
+                && b.bottom > pb.top - 6 && b.top < pb.bottom + 4;
+              if (mode === 'cycle') {
+                // auto-geyser: when the phase says "erupt" and the player is over it
+                var ph = (clock / period) % 1;
+                if (over && ph < 0.06) fire(player, pc);
+              }
+              if (over) fire(player, pc);                           // contact always fires (cooldown-gated)
+            },
+            reset: function () { clock = 0; cool = 0; fired = 0; }
+          };
+          return rec;
+        }
+      },
+
+      // -------------------------------------------------------------- crumble
+      // A ledge that DISABLES a few frames after first contact — urgency / dread —
+      // then is RESTORED on level reset. AUTOPILOT-SAFE by placement: it is laid
+      // OVER continuous safe ground (it is a thin riser the player runs across, not
+      // a bridge over a pit). When it collapses the player simply drops onto the
+      // solid floor below and keeps running, so a 0-death run never depends on it.
+      // The collapse delay (frames) is generous so a runner clears it well before
+      // it goes. Deterministic: the timer is frame-counted off world.tick(dt).
+      crumble: {
+        feeling: 'urgency / dread',
+        lens: 'Tension',
+        weight: 7,
+        build: function (scene, spec, world) {
+          var T = spec.tile || 40;
+          var w = spec.w || (3 * T), h = spec.h || T;
+          var gy = spec.groundY || 0;
+          // sits as a thin riser whose TOP is a little above the floor line, so the
+          // player runs onto it then drops to safe ground when it crumbles.
+          var top = spec.top != null ? spec.top : (gy - Math.round(T * 0.5));
+          var y = top + h / 2;
+          var delay = spec.delay != null ? spec.delay : 26;        // frames after first touch before it falls
+          var spr = scene.physics.add.staticImage(spec.x, y, 'cx_crumble');
+          spr.setDisplaySize(w, h); spr.refreshBody(); spr.setDepth(spec.depth || 3);
+          spr.mat = spec.mat || 'stone';
+          var armed = false, timer = 0, gone = false;
+          function disable() {
+            gone = true; armed = false;
+            spr.disableBody(true, true);
+            if (spr._onFall) spr._onFall(spr);
+          }
+          return {
+            type: 'crumble', spr: spr, x: spec.x, y: y,
+            state: function () { return { armed: armed, gone: gone, timer: timer }; },
+            tick: function (dt) {
+              if (armed && !gone) { timer--; if (timer <= 0) disable(); }
+            },
+            interact: function (player, ctx) {
+              if (gone || armed) return;
+              var b = player.body, pb = spr.body;
+              var onTop = b.bottom <= pb.top + 10 && b.bottom >= pb.top - 12
+                && b.right > pb.left + 2 && b.left < pb.right - 2 && b.velocity.y >= -30;
+              if (onTop) { armed = true; timer = delay; if (spr._onArm) spr._onArm(spr); } // start the collapse
+            },
+            reset: function () {
+              armed = false; gone = false; timer = 0;
+              if (!spr.active) { spr.enableBody(true, spec.x, y, true, true); } // restore at its home x/y
+              spr.setTexture('cx_crumble'); spr.setDisplaySize(w, h); spr.refreshBody();
+            }
+          };
+        }
+      }
+    };
+
+    // PUBLIC: the dictionary is iterable + queryable by Studio.Feel / docs.
+    // Studio.Contraptions.types  -> ['seesaw','launcher','crumble', …]
+    // Studio.Contraptions.get(t) -> the registry entry (with build())
+    // Studio.Contraptions.meta(t)-> { feeling, lens, weight } (no build fn)
+    REGISTRY.types = Object.keys(REGISTRY).filter(function (k) { return REGISTRY[k] && REGISTRY[k].build; });
+    REGISTRY.has = function (t) { return !!(REGISTRY[t] && REGISTRY[t].build); };
+    REGISTRY.get = function (t) { return REGISTRY[t]; };
+    REGISTRY.meta = function (t) {
+      var e = REGISTRY[t]; if (!e) return null;
+      return { feeling: e.feeling, lens: e.lens, weight: e.weight };
+    };
+    // build a contraption record from a spec ({type, x, ...}) against a world/level
+    REGISTRY.build = function (scene, spec, world, levelSpec) {
+      var e = REGISTRY[spec && spec.type];
+      if (!e || !e.build) return null;
+      // pass groundY/tile defaults down so contraption specs can be terse
+      var merged = Object.assign({ tile: levelSpec && levelSpec.tile, groundY: levelSpec && levelSpec.groundY }, spec);
+      var rec = e.build(scene, merged, world);
+      if (rec) { rec.feeling = e.feeling; rec.lens = e.lens; rec.weight = e.weight; }
+      return rec;
+    };
+    return REGISTRY;
+  })();
+
   // --------------------------------------------------------------- Level DSL
-  // A level is data. build() returns { platforms, hazards, coins, enemies, spawn, goalX, springs, movers, tick }.
+  // A level is data. build() returns { platforms, hazards, coins, enemies, spawn, goalX, springs, movers, contraptions, tick }.
   Studio.Level = {
     build: function (scene, spec) {
       var T = spec.tile || 40, H = spec.height || 540;
@@ -302,9 +589,21 @@
         movers.push(rec);
       });
 
+      // CONTRAPTIONS — kinematic themed machines from Studio.Contraptions. Each
+      // spec ({type, x, ...}) is built through the registry into a record carrying
+      // its own phase clock; the records are advanced inside world.tick(dt) below
+      // (deterministic, exactly like movers) and reset via world.resetContraptions().
+      var contraptions = [];
+      (spec.contraptions || []).forEach(function (cs) {
+        var rec = Studio.Contraptions.build(scene, cs, { platforms: platforms, hazards: hazards }, spec);
+        if (rec) contraptions.push(rec);
+      });
+
       // deterministic phase clock for movers — advanced by the caller's fixed dt
       var clock = 0;
       function tick(dt) {
+        // advance contraptions every tick (their motion is a pure fn of their clock)
+        for (var c = 0; c < contraptions.length; c++) { if (contraptions[c].tick) contraptions[c].tick(dt); }
         if (!movers.length) return;
         clock += (dt != null ? dt : (1 / 60));
         for (var i = 0; i < movers.length; i++) {
@@ -327,6 +626,18 @@
       return {
         platforms: platforms, hazards: hazards, coins: coins, enemies: enemies,
         springs: springs, movers: movers, moverGroup: moverGroup, tick: tick,
+        contraptions: contraptions,
+        // generic per-frame interaction pass — the game calls this once a frame with
+        // the player + {dt, pc} so each contraption can carry/launch/collapse via the
+        // registry (no per-type wiring needed in the game).
+        contraptionsInteract: function (player, ctx) {
+          for (var i = 0; i < contraptions.length; i++) { if (contraptions[i].interact) contraptions[i].interact(player, ctx); }
+        },
+        // restore all contraptions to their armed/full state (called on level reset
+        // BEFORE the deterministic gate run, so crumble ledges come back, clocks reseed)
+        resetContraptions: function () {
+          for (var i = 0; i < contraptions.length; i++) { if (contraptions[i].reset) contraptions[i].reset(); }
+        },
         spawn: spec.spawn || { x: 60, y: spec.groundY - 80 }, goalX: spec.goal != null ? spec.goal : (spec.width - 60)
       };
     }
@@ -551,6 +862,15 @@
       (spec.enemies || []).forEach(function (e) { b.push({ x: e.x, type: 'walker', interest: INTEREST.walker }); });
       (spec.springs || []).forEach(function (s) { b.push({ x: s.x, type: 'spring', interest: INTEREST.spring }); });
       (spec.movers || []).forEach(function (m) { b.push({ x: m.x, type: 'mover', interest: INTEREST.mover }); });
+      // CONTRAPTIONS — each registers a beat tagged by its TYPE (so novelty/fatigue
+      // + the dominant-verb feeling tag treat it as a first-class verb), weighted by
+      // its registry weight (Studio.Contraptions[type].weight). A contraption sitting
+      // near the ~84% arc peak therefore lifts that window's interest -> a better arc.
+      (spec.contraptions || []).forEach(function (c) {
+        var meta = (Studio.Contraptions && Studio.Contraptions.meta) ? Studio.Contraptions.meta(c.type) : null;
+        var wgt = meta ? meta.weight : (INTEREST[c.type] || 7);
+        b.push({ x: c.x, type: c.type, interest: wgt, feeling: meta ? meta.feeling : null, lens: meta ? meta.lens : null });
+      });
       return b;
     }
 
@@ -622,6 +942,22 @@
         var s = scoreCurve(p.curve, p.W, p.n);
         s.name = spec.name || null;
         return s;
+      },
+      // PUBLIC: the contraption beats of a level, each tagged with its position
+      // (px + normalized arc 0..1) and {feeling,lens,weight} — so docs/tools can
+      // report "what feeling sits where" and whether a contraption hits the arc peak.
+      contraptionBeats: function (spec) {
+        if (!spec || !spec.contraptions) return [];
+        var W = spec.width || 960;
+        return spec.contraptions.map(function (c) {
+          var meta = (Studio.Contraptions && Studio.Contraptions.meta) ? Studio.Contraptions.meta(c.type) : null;
+          return {
+            type: c.type, x: c.x, arcPos: +(c.x / W).toFixed(2),
+            feeling: meta ? meta.feeling : null, lens: meta ? meta.lens : null,
+            weight: meta ? meta.weight : null,
+            nearPeak: Math.abs((c.x / W) - 0.84) <= 0.12     // does it lift the ~84% arc peak?
+          };
+        });
       }
     };
   })();

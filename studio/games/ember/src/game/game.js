@@ -171,6 +171,43 @@
       m.spr.setVisible(false);
     });
 
+    // CONTRAPTIONS — kinematic themed machines (Studio.Contraptions). Each is
+    // built by the SDK; here we (a) give SOLID ones (seesaw plank, crumble ledge)
+    // a collider so the player can stand on them, and (b) attach themed FX hooks
+    // (_onFire / _onArm / _onFall) so the warm-cave juice fires generically. The
+    // per-frame interaction (carry-nudge / launch / collapse) is driven in update
+    // via world.contraptionsInteract — no per-type logic needed here.
+    world.contraptions.forEach(function (cx) {
+      var s = cx.spr;
+      // track the contraption's sprite (+ any extra art like the seesaw plank/pivot) so
+      // the loadLevel teardown destroys them — no ghost bodies/visuals leak across depths.
+      decor.push(s);
+      (cx._extra || []).forEach(function (e) { decor.push(e); });
+      if (cx.type === 'crumble') {
+        // a RAISED ledge the player genuinely stands on (above the floor) -> solid
+        // collider. It is a static body over continuous safe ground, so collapse just
+        // drops the player to the floor (deterministic; the 0-death run never needs it).
+        colliders.push(scene.physics.add.collider(player, s));
+        s._onArm = function (sp) { sp.setTexture('cx_crumble_x'); sp.setDisplaySize(sp.displayWidth, sp.displayHeight); Studio.Juice.shake(scene, 80, 0.005); };
+        s._onFall = function (sp) {
+          Studio.Audio.sfx('hurt'); Studio.Juice.shake(scene, 120, 0.008);
+          Studio.Juice.burst(scene, sp.x, sp.y, { texture: 'ember', n: 16, tint: 0x8a5a2b, life: 520, spMax: 180 });
+        };
+      } else if (cx.type === 'launcher') {
+        // the geyser mouth is an OVERLAP (never a solid wall): run through it at ground
+        // level and get lofted via pc.launch (driven by contraptionsInteract).
+        s._onFire = function (sp) {
+          Studio.Audio.sfx('jump'); Studio.Juice.squash(scene, player, 0.8, 1.25);
+          Studio.Juice.burst(scene, sp.x, sp.y - 8, { texture: 'ember', n: 14, tint: 0xffd166, life: 460, spMax: 220 });
+        };
+      }
+      // NOTE: the seesaw is laid FLUSH on the continuous floor and gets NO collider —
+      // the player stands on the floor beneath it (so no double-collider physics jitter,
+      // keeping the deterministic gate bit-identical); the tilting plank ART + the bounded
+      // downhill CARRY (applied in contraptionsInteract) deliver the balance feeling.
+      Studio.Juice.glow(s, 0xffb24a, 2);
+    });
+
     player.setVelocity(0, 0);
     player.setPosition(spawn.x, spawn.y);
   }
@@ -181,7 +218,7 @@
     loadLevel(0);             // always restart the chain at level 1 (deterministic)
     hud();
   }
-  function respawn() { player.setVelocity(0, 0); player.setPosition(spawn.x, spawn.y); if (pc) pc.reset(); }
+  function respawn() { player.setVelocity(0, 0); player.setPosition(spawn.x, spawn.y); if (pc) pc.reset(); if (world && world.resetContraptions) world.resetContraptions(); }
   function die() { deaths++; lastDeathX = Math.round(player.x); respawn(); }
   function hud() { if (scene._hud) scene._hud.setText('coins ' + coins + '   depth ' + (levelIndex + 1) + '/' + window.LEVELS.length); }
 
@@ -244,6 +281,13 @@
         reset: reset
       });
       window.__sense = function () { var og = player.body.blocked.down || player.body.touching.down; var s = sense(og); s.decision = Studio.Autopilot.platformer(s); return s; };
+      // contraption observability (diag/eval): live state of each contraption on the
+      // current level — type, feeling/lens, and whether it has fired/collapsed.
+      window.__cx = function () {
+        return (world.contraptions || []).map(function (c) {
+          return { type: c.type, lens: c.lens, x: Math.round(c.spr.x), active: !!c.spr.active, state: c.state ? c.state() : null };
+        });
+      };
     },
     update: function (time, delta) {
       if (!player) return; frame++;
@@ -257,9 +301,12 @@
       if (onGround && !landGuard) { landGuard = true; Studio.Juice.shake(scene, 60, 0.004); }
       if (!onGround) landGuard = false;
 
-      // advance moving platforms (deterministic phase clock) BEFORE reading footing
+      // advance moving platforms + contraptions (deterministic phase clock) BEFORE
+      // reading footing; then run the generic contraption interaction pass (launcher
+      // overlap -> pc.launch, seesaw carry-nudge, crumble contact -> collapse timer).
       world.tick(dt);
       world.springs.getChildren().forEach(function (s) { if (s.cool > 0) s.cool--; });
+      world.contraptionsInteract(player, { dt: dt, pc: pc });
 
       var mv;
       if (auto) {

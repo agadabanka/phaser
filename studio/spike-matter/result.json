@@ -1,0 +1,496 @@
+{
+  "phaser": "4.1.0 (full dist, includes Matter)",
+  "config": "matter customUpdate:true + autoUpdate:false, posIter12/velIter8/conIter4, sleeping off, fixed step 1000/60",
+  "renderers": {
+    "webgl": {
+      "det600": {
+        "steps": 600,
+        "identical": true,
+        "maxDelta": 0,
+        "worst": null,
+        "sampleA": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 299.675,
+            "y": 480.065,
+            "angle": 0.005
+          },
+          {
+            "label": "box1",
+            "x": 308.738,
+            "y": 440.325,
+            "angle": 0.008
+          },
+          {
+            "label": "box2",
+            "x": 301.032,
+            "y": 400.408,
+            "angle": 0.01
+          },
+          {
+            "label": "box3",
+            "x": 309.181,
+            "y": 360.583,
+            "angle": 0.011
+          },
+          {
+            "label": "flyer",
+            "x": 261.505,
+            "y": 481.929,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.332
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "sampleB": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 299.675,
+            "y": 480.065,
+            "angle": 0.005
+          },
+          {
+            "label": "box1",
+            "x": 308.738,
+            "y": 440.325,
+            "angle": 0.008
+          },
+          {
+            "label": "box2",
+            "x": 301.032,
+            "y": 400.408,
+            "angle": 0.01
+          },
+          {
+            "label": "box3",
+            "x": 309.181,
+            "y": 360.583,
+            "angle": 0.011
+          },
+          {
+            "label": "flyer",
+            "x": 261.505,
+            "y": 481.929,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.332
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "errs": []
+      },
+      "det1000": {
+        "steps": 1000,
+        "identical": true,
+        "maxDelta": 0,
+        "worst": null,
+        "sampleA": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 298.431,
+            "y": 480.054,
+            "angle": 0.006
+          },
+          {
+            "label": "box1",
+            "x": 309.802,
+            "y": 440.329,
+            "angle": 0.01
+          },
+          {
+            "label": "box2",
+            "x": 302.027,
+            "y": 400.391,
+            "angle": 0.012
+          },
+          {
+            "label": "box3",
+            "x": 310.687,
+            "y": 360.587,
+            "angle": 0.013
+          },
+          {
+            "label": "flyer",
+            "x": 260.246,
+            "y": 481.925,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.327
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "sampleB": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 298.431,
+            "y": 480.054,
+            "angle": 0.006
+          },
+          {
+            "label": "box1",
+            "x": 309.802,
+            "y": 440.329,
+            "angle": 0.01
+          },
+          {
+            "label": "box2",
+            "x": 302.027,
+            "y": 400.391,
+            "angle": 0.012
+          },
+          {
+            "label": "box3",
+            "x": 310.687,
+            "y": 360.587,
+            "angle": 0.013
+          },
+          {
+            "label": "flyer",
+            "x": 260.246,
+            "y": 481.925,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.327
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "errs": []
+      },
+      "readback": {
+        "w": 960,
+        "h": 540,
+        "nonblackRatio": 1
+      }
+    },
+    "canvas": {
+      "det600": {
+        "steps": 600,
+        "identical": true,
+        "maxDelta": 0,
+        "worst": null,
+        "sampleA": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 299.672,
+            "y": 480.064,
+            "angle": 0.005
+          },
+          {
+            "label": "box1",
+            "x": 308.741,
+            "y": 440.325,
+            "angle": 0.008
+          },
+          {
+            "label": "box2",
+            "x": 301.034,
+            "y": 400.408,
+            "angle": 0.01
+          },
+          {
+            "label": "box3",
+            "x": 309.184,
+            "y": 360.583,
+            "angle": 0.011
+          },
+          {
+            "label": "flyer",
+            "x": 261.502,
+            "y": 481.929,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.332
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "sampleB": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 299.672,
+            "y": 480.064,
+            "angle": 0.005
+          },
+          {
+            "label": "box1",
+            "x": 308.741,
+            "y": 440.325,
+            "angle": 0.008
+          },
+          {
+            "label": "box2",
+            "x": 301.034,
+            "y": 400.408,
+            "angle": 0.01
+          },
+          {
+            "label": "box3",
+            "x": 309.184,
+            "y": 360.583,
+            "angle": 0.011
+          },
+          {
+            "label": "flyer",
+            "x": 261.502,
+            "y": 481.929,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.332
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "errs": []
+      },
+      "det1000": {
+        "steps": 1000,
+        "identical": false,
+        "maxDelta": 0.0049999999999954525,
+        "worst": "box3.x: 310.682 vs 310.687 (Δ0.0049999999999954525)",
+        "sampleA": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 298.434,
+            "y": 480.054,
+            "angle": 0.006
+          },
+          {
+            "label": "box1",
+            "x": 309.799,
+            "y": 440.329,
+            "angle": 0.01
+          },
+          {
+            "label": "box2",
+            "x": 302.025,
+            "y": 400.391,
+            "angle": 0.012
+          },
+          {
+            "label": "box3",
+            "x": 310.682,
+            "y": 360.587,
+            "angle": 0.013
+          },
+          {
+            "label": "flyer",
+            "x": 260.25,
+            "y": 481.925,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.327
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "sampleB": [
+          {
+            "label": "ground",
+            "x": 480,
+            "y": 520,
+            "angle": 0
+          },
+          {
+            "label": "box0",
+            "x": 298.431,
+            "y": 480.054,
+            "angle": 0.006
+          },
+          {
+            "label": "box1",
+            "x": 309.802,
+            "y": 440.329,
+            "angle": 0.01
+          },
+          {
+            "label": "box2",
+            "x": 302.027,
+            "y": 400.391,
+            "angle": 0.012
+          },
+          {
+            "label": "box3",
+            "x": 310.687,
+            "y": 360.587,
+            "angle": 0.013
+          },
+          {
+            "label": "flyer",
+            "x": 260.246,
+            "y": 481.925,
+            "angle": -0.007
+          },
+          {
+            "label": "plank",
+            "x": 680,
+            "y": 450,
+            "angle": -0.327
+          },
+          {
+            "label": "weight",
+            "x": 546.989,
+            "y": 484.899,
+            "angle": -1.581
+          },
+          {
+            "label": "bob",
+            "x": 820,
+            "y": 340,
+            "angle": 0
+          }
+        ],
+        "errs": []
+      },
+      "readback": {
+        "w": 960,
+        "h": 540,
+        "nonblackRatio": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "webgl@600": {
+    "distinctQuantizedStates": 2,
+    "distribution": [
+      7,
+      5
+    ]
+  },
+  "webgl@1000": {
+    "distinctQuantizedStates": 1,
+    "distribution": [
+      12
+    ]
+  },
+  "canvas@600": {
+    "distinctQuantizedStates": 2,
+    "distribution": [
+      8,
+      4
+    ]
+  },
+  "canvas@1000": {
+    "distinctQuantizedStates": 1,
+    "distribution": [
+      12
+    ]
+  }
+}
