@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sprite Studio · Studio</title>
+  <style>
+    :root { --bg:#0b1021; --panel:#141a30; --ink:#e8ecf7; --muted:#9aa6c8; --line:#2a3556; --accent:#ffd34d; --ok:#5fe39a; --bad:#ff7a8a; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family:system-ui, sans-serif; }
+    #wrap { display:flex; gap:16px; padding:16px; box-sizing:border-box; align-items:flex-start; flex-wrap:wrap; }
+    #stage { position:relative; }
+    canvas { display:block; border:1px solid var(--line); border-radius:8px; background:#0b1021; image-rendering:pixelated; }
+    #panel { width:360px; min-width:320px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; box-sizing:border-box; }
+    h1 { font-size:17px; margin:0 0 4px; letter-spacing:.4px; }
+    .sub { color:var(--muted); font-size:12px; margin:0 0 14px; line-height:1.4; }
+    label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:12px 0 4px; }
+    select, input { width:100%; box-sizing:border-box; background:#0d1226; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font-size:13px; font-family:inherit; }
+    .row { display:flex; gap:8px; }
+    .row > div { flex:1; }
+    button { background:#1d2746; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; cursor:pointer; }
+    button:hover { border-color:var(--accent); }
+    button.active { background:var(--accent); color:#1a1020; font-weight:600; border-color:var(--accent); }
+    .anim-btns { display:flex; gap:8px; margin-top:6px; }
+    .anim-btns button { flex:1; }
+    #readout { margin-top:16px; border-top:1px solid var(--line); padding-top:14px; }
+    .kv { display:flex; justify-content:space-between; font-size:13px; padding:3px 0; border-bottom:1px dashed #20294a; }
+    .kv span:first-child { color:var(--muted); }
+    .kv span:last-child { font-variant-numeric:tabular-nums; }
+    .hint { color:var(--muted); font-size:11px; margin-top:8px; line-height:1.4; }
+    code { color:#bcd0ff; }
+    #validateBtn { width:100%; margin-top:14px; background:#243a2c; border-color:#2f5a3f; }
+    #validateBtn:hover { border-color:var(--ok); }
+    #verdict { margin-top:12px; background:#0d1226; border:1px solid var(--line); border-radius:8px; padding:10px 12px; display:none; }
+    #verdict.show { display:block; }
+    .vbadge { display:inline-block; border-radius:6px; padding:2px 10px; font-weight:700; font-size:13px; }
+    .vbadge.pass { background:rgba(95,227,154,0.16); color:var(--ok); }
+    .vbadge.fail { background:rgba(255,122,138,0.16); color:var(--bad); }
+    .check { font-size:12px; padding:4px 0; border-bottom:1px dashed #20294a; line-height:1.35; }
+    .check .mark { display:inline-block; width:16px; }
+    .check.ok .mark { color:var(--ok); }
+    .check.no .mark { color:var(--bad); }
+    .check .detail { color:#6b769c; display:block; margin-left:16px; }
+    .scrub-wrap { margin-top:6px; }
+    #frameVal { color:var(--accent); font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body>
+  <!-- Studio's Arcade Phaser build, then the SDK, then the shared anim/validation
+       core (load order is load-bearing). app.js wires them to the panel. -->
+  <script src="./phaser.min.js"></script>
+  <script src="./studio.js"></script>
+  <script src="./anim-core.js"></script>
+
+  <div id="wrap">
+    <div id="stage">
+      <!-- Phaser injects the canvas here (see app.js parent: 'stage'). -->
+    </div>
+
+    <div id="panel">
+      <h1>Sprite Studio</h1>
+      <p class="sub">A live test bench to <b>develop</b>, <b>animate</b> &amp; <b>validate</b> character sprite animations. Load a spritesheet, define named anims as frame ranges, preview them on a real Phaser sprite, then run <code>validate()</code> — structural + (with creds) a Gemini motion/quality read.</p>
+
+      <label for="sheetUrl">Spritesheet (URL or path)</label>
+      <input id="sheetUrl" type="text" />
+
+      <div class="row">
+        <div><label for="fw">frame W</label><input id="fw" type="number" min="1" step="1" /></div>
+        <div><label for="fh">frame H</label><input id="fh" type="number" min="1" step="1" /></div>
+        <div><label for="fc">frame count</label><input id="fc" type="number" min="1" step="1" /></div>
+      </div>
+      <button id="loadBtn" style="width:100%; margin-top:10px;">Load sheet</button>
+
+      <label>Animation</label>
+      <div class="anim-btns" id="animBtns"><!-- idle/run/jump buttons injected --></div>
+
+      <div class="row" style="margin-top:10px;">
+        <div><label for="frStart">start</label><input id="frStart" type="number" min="0" step="1" /></div>
+        <div><label for="frEnd">end</label><input id="frEnd" type="number" min="0" step="1" /></div>
+        <div><label for="frRate">fps</label><input id="frRate" type="number" min="1" step="1" /></div>
+        <div><label for="frLoop">loop</label>
+          <select id="frLoop"><option value="-1">yes</option><option value="0">no</option></select>
+        </div>
+      </div>
+
+      <div class="scrub-wrap">
+        <label for="scrub">Frame scrubber <span id="frameVal"></span></label>
+        <input id="scrub" type="range" min="0" max="14" step="1" value="0" />
+        <div class="hint">Drag to pause + step frame-by-frame; release to resume the anim.</div>
+      </div>
+
+      <div id="readout">
+        <div class="kv"><span>playing</span><span id="roAnim">–</span></div>
+        <div class="kv"><span>current frame</span><span id="roFrame">–</span></div>
+        <div class="kv"><span>fps (frameRate)</span><span id="roFps">–</span></div>
+        <div class="kv"><span>frame count (anim / sheet)</span><span id="roCount">–</span></div>
+        <div class="kv"><span>cell size</span><span id="roCell">–</span></div>
+      </div>
+
+      <button id="validateBtn">Validate sheet</button>
+      <div id="verdict">
+        <div><span class="vbadge" id="vbadge">–</span> <span id="vscore" style="color:var(--muted); font-size:12px;"></span></div>
+        <div id="vchecks" style="margin-top:8px;"></div>
+        <div class="hint" id="vnote"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

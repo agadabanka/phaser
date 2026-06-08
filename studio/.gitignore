@@ -5,3 +5,4 @@ node_modules/
 live-shot.png
 spike-matter/phaser.min.js
 tools/contraptions/phaser.min.js
+tools/sprite-studio/phaser.min.js
