@@ -14,6 +14,11 @@ the first base in the family to run Phaser 4 instead of vendored Phaser 3.
   headless readback. Notably, headless **WebGL** readback works in Phaser 4
   (Phaser 3 forced the Canvas renderer here).
 
+### Shipped
+Live on Railway: https://studio-phaser4-demo-production.up.railway.app
+Deployed straight from this directory (`railway up`); `/health` + `/api/meta` verified,
+and the deployed build was confirmed to render headless.
+
 ### Next (the vertical agents)
 story · game concept · art theme · characters · level design · feel · animation/FX ·
 texturing · sound → ship to Railway.
