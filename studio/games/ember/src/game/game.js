@@ -27,7 +27,7 @@
   var levelIndex = 0;                 // which LEVELS[] entry is live
   var colliders = [];                 // physics colliders/overlaps to tear down on rebuild
   var decor = [];                     // goal image + ambient emitters to destroy on rebuild
-  var landGuard = false;             // edge-trigger for landing shake
+  var landGuard = false, touchState = null;             // edge-trigger for landing shake
   var heroArt = null;                // AI hero sprite (follows the invisible physics body)
 
   function sense(onGround) {
@@ -80,6 +80,16 @@
     scene.cameras.main.setBackgroundColor(spec.sky || 0x140a08);
     world = Studio.Level.build(scene, spec);
     spawn = world.spawn; levelGoalX = world.goalX;
+    // theme the floor: hide the gradient collision slabs, overlay tiled volcanic
+    // rock (platforms) / molten lava (hazards). Physics bodies stay intact.
+    world.platforms.getChildren().forEach(function (s) {
+      s.setVisible(false);
+      var ts = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, 'rock').setDepth(1); ts.setTileScale(0.085); decor.push(ts);
+    });
+    world.hazards.getChildren().forEach(function (s) {
+      s.setVisible(false);
+      var ts = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, 'lavatile').setDepth(1); ts.setTileScale(0.085); decor.push(ts);
+    });
     // AI enemy art as follower visuals over the (hidden) physics bodies
     world.enemies.getChildren().forEach(function (e) {
       e.setVisible(false);
@@ -87,8 +97,9 @@
       e._art = art; decor.push(art);
     });
 
-    // glowing exit gate
-    decor.push(scene.add.image(levelGoalX, spec.groundY - 42, 'goal'));
+    // glowing exit gate (themed amber, with a glow filter)
+    var goalImg = scene.add.image(levelGoalX, spec.groundY - 42, 'goal').setDepth(4);
+    Studio.Juice.glow(goalImg, 0xffd27a, 3); decor.push(goalImg);
 
     // re-point the camera at the (possibly wider) new world
     Studio.Cam.follow(scene, player, { bounds: [0, 0, spec.width, spec.height], deadzone: [260, 200] });
@@ -136,10 +147,12 @@
       this.load.image('bg_cave', 'assets/backdrop.jpg');
       this.load.image('hero_art', 'assets/hero.png');
       this.load.image('enemy_art', 'assets/enemy.png');
+      this.load.image('rock', 'assets/ground.jpg');
+      this.load.image('lavatile', 'assets/lava.jpg');
     },
     create: function () {
       scene = this;
-      Studio.Textures.kit(this, { tile: T, hero: 0xffb24a, enemy: 0xff5a3c, goal: 0x39d98a });
+      Studio.Textures.kit(this, { tile: T, hero: 0xffb24a, enemy: 0xff5a3c, goal: 0xffce5a });
       // a warm ember particle (orange core, soft falloff) for ambient + bursts
       Studio.Textures.bake(this, 'ember', 10, 10, function (g) {
         g.fillStyle(0xff7a18, 1).fillCircle(5, 5, 5);
@@ -174,6 +187,7 @@
       scene._hud = this.add.text(12, 10, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffd9a0' }).setScrollFactor(0).setDepth(100);
       hud();
       this.cursors = this.input.keyboard.createCursorKeys();
+      touchState = Studio.Touch.create(this);   // on-screen joystick + JUMP button (mobile)
 
       Studio.harness.install(window.game, {
         snapshot: snapshot,
@@ -222,7 +236,7 @@
       if (player.y > scene.scale.height + 120) die();
     }
   };
-  function manual() { var c = scene.cursors; if (!c) return input; return { left: c.left.isDown, right: c.right.isDown, jump: c.up.isDown || c.space.isDown }; }
+  function manual() { var c = scene.cursors, t = touchState || {}; var kl = c && c.left.isDown, kr = c && c.right.isDown, kj = c && (c.up.isDown || c.space.isDown); return { left: kl || t.left, right: kr || t.right, jump: kj || t.jump }; }
 
   var config = {
     type: Phaser.AUTO, width: 960, height: 540, backgroundColor: '#140a08', seed: ['ember-depths'],

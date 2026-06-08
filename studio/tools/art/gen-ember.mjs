@@ -30,6 +30,18 @@ const JOBS = {
     const p = `${STYLE} An ENEMY creature for the same game as the attached character (match its art style, outline weight and palette, but make it clearly a VILLAIN): a menacing obsidian-and-lava rock beast — jagged black volcanic armor plates with molten orange cracks, angry glowing eyes, a low hostile stance. Full body, side view facing LEFT, bold clean cartoon outline, readable silhouette. Centered, single creature. FLAT SOLID MAGENTA (#ff00ff) background ONLY. No shadow, no ground, no text.`;
     const { mimeType, base64 } = await generateImage(p, { aspectRatio: '1:1', refs: refOf('hero.png').concat(refOf('hero.jpg')) });
     save(`enemy.${mimeType.includes('png') ? 'png' : 'jpg'}`, base64);
+  },
+  async ground() {
+    console.log('ground (seamless volcanic rock tile)...');
+    const p = `${STYLE} A SEAMLESS TILEABLE TEXTURE of dark volcanic basalt rock ground for a platformer floor: cooled charcoal-and-maroon rock with subtle glowing orange lava cracks, rough rocky surface, even flat top-down lighting. Must TILE seamlessly (edges wrap, no seams, no border, no vignette). Fill the entire square edge to edge. NO characters, NO text, NO UI.`;
+    const { mimeType, base64 } = await generateImage(p, { aspectRatio: '1:1' });
+    save(`ground.${mimeType.includes('png') ? 'png' : 'jpg'}`, base64);
+  },
+  async lava() {
+    console.log('lava (seamless glowing lava tile)...');
+    const p = `${STYLE} A SEAMLESS TILEABLE TEXTURE of bright molten lava surface: glowing hot orange and yellow magma with dark cooling crust cracks and intense inner glow, even lighting. Must TILE seamlessly (edges wrap, no seams, no border). Fill the entire square edge to edge. NO characters, NO text.`;
+    const { mimeType, base64 } = await generateImage(p, { aspectRatio: '1:1' });
+    save(`lava.${mimeType.includes('png') ? 'png' : 'jpg'}`, base64);
   }
 };
 

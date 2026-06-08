@@ -233,6 +233,36 @@
     }
   };
 
+  // ------------------------------------------------------------------- Touch
+  // On-screen analog joystick (bottom-left) + jump button (bottom-right) for
+  // mobile. Returns a live { left, right, down, jump } state to merge into input.
+  // Mirrors the jazz/starsweeper control feel. Multi-touch so stick + jump hold together.
+  Studio.Touch = {
+    create: function (scene, opt) {
+      opt = opt || {};
+      var W = scene.scale.width, H = scene.scale.height, DEPTH = 300;
+      var isTouch = false; try { isTouch = !!(scene.sys.game.device.input.touch) || (typeof window !== 'undefined' && 'ontouchstart' in window); } catch (e) {}
+      if (isTouch) scene.input.addPointer(3); // so the stick + jump button work together
+      var st = { left: false, right: false, down: false, _up: false, _btn: false };
+      Object.defineProperty(st, 'jump', { get: function () { return st._up || st._btn; } });
+      Object.defineProperty(st, 'up', { get: function () { return st._up; } });
+      var bx = 120, by = H - 86, R = 68;
+      scene.add.circle(bx, by, R, 0x0f1528, 0.4).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffffff, 0.22);
+      var thumb = scene.add.circle(bx, by, 30, 0x2a3556, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, 0xffd34d, 0.85);
+      var jx = W - 96, jy = H - 84;
+      var jbtn = scene.add.circle(jx, jy, 54, 0x3a1420, 0.5).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffae6b, 0.7).setInteractive();
+      scene.add.text(jx, jy, 'JUMP', { fontFamily: 'monospace', fontSize: '13px', color: '#ffce9e' }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      jbtn.on('pointerdown', function () { st._btn = true; }); jbtn.on('pointerup', function () { st._btn = false; }); jbtn.on('pointerout', function () { st._btn = false; });
+      var pid = null;
+      function setFrom(px, py) { var dx = px - bx, dy = py - by, m = Math.hypot(dx, dy) || 1; if (m > R) { dx = dx / m * R; dy = dy / m * R; } thumb.setPosition(bx + dx, by + dy); var nx = dx / R, ny = dy / R; st.left = nx < -0.35; st.right = nx > 0.35; st._up = ny < -0.45; st.down = ny > 0.45; }
+      function release() { pid = null; thumb.setPosition(bx, by); st.left = st.right = st._up = st.down = false; }
+      scene.input.on('pointerdown', function (p) { if (pid != null || p.x > W * 0.5) return; pid = p.id; setFrom(p.x, p.y); }); // left half drives the stick
+      scene.input.on('pointermove', function (p) { if (p.id === pid) setFrom(p.x, p.y); });
+      scene.input.on('pointerup', function (p) { if (p.id === pid) release(); });
+      return st;
+    }
+  };
+
   // ------------------------------------------------------------------ harness
   // Wires window.__rec (deterministic stepper) + window.__game (observability)
   // + window.__run / window.__gate, given game + hooks. This is the eval contract.
