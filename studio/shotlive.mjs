@@ -7,6 +7,6 @@ const p = await b.newPage({ viewport: { width: 960, height: 540 }, ignoreHTTPSEr
 await p.goto(url, { waitUntil: 'load', timeout: 30000 });
 await p.waitForFunction(() => window.__ready === true, { timeout: 20000 });
 await p.evaluate(() => window.__run(160));
-await p.screenshot({ path: out });
+await p.screenshot({ path: out, timeout: 90000 });
 console.log('shot saved', out);
 await b.close();
