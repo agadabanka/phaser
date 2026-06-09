@@ -1,0 +1,15 @@
+{
+  "capability": "art-cohesion",
+  "name": "studio-art",
+  "dir": "tools/studio-art",
+  "run": "node tool.mjs",
+  "validator": "node validate.mjs",
+  "inputs": "a game dir (--game): serves its src/, screenshots a few frames headless, scores VISUAL COHESION 0-100 with Gemini vision (palette/style consistency, readability, polish)",
+  "outputs": [
+    "out/result.json",
+    "out/frame-*.png"
+  ],
+  "deps": [],
+  "deterministic": false,
+  "perGame": true
+}

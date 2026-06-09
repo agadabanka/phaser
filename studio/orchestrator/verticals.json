@@ -1,10 +1,10 @@
 {
-  "_comment": "The Studio assembly line. Each vertical is an agent: it owns one slice of a game, wields specific Phaser 4 systems + Studio SDK modules, writes specific files, and is held to a machine-checkable gate. The conductor runs them in dependency order, re-measuring after each.",
+  "_comment": "The Studio assembly line. Each vertical is an agent: it owns one slice of a game, wields specific Phaser 4 systems + Studio SDK modules, writes specific files, and is held to a machine-checkable gate. The conductor runs them in dependency order, re-measuring after each. A vertical's optional `capability` field links it to a registered Lego brick (studio/lego/registry.json) — the validator that gates it; the conductor's --validate-all runs every such brick. Mapping: story→distinctness, art-theme/texturing→art-cohesion, gameplay/animation-fx→feel, sound→music, qa-gate→gate.",
   "order": ["story", "concept", "art-theme", "characters", "level-design", "gameplay", "animation-fx", "texturing", "sound", "qa-gate", "ship"],
   "verticals": {
     "story": {
       "title": "Writers' Room", "stage": "identity", "dependsOn": [],
-      "phaser": [], "sdk": ["GAME_META"],
+      "phaser": [], "sdk": ["GAME_META"], "capability": "distinctness",
       "outputs": ["STORY.md", "GAME_META.json"],
       "gate": "distinctness: game-diff UNIQUENESS vs sibling games >= 60",
       "brief": "Invent the game identity for {{name}}: logline, hero, antagonist, a 3-5 world arc, and a casting table mapping each engine primitive (gap, mover, wall, lowgrav, hazard) to this game's fiction. Write STORY.md and fill GAME_META.json (name, tagline, hero, verb, worlds). Diverge the VERB and SKIN from siblings; share the methodology."
@@ -19,7 +19,7 @@
     "art-theme": {
       "title": "Art Director", "stage": "art", "dependsOn": ["concept"],
       "phaser": ["Textures", "Filters:ColorMatrix", "Filters:GradientMap"],
-      "sdk": ["Textures", "Juice.grade", "Materials"],
+      "sdk": ["Textures", "Juice.grade", "Materials"], "capability": "art-cohesion",
       "outputs": ["src/game/theme.js", "Materials palette"],
       "gate": "visual cohesion (judge.mjs median-of-N) >= target; one palette, applied via ColorMatrix grade",
       "brief": "Define {{name}}'s look: a cohesive palette + Materials colors + a camera ColorMatrix grade (Studio.Juice.grade) that sets the mood. Edit the Materials table / theme so every surface reads as one world. No AI art needed; procedural + grade."
@@ -42,7 +42,7 @@
     "gameplay": {
       "title": "Feel Lab", "stage": "feel", "dependsOn": ["level-design"],
       "phaser": ["physics:arcade", "physics:matter", "Input", "Cameras"],
-      "sdk": ["Autopilot", "Cam", "Juice.hitStop"],
+      "sdk": ["Autopilot", "Cam", "Juice.hitStop"], "capability": "feel",
       "outputs": ["src/game/game.js (TUNE + verb)"],
       "gate": "controls.mjs pass + feel-ab delta > 0.15 @ >=80% agreement; gate green",
       "brief": "Tune {{name}}'s game feel (gravity/jump/coyote/buffer/skid) and implement the signature VERB. Change ONE thing at a time; keep it inert-until-used so the deterministic gate stays stable; verify with paired A/B feel."
@@ -50,7 +50,7 @@
     "animation-fx": {
       "title": "FX / Animation", "stage": "feel", "dependsOn": ["gameplay"],
       "phaser": ["Tweens", "Particles", "Filters:Glow", "Filters:Bokeh", "Filters:Shadow", "Camera.shake"],
-      "sdk": ["Juice"],
+      "sdk": ["Juice"], "capability": "feel",
       "outputs": ["src/game/game.js (juice layer)"],
       "gate": "feel/juice dimension up; 0-death gate unaffected (inert-until-used)",
       "brief": "Add juice to {{name}} with Studio.Juice: squash/stretch, hit-stop, particle bursts on key events, ambient particles, camera shake/flash, and GPU filters (glow on the hero, vignette + grade on the camera). Juice must read in a still frame and never break the gate."
@@ -58,7 +58,7 @@
     "texturing": {
       "title": "Texture / Materials", "stage": "art", "dependsOn": ["art-theme"],
       "phaser": ["DynamicTexture", "RenderTexture", "GameObjects:Noise", "GameObjects:Gradient", "Filters:NormalTools"],
-      "sdk": ["Textures", "Materials"],
+      "sdk": ["Textures", "Materials"], "capability": "art-cohesion",
       "outputs": ["src/game/theme.js", "baked textures"],
       "gate": "visual score up; backgrounds/tiles cohesive with the palette",
       "brief": "Build {{name}}'s textures: per-biome tile recolors + a procedural backdrop (Gradient/Noise game objects or baked DynamicTextures) consistent with the Art Director's palette."
@@ -66,14 +66,14 @@
     "sound": {
       "title": "Sound Stage", "stage": "music", "dependsOn": ["concept"],
       "phaser": ["Sound:WebAudio", "Sound:spatial"],
-      "sdk": ["Audio"],
+      "sdk": ["Audio"], "capability": "music",
       "outputs": ["src/game/sound.js"],
       "gate": "SFX present for all key events; music/loop present (procedural or Lyria if creds)",
       "brief": "Give {{name}} sound: map Studio.Audio.sfx to jump/coin/hit/win and add a looping bed (procedural; Lyria MP3 if VERTEX creds exist). Keep a deterministic offline synth path for recorded video."
     },
     "qa-gate": {
       "title": "QA / Playtester", "stage": "gate", "dependsOn": ["level-design"],
-      "phaser": [], "sdk": ["harness", "Autopilot"],
+      "phaser": [], "sdk": ["harness", "Autopilot"], "capability": "gate",
       "outputs": ["out/scorecard.json"],
       "gate": "the single gated report: determinism + 0-death + non-black readback (webgl & canvas)",
       "brief": "Run npm run eval for {{name}}. Report determinism, the 0-death gate per renderer, and readback. This is the report the conductor reads to pick the next vertical."

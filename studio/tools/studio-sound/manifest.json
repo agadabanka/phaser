@@ -4,10 +4,11 @@
   "dir": "tools/studio-sound",
   "run": "node tool.mjs",
   "validator": "node validate.mjs",
-  "inputs": "TODO: describe what the run step consumes",
+  "inputs": "a game dir (--game): statically checks the game wires Studio.Audio.sfx for jump/coin/hit(stomp|hurt)/win + a music/bed hook",
   "outputs": [
     "out/result.json"
   ],
   "deps": [],
-  "deterministic": true
+  "deterministic": true,
+  "perGame": true
 }

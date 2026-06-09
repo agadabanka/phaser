@@ -17,12 +17,103 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { runFeel } from '../tools/eval/feel.mjs';
+import { list as listBricks } from '../lego/registry.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const gameDir = path.resolve(process.argv[2] || '.');
 const asJson = process.argv.includes('--json');
+const validateAll = process.argv.includes('--validate-all');
+
+// ── --validate-all: run EVERY registered validator that applies to this game and
+//    print a per-capability scorecard + overall verdict. This is the self-gating
+//    end-to-end view: gate, feel, art-cohesion, distinctness, music — whichever
+//    bricks are registered. It reuses the same registry.mjs + dispatch.mjs the rest
+//    of the pipeline uses (discovers caps from the registry, shells out to the
+//    dispatcher per cap; the gate's validator is the game's own eval.mjs so it runs
+//    that directly). Keeps the normal conductor flow below untouched.
+if (validateAll) { await runValidateAll(); }
+
+async function runValidateAll() {
+  const DISPATCH = path.resolve(HERE, '..', 'lego', 'dispatch.mjs');
+  if (!fs.existsSync(gameDir)) { console.error(`conductor: no such game dir: ${gameDir}`); process.exit(2); }
+  const gMeta = fs.existsSync(path.join(gameDir, 'GAME_META.json'))
+    ? JSON.parse(fs.readFileSync(path.join(gameDir, 'GAME_META.json'), 'utf8')) : { name: path.basename(gameDir) };
+
+  // A validator APPLIES to a game iff it is per-game (takes --game): gate, feel,
+  // art-cohesion, distinctness, music. Non-perGame bricks (sprite-animation,
+  // contraption) judge their own bundled artifact, not THIS game, so they are
+  // listed as skipped rather than run here. Each applicable brick is dispatched
+  // exactly as a real dispatch would (its own dir, --game forwarded).
+  const bricks = listBricks();
+  const applicableBricks = bricks.filter((b) => b.perGame);
+  const skipped = bricks.filter((b) => !b.perGame).map((b) => b.capability);
+  const rows = [];
+  for (const b of applicableBricks) {
+    let r;
+    if (b.capability === 'gate' && fs.existsSync(path.join(gameDir, 'eval.mjs'))) {
+      // The gate brick's validator IS the game's OWN eval.mjs (it lives in the game
+      // dir, not the brick dir), so dispatch it against the game directly here.
+      // stdio:['ignore','pipe','pipe'] — ignore stdin so no headless-browser
+      // descendant pins our stdin open and blocks this spawnSync on pipe-EOF.
+      r = spawnSync('node', [path.join(gameDir, 'eval.mjs')], { encoding: 'utf8', maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'pipe'] });
+    } else {
+      // every other applicable brick goes through the Lego dispatcher (which itself
+      // captures its validator via a temp file, so this spawnSync only reads the
+      // dispatcher's small ACCEPT/REJECT summary — no browser sits in our pipe).
+      r = spawnSync('node', [DISPATCH, b.capability, '--game', gameDir], { encoding: 'utf8', maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'pipe'] });
+    }
+    const out = (r.stdout || '') + (r.stderr || '');
+    const accept = r.status === 0;
+    // scrape a score: the dispatcher prints "score=N"; the raw gate eval prints a
+    // {verdict:{webgl,canvas}} JSON — surface webgl/canvas pass as the gate's signal.
+    let score = null;
+    const sm = out.match(/score=(-?[0-9.]+)/);
+    if (sm) score = Number(sm[1]);
+    rows.push({ capability: b.capability, name: b.name, accept, score, exit: r.status ?? 1, out });
+  }
+
+  const applicable = rows;
+  const passed = applicable.filter((r) => r.accept).length;
+  const overall = applicable.length > 0 && applicable.every((r) => r.accept);
+
+  if (asJson) {
+    console.log(JSON.stringify({
+      game: gMeta.name, dir: gameDir,
+      overall: overall ? 'ACCEPT' : 'REJECT', passed, total: applicable.length,
+      scorecard: applicable.map(({ out, ...r }) => r),
+      skipped,
+    }, null, 2));
+    process.exit(overall ? 0 : 1);
+  }
+
+  console.log(`\n🎬 Studio Conductor — ${gMeta.name}  ·  --validate-all`);
+  console.log(`   ${gameDir}`);
+  console.log(`   ran ${applicable.length} game-applicable validator(s) from the Lego registry via the dispatcher (studio/lego/dispatch.mjs)\n`);
+  console.log('   SCORECARD (capability → ACCEPT/REJECT + score):');
+  for (const r of applicable) {
+    const mark = r.accept ? '✅ ACCEPT' : '❌ REJECT';
+    const score = r.score != null ? `score ${r.score}` : 'score —';
+    console.log(`     ${mark}  ${r.capability.padEnd(14)} ${String(score).padEnd(11)} ${lastReason(r.out)}`);
+  }
+  if (skipped.length) console.log(`\n   (not game-scoped, self-test bricks skipped: ${skipped.join(', ')})`);
+  console.log(`\n   ${overall ? '✅ OVERALL: ACCEPT' : '❌ OVERALL: REJECT'}  —  ${passed}/${applicable.length} validators passed\n`);
+  process.exit(overall ? 0 : 1);
+}
+
+// extract a one-line reason from a run's stdout: the note the dispatcher prints
+// under its ACCEPT/REJECT line; else the gate eval's {verdict:{webgl,canvas}};
+// else the first MISS/error line.
+function lastReason(out) {
+  const lines = (out || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const vi = lines.findIndex((l) => /ACCEPT|REJECT/.test(l));
+  if (vi >= 0 && lines[vi + 1] && !/validator exit/.test(lines[vi + 1])) return lines[vi + 1].slice(0, 100);
+  const vm = (out || '').match(/"verdict"\s*:\s*\{\s*"webgl"\s*:\s*(true|false)\s*,\s*"canvas"\s*:\s*(true|false)/);
+  if (vm) return `0-death gate — webgl:${vm[1]} canvas:${vm[2]}`;
+  const miss = lines.find((l) => /^MISS/.test(l));
+  return miss ? miss.slice(0, 100) : '';
+}
 const reg = JSON.parse(fs.readFileSync(path.join(HERE, 'verticals.json'), 'utf8'));
 const metaPath = path.join(gameDir, 'GAME_META.json');
 const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : { name: path.basename(gameDir), stages: {} };

@@ -1,0 +1,15 @@
+{
+  "capability": "distinctness",
+  "name": "studio-distinct",
+  "dir": "tools/studio-distinct",
+  "run": "node tool.mjs",
+  "validator": "node validate.mjs",
+  "inputs": "a game dir (--game) and optionally a sibling (--vs DIR2): screenshots the game (and the sibling, else compares against the generic stock-platformer baseline) and scores UNIQUENESS 0-100 with Gemini vision",
+  "outputs": [
+    "out/result.json",
+    "out/A-frame-*.png"
+  ],
+  "deps": [],
+  "deterministic": false,
+  "perGame": true
+}

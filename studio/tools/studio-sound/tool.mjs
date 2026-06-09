@@ -1,40 +1,17 @@
 /*
  * studio-sound — the RUN step for capability "music".
  *
- * A brick's run step CONSUMES an input and PRODUCES the artifact(s) declared in
- * manifest.outputs. This is a stub: it writes a minimal, well-formed result.json
- * so the brick is born runnable AND validatable. Replace the TODO with the real
- * generator; keep writing every declared output.
+ * music is a CHECKER brick (like eval-feel / game-gate): its "output" IS the
+ * structural verdict — does the game wire SFX for the key events + a music bed.
+ * This wrapper delegates to validate.mjs so `node tool.mjs --game DIR` produces
+ * out/result.json (the scorecard). (Run + validator both point at validate.mjs.)
  *
- *   node tool.mjs            # produce out/result.json
- *   node tool.mjs --game DIR  # (per-game caps) operate on a game dir
+ *   node tool.mjs --game DIR   # scan + score -> out/result.json
  */
-import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(HERE, 'out');
-fs.mkdirSync(OUT, { recursive: true });
-
-const gameArg = (() => {
-  const i = process.argv.indexOf('--game');
-  return i >= 0 ? process.argv[i + 1] : null;
-})();
-
-// ── TODO: replace with the real generator for "music" ───────────────
-// Read your input (a prompt, a sheet, the game dir in `gameArg`, ...) and write
-// the declared output(s). The result MUST satisfy validate.mjs's structural check.
-const result = {
-  capability: 'music',
-  name: 'studio-sound',
-  game: gameArg || null,
-  producedAt: new Date().toISOString(),
-  // a real brick fills this with its actual artifact metadata:
-  ok: true,
-};
-// ─────────────────────────────────────────────────────────────────────────────
-
-const outFile = path.join(OUT, 'result.json');
-fs.writeFileSync(outFile, JSON.stringify(result, null, 2) + '\n');
-console.log(`studio-sound: wrote ${path.relative(HERE, outFile)}`);
+const r = spawnSync('node', [path.join(HERE, 'validate.mjs'), ...process.argv.slice(2)], { stdio: 'inherit' });
+process.exit(r.status == null ? 1 : r.status);

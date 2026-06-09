@@ -65,13 +65,46 @@
       "dir": "tools/studio-sound",
       "run": "node tool.mjs",
       "validator": "node validate.mjs",
-      "inputs": "TODO: describe what the run step consumes",
+      "inputs": "a game dir (--game): statically checks the game wires Studio.Audio.sfx for jump/coin/hit(stomp|hurt)/win + a music/bed hook",
       "outputs": [
         "out/result.json"
       ],
       "deps": [],
       "deterministic": true,
-      "hasValidator": true
+      "hasValidator": true,
+      "perGame": true
+    },
+    {
+      "capability": "art-cohesion",
+      "name": "studio-art",
+      "dir": "tools/studio-art",
+      "run": "node tool.mjs",
+      "validator": "node validate.mjs",
+      "inputs": "a game dir (--game): serves its src/, screenshots a few frames headless, scores VISUAL COHESION 0-100 with Gemini vision (palette/style consistency, readability, polish)",
+      "outputs": [
+        "out/result.json",
+        "out/frame-*.png"
+      ],
+      "deps": [],
+      "deterministic": false,
+      "hasValidator": true,
+      "perGame": true
+    },
+    {
+      "capability": "distinctness",
+      "name": "studio-distinct",
+      "dir": "tools/studio-distinct",
+      "run": "node tool.mjs",
+      "validator": "node validate.mjs",
+      "inputs": "a game dir (--game) and optionally a sibling (--vs DIR2): screenshots the game (and the sibling, else compares against the generic stock-platformer baseline) and scores UNIQUENESS 0-100 with Gemini vision",
+      "outputs": [
+        "out/result.json",
+        "out/A-frame-*.png"
+      ],
+      "deps": [],
+      "deterministic": false,
+      "hasValidator": true,
+      "perGame": true
     }
   ]
 }

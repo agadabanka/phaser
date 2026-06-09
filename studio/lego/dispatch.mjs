@@ -11,8 +11,9 @@
  * Exits 0 on ACCEPT, non-zero on REJECT or MISS — so it composes in a pipeline.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { lookup } from './registry.mjs';
 import { ensureVendor, STUDIO_ROOT } from './vendor.mjs';
@@ -68,13 +69,23 @@ if (gameDir || brick.perGame) {
 }
 console.log(`   validator: ${cmd} ${vargs.join(' ')}\n`);
 
-let stdout = '', exitCode = 0;
+// Capture the validator's output via a TEMP FILE, not a pipe. Why: validators that
+// drive a headless browser (art-cohesion, distinctness) leave a dup of the capture
+// pipe's write-end held open (via libuv/Playwright) after the child exits, so a
+// pipe never reaches EOF and a synchronous capture (execFileSync / spawnSync+pipe)
+// blocks forever. Redirecting the child's stdout+stderr to real FILE descriptors
+// sidesteps pipes entirely — the parent just reads the file once the child exits.
+// stdin is /dev/null so no browser descendant inherits (and pins) our stdin.
+const logPath = path.join(os.tmpdir(), `lego-dispatch-${capability.replace(/[^\w.-]/g, '_')}-${process.pid}.log`);
+const logFd = fs.openSync(logPath, 'w');
+let exitCode = 1, stdout = '';
 try {
-  stdout = execFileSync(cmd, vargs, { cwd: toolDir, encoding: 'utf8', maxBuffer: 1 << 26 });
-} catch (e) {
-  // a failing validator exits non-zero -> execFileSync throws; capture its output.
-  stdout = (e.stdout || '') + (e.stderr || '');
-  exitCode = typeof e.status === 'number' ? e.status : 1;
+  const res = spawnSync(cmd, vargs, { cwd: toolDir, stdio: ['ignore', logFd, logFd] });
+  exitCode = typeof res.status === 'number' ? res.status : 1;
+} finally {
+  fs.closeSync(logFd);
+  try { stdout = fs.readFileSync(logPath, 'utf8'); } catch { stdout = ''; }
+  fs.rmSync(logPath, { force: true });
 }
 
 // ── 4. parse the verdict (normalise the known shapes) + decide ────────────────
