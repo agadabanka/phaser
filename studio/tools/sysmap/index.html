@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Studio Sysmap — how the systems interact</title>
+<style>
+  :root {
+    --bg: #0c1019; --panel: #141b29; --panel2: #1b2435; --ink: #e7edf6; --muted: #8a98ad;
+    --line: #2a3650; --accent: #ffd34d;
+    /* kind palette */
+    --k-tier: #5a6b7a; --k-sdk: #4aa3c8; --k-tool: #b07ad6; --k-game: #e0703a;
+    --k-validator: #e0b341; --k-orchestrator: #5fd08a; --k-concept: #8893a6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+  #app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background: linear-gradient(180deg, #131a28, #0e131e); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .2px; }
+  header h1 b { color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 12px; }
+  header .grow { flex: 1; }
+  .ctrl { display: flex; align-items: center; gap: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { background: var(--panel); color: var(--muted); border: 0; padding: 6px 12px; cursor: pointer; font: inherit; }
+  .seg button.on { background: var(--accent); color: #1a1206; font-weight: 600; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .btn { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  .btn:hover { border-color: var(--accent); }
+
+  main { position: relative; overflow: hidden; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg.dragging { cursor: grabbing; }
+
+  /* graph styling */
+  .edge { stroke-width: 1.4; fill: none; opacity: .42; }
+  .edge.dim { opacity: .06; }
+  .edge.hot { opacity: .95; stroke-width: 2.4; }
+  .node circle, .node rect { cursor: pointer; stroke: #0a0e16; stroke-width: 1.5; transition: opacity .12s; }
+  .node.tier rect { rx: 7; }
+  .node text { fill: var(--ink); font-size: 11px; pointer-events: none; paint-order: stroke; stroke: #0a0e16; stroke-width: 3px; stroke-linejoin: round; }
+  .node.dim { opacity: .14; }
+  .node.focus circle, .node.focus rect { stroke: #fff; stroke-width: 3; }
+  .node .badge { font-size: 10px; stroke: none; }
+  .tierband { fill: #ffffff; opacity: .025; }
+  .tierband-label { fill: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; opacity: .55; }
+
+  /* legend */
+  .legend { position: absolute; top: 12px; left: 12px; background: rgba(16,22,34,.86); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-width: 230px; backdrop-filter: blur(4px); }
+  .legend h3 { margin: 0 0 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+  .legend .row { display: flex; align-items: center; gap: 7px; margin: 3px 0; font-size: 12px; cursor: pointer; }
+  .legend .row.off { opacity: .35; }
+  .legend .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; border: 1px solid #0008; }
+  .legend .ln { width: 18px; height: 0; flex: none; border-top: 2px solid; }
+  .legend hr { border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
+  .legend .hint { color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+  /* tooltip / detail */
+  #tip { position: absolute; pointer-events: none; max-width: 320px; background: rgba(13,18,28,.97); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 28px #000a; display: none; z-index: 20; }
+  #tip h4 { margin: 0 0 2px; font-size: 13px; }
+  #tip .kindline { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+  #tip .desc { font-size: 12px; margin: 6px 0; }
+  #tip .sec { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-top: 7px; }
+  #tip .val.ok { color: var(--k-orchestrator); } #tip .val.bad { color: #ff6b6b; } #tip .val.unk { color: var(--muted); }
+  #tip ul { margin: 3px 0 0; padding-left: 16px; }
+  #tip li { font-size: 11.5px; }
+
+  /* timeline */
+  footer { background: linear-gradient(0deg, #131a28, #0e131e); border-top: 1px solid var(--line); padding: 8px 14px 10px; }
+  footer .tl-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  footer .tl-head b { font-size: 12px; } footer .tl-head .muted { color: var(--muted); font-size: 11px; }
+  .tl { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .tl .ph { flex: none; min-width: 120px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; cursor: pointer; transition: border-color .12s, background .12s; }
+  .tl .ph:hover { border-color: var(--accent); }
+  .tl .ph.on { border-color: var(--accent); background: #20283a; }
+  .tl .ph .p { font-size: 10px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .tl .ph .t { font-size: 11.5px; margin-top: 2px; }
+  .tl .ph .d { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .tl .ph .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  #err { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); color: #ff6b6b; font-size: 14px; display: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Studio <b>Sysmap</b></h1>
+    <span class="sub" id="counts">loading…</span>
+    <span class="grow"></span>
+    <div class="ctrl">
+      <span class="sub">layout</span>
+      <div class="seg" id="layoutSeg">
+        <button data-layout="tier" class="on">tier-stack</button>
+        <button data-layout="force">force graph</button>
+      </div>
+      <button class="btn" id="resetBtn" title="reset view + selection">reset</button>
+    </div>
+  </header>
+  <main>
+    <svg id="svg"></svg>
+    <div class="legend" id="legend"></div>
+    <div id="tip"></div>
+    <div id="err"></div>
+  </main>
+  <footer>
+    <div class="tl-head"><b>Timeline</b> <span class="muted" id="tlhint">— click a phase to highlight the systems it touched</span></div>
+    <div class="tl" id="timeline"></div>
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
