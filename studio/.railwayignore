@@ -1,0 +1,8 @@
+node_modules/
+games/
+spike-matter/
+**/out/
+**/*.min.js
+.railway/
+*.log
+live-shot.png
