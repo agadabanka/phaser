@@ -1,0 +1,13 @@
+{
+  "capability": "music",
+  "name": "studio-sound",
+  "dir": "tools/studio-sound",
+  "run": "node tool.mjs",
+  "validator": "node validate.mjs",
+  "inputs": "TODO: describe what the run step consumes",
+  "outputs": [
+    "out/result.json"
+  ],
+  "deps": [],
+  "deterministic": true
+}

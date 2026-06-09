@@ -1,0 +1,77 @@
+{
+  "_comment": "The Lego registry — the executable index of bricks. Seeded with the existing Studio validators. Every entry has hasValidator:true; registry.register() refuses anything without one. Paths in `dir` are relative to studio root. `run`/`validator` are run from `dir`. Capabilities with a per-game validator (gate, feel) take a game dir via --game (the dispatcher forwards it).",
+  "tools": [
+    {
+      "capability": "sprite-animation",
+      "name": "sprite-studio",
+      "dir": "tools/sprite-studio",
+      "run": "node gen.mjs",
+      "validator": "node check.mjs",
+      "inputs": "a prompt or a generated sprite sheet (defaults to the bundled sample-hero sheet)",
+      "outputs": [
+        "out/*-sheet.png",
+        "out/preview.png",
+        "out/contact-all.png"
+      ],
+      "deps": [],
+      "deterministic": false,
+      "hasValidator": true
+    },
+    {
+      "capability": "contraption",
+      "name": "contraptions",
+      "dir": "tools/contraptions",
+      "run": "node gen.mjs",
+      "validator": "node check.mjs",
+      "inputs": "a contraption type + params (cycles all registered types)",
+      "outputs": [
+        "out/playground.png"
+      ],
+      "deps": [],
+      "deterministic": true,
+      "hasValidator": true
+    },
+    {
+      "capability": "feel",
+      "name": "eval-feel",
+      "dir": "tools/eval",
+      "run": "node feel.mjs",
+      "validator": "node feel.mjs",
+      "inputs": "a game dir (scores window.LEVELS via the in-page Studio.Feel)",
+      "outputs": [],
+      "deps": [],
+      "deterministic": true,
+      "hasValidator": true,
+      "perGame": true
+    },
+    {
+      "capability": "gate",
+      "name": "game-gate",
+      "dir": "games",
+      "run": "node eval.mjs",
+      "validator": "node eval.mjs",
+      "inputs": "a game dir (per-game 0-death gate: determinism + 0-death + non-black readback)",
+      "outputs": [
+        "out/scorecard.json"
+      ],
+      "deps": [],
+      "deterministic": true,
+      "hasValidator": true,
+      "perGame": true
+    },
+    {
+      "capability": "music",
+      "name": "studio-sound",
+      "dir": "tools/studio-sound",
+      "run": "node tool.mjs",
+      "validator": "node validate.mjs",
+      "inputs": "TODO: describe what the run step consumes",
+      "outputs": [
+        "out/result.json"
+      ],
+      "deps": [],
+      "deterministic": true,
+      "hasValidator": true
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "capability": "__CAPABILITY__",
+  "name": "__NAME__",
+  "dir": "tools/__NAME__",
+  "run": "node tool.mjs",
+  "validator": "node validate.mjs",
+  "inputs": "TODO: describe what the run step consumes",
+  "outputs": ["out/result.json"],
+  "deps": [],
+  "deterministic": true
+}

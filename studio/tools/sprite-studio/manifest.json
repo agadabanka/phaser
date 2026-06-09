@@ -1,0 +1,11 @@
+{
+  "capability": "sprite-animation",
+  "name": "sprite-studio",
+  "dir": "tools/sprite-studio",
+  "run": "node gen.mjs",
+  "validator": "node check.mjs",
+  "inputs": "a prompt or a generated sprite sheet (defaults to the bundled sample-hero sheet)",
+  "outputs": ["out/*-sheet.png"],
+  "deps": [],
+  "deterministic": false
+}
