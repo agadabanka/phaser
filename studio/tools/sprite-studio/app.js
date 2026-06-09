@@ -309,7 +309,7 @@
         play: playAnim,
         validate: validate,
         sheet: function () { return JSON.parse(JSON.stringify(sheet)); },
-        setSheet: function (next) { Object.assign(sheet, next || {}); reflectSheetInputs(); reloadSheet(); },
+        setSheet: function (next) { Object.assign(sheet, next || {}); sheet.frameCount = -1; reflectSheetInputs(); reloadSheet(); }, // -1 until reloadSheet 'complete' sets the real sliced count -> gates the checker's frameCount wait on the actual async load (fixes play-before-ready crash on external sheets)
         anims: animNames,
         // the live preview state, for the checker's per-anim assertions
         state: function () {

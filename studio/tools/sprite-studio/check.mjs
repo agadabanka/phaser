@@ -148,8 +148,14 @@ server.close();
 const animsOK = result.perAnim && result.perAnim.every((a) => a.advanced && a.inRange);
 const structPass = structural && structural.structural && structural.structural.pass;
 const renderedOK = result.readback && result.readback.nonblackRatio > 0.02;
-// motion is advisory unless creds present AND a verdict failed (don't fail offline)
-const motionPass = !geminiConfigured() ? true : motion.every((m) => !m.available || m.pass);
+// motion is advisory unless creds present AND a verdict failed (don't fail offline).
+// single-frame anims (idle/jump poses) have no cycle to judge -> structural-gated only;
+// only multi-frame anims must pass the smooth-cycle motion judge.
+const motionPass = !geminiConfigured() ? true : motion.every((m, i) => {
+  if (!m.available) return true;
+  if (result.perAnim[i] && result.perAnim[i].frameCount === 1) return true; // a pose, not a cycle
+  return m.pass;
+});
 const pass = !!(result.ok && errors.length === 0 && animsOK && structPass && renderedOK && motionPass);
 
 const report = {
