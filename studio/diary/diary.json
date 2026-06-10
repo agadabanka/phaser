@@ -597,6 +597,32 @@
         "https://studio-sysmap-production.up.railway.app"
       ],
       "commit": null
+    },
+    {
+      "id": "e26",
+      "date": "2026-06-10",
+      "phase": "Polish",
+      "title": "RFC-001: simplify the engine to one bundle, one CLI, data-only games, notes that feed back",
+      "what": "Architecture review with measurements: a new game owns 853 lines (only ~250 game-specific); studio.js exists in 5 copies (2 stale RIGHT NOW); 5 CLI entry points + 2 overlapping JSONs. Proposed four consolidations: (1) Studio.Game.boot(config) — games shrink to levels+theme+hooks (~80 lines); (2) build Studio INTO phaser-private as dist/phaser-studio.min.js with a stepMode engine flag (the deterministic stepper stops being a monkey-patch); (3) one `studio` CLI absorbing conductor/dispatch/forge/vendor, registry absorbing verticals, rules.json + a level-lint brick making the geometry contract data; (4) a notes-loop brick: pull /api/notes from every deployed game, Gemini-triage to capabilities, surface as backlog in `studio next`, credit closed notes in diary entries — play→note→triage→dispatch→gate→diary, the full circle.",
+      "why": "The essential loop is one sentence — clone a game, apply rules, call the right tool, forge when missing, gate everything — and the architecture should be the same size as the sentence. The deterministic gates make the refactor safe: 6/6 ACCEPT is the acceptance test for every migration step.",
+      "systems": [
+        "engine-rfc",
+        "sdk",
+        "conductor",
+        "dispatcher",
+        "forge",
+        "registry",
+        "shell",
+        "diary",
+        "ember",
+        "game-template"
+      ],
+      "validator": "each migration step gated by conductor --validate-all staying 6/6 on ember + template",
+      "status": "wip",
+      "artifacts": [
+        "rfc/001-engine-simplification.md"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -1014,6 +1040,13 @@
         "label": "Playtest Shell",
         "tier": "feedback",
         "desc": "Studio.Shell — DOM playtest overlay every game inherits: pause/resume (scene + music duck), 📝 notes POSTing {text + live game context} to the host's /api/notes, restart, mute. Inert until clicked, so the deterministic gate is untouched."
+      },
+      {
+        "id": "engine-rfc",
+        "kind": "concept",
+        "label": "RFC-001 Engine Simplification",
+        "tier": "feedback",
+        "desc": "rfc/001-engine-simplification.md — one bundle (phaser-studio.min.js built by the fork), one CLI front door, games as data+hooks via Studio.Game.boot, rules.json as first-class data, and a notes-loop brick so every playtest note feeds the next dispatch."
       }
     ],
     "edges": [
@@ -1516,6 +1549,26 @@
       {
         "from": "shell",
         "to": "railway",
+        "rel": "feeds"
+      },
+      {
+        "from": "engine-rfc",
+        "to": "sdk",
+        "rel": "feeds"
+      },
+      {
+        "from": "engine-rfc",
+        "to": "conductor",
+        "rel": "feeds"
+      },
+      {
+        "from": "engine-rfc",
+        "to": "shell",
+        "rel": "feeds"
+      },
+      {
+        "from": "engine-rfc",
+        "to": "diary",
         "rel": "feeds"
       }
     ]

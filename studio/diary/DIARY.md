@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**25 entries** across 13 phases · **52 systems** · **100 edges** in the graph.
+**26 entries** across 13 phases · **53 systems** · **104 edges** in the graph.
 
 ---
 
@@ -259,6 +259,15 @@
 - **Validator:** sysmap check.mjs extended: lensOk (ember subgraph strictly smaller, restores clean) + flowOk (badges == steps, stepping moves idx) — PASS; phone 390x844 verified no-overflow
 - **Artifacts:** `tools/sysmap/`, `diary/SCHEMA.md (flows)`, `https://studio-sysmap-production.up.railway.app`
 
+### RFC-001: simplify the engine to one bundle, one CLI, data-only games, notes that feed back
+`2026-06-10` · 🚧 wip
+
+- **What:** Architecture review with measurements: a new game owns 853 lines (only ~250 game-specific); studio.js exists in 5 copies (2 stale RIGHT NOW); 5 CLI entry points + 2 overlapping JSONs. Proposed four consolidations: (1) Studio.Game.boot(config) — games shrink to levels+theme+hooks (~80 lines); (2) build Studio INTO phaser-private as dist/phaser-studio.min.js with a stepMode engine flag (the deterministic stepper stops being a monkey-patch); (3) one `studio` CLI absorbing conductor/dispatch/forge/vendor, registry absorbing verticals, rules.json + a level-lint brick making the geometry contract data; (4) a notes-loop brick: pull /api/notes from every deployed game, Gemini-triage to capabilities, surface as backlog in `studio next`, credit closed notes in diary entries — play→note→triage→dispatch→gate→diary, the full circle.
+- **Why:** The essential loop is one sentence — clone a game, apply rules, call the right tool, forge when missing, gate everything — and the architecture should be the same size as the sentence. The deterministic gates make the refactor safe: 6/6 ACCEPT is the acceptance test for every migration step.
+- **Systems:** RFC-001 Engine Simplification, Studio SDK, Conductor, Lego dispatcher, Lego forge, Lego registry, Playtest Shell, Studio Diary (diary.json), Ember Depths, Game Template
+- **Validator:** each migration step gated by conductor --validate-all staying 6/6 on ember + template
+- **Artifacts:** `rfc/001-engine-simplification.md`
+
 ---
 
 ## Flows — the order systems are called
@@ -392,6 +401,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio Diary (diary.json)** | concept | — | diary/SCHEMA.md + diary.json — the machine-readable build log + systems graph; DIARY.md is a render, the sysmap consumes it directly. |
 | **Sysmap (interactive visualizer)** | tool | sysmap-check | tools/sysmap/ — vanilla JS+SVG force-graph of diary.json + registry.json; deployed at studio-sysmap-production.up.railway.app. |
 | **Playtest Shell** | sdk | — | Studio.Shell — DOM playtest overlay every game inherits: pause/resume (scene + music duck), 📝 notes POSTing {text + live game context} to the host's /api/notes, restart, mute. Inert until clicked, so the deterministic gate is untouched. |
+| **RFC-001 Engine Simplification** | concept | — | rfc/001-engine-simplification.md — one bundle (phaser-studio.min.js built by the fork), one CLI front door, games as data+hooks via Studio.Game.boot, rules.json as first-class data, and a notes-loop brick so every playtest note feeds the next dispatch. |
 
 ### 7. Publish
 
