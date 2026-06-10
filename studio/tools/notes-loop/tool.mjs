@@ -55,6 +55,41 @@ if (mode === 'pull') {
   process.exit(0);
 }
 
+if (mode === 'issues') {
+  // file every un-filed inbox note as a GitHub ISSUE on its game's repo
+  // (deepfin protocol: label 'playtest-note', body carries 'note-id: <id>' so
+  // sync can reflect closed-issue state back onto the note).
+  const TOKEN = process.env.GH_TOKEN;
+  if (!TOKEN) { console.error('set GH_TOKEN'); process.exit(2); }
+  const inbox = readJson(INBOX, { notes: [] });
+  let filed = 0;
+  for (const n of inbox.notes) {
+    if (n.issue) continue;
+    const meta = readJson(path.join(STUDIO, 'games', n.gameDir, 'GAME_META.json'), {});
+    const repo = meta.repo;
+    if (!repo) { console.log('   ' + n.gameDir + ': no GAME_META.repo — skipped'); continue; }
+    const body = [
+      (n.text || '').trim(), '',
+      '— playtest context —',
+      'where: ' + (n.where || '?'),
+      'level: ' + (n.level ?? '?') + ' (' + (n.levelName || '') + ')  ·  coins ' + (n.coins ?? '?') + '  ·  deaths ' + (n.deaths ?? '?'),
+      'game: ' + (meta.url || n.gameDir) + '  ·  at ' + (n.ts || ''),
+      '', 'note-id: ' + (n.id ?? n.key),
+    ].join('\n');
+    const res = await fetch('https://api.github.com/repos/' + repo + '/issues', {
+      method: 'POST',
+      headers: { Authorization: 'token ' + TOKEN, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '🎮 ' + (n.text || 'playtest note').slice(0, 70), body, labels: ['playtest-note'] }),
+    });
+    const j = await res.json();
+    if (j.number) { n.issue = repo + '#' + j.number; filed++; console.log('   #' + j.number + '  ' + repo + '  — ' + (n.text || '').slice(0, 60)); }
+    else console.log('   FAILED: ' + JSON.stringify(j.message || j).slice(0, 100));
+  }
+  fs.writeFileSync(INBOX, JSON.stringify(inbox, null, 2) + '\n');
+  console.log('📌 filed ' + filed + ' issue(s)');
+  process.exit(0);
+}
+
 if (mode === 'triage') {
   const inbox = readJson(INBOX, { notes: [] }), triage = readJson(TRIAGE, { items: [] });
   const doneKeys = new Set(triage.items.map((t) => t.noteKey));
@@ -99,5 +134,5 @@ function writeResult(triage) {
   const open = (triage.items || []).filter((t) => t.status === 'open');
   fs.writeFileSync(path.join(OUT, 'result.json'), JSON.stringify({ capability: 'feedback', mode: 'triage', items: (triage.items || []).length, open: open.length, byCapability: open.reduce((m, t) => { m[t.capability] = (m[t.capability] || 0) + 1; return m; }, {}) }, null, 2) + '\n');
 }
-console.error('usage: node tool.mjs pull | triage [--offline]');
+console.error('usage: node tool.mjs pull | issues | triage [--offline]');
 process.exit(2);

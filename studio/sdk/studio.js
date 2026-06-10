@@ -1017,6 +1017,22 @@
       var key = scene.scene.key, mgr = scene.sys.game.scene;
       var paused = false, userMuted = false, panelOpen = false, pausedByPanel = false;
 
+      // corner links (deepfin convention): DIARY / REPO / ENGINE, top-left
+      if (opt.links && opt.links.length) {
+        var corner = document.createElement('div');
+        corner.id = 'studio-links';
+        corner.style.cssText = 'position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));z-index:1000;display:flex;flex-direction:column;gap:2px;font-family:' + FONT + ';font-size:11px;opacity:.85;';
+        opt.links.forEach(function (l) {
+          var a = document.createElement('a');
+          a.textContent = l.label; a.href = l.href; a.target = '_blank'; a.rel = 'noopener';
+          a.style.cssText = 'color:' + th.text + ';text-decoration:none;text-shadow:0 1px 3px #000;';
+          a.onmouseover = function () { a.style.textDecoration = 'underline'; };
+          a.onmouseout = function () { a.style.textDecoration = 'none'; };
+          corner.appendChild(a);
+        });
+        document.body.appendChild(corner);
+      }
+
       var root_ = document.createElement('div');
       root_.id = 'studio-shell';
       root_.style.cssText = 'position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:1000;display:flex;gap:8px;font-family:' + FONT + ';';
@@ -1630,6 +1646,12 @@
 
           Studio.Shell.create(this, {
             theme: TH.shell || null,
+            links: (function () {
+              var L = [{ label: '📖 DIARY', href: '/api/diary' }];
+              if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); }
+              if (cfg.engineUrl) L.push({ label: '⚙️ ENGINE', href: cfg.engineUrl });
+              return L;
+            })(),
             context: function () {
               var L = LEVELS[levelIndex] || {};
               var base = {

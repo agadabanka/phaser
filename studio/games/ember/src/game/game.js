@@ -12,6 +12,7 @@
   Studio.Game.boot({
     title: 'Ember Depths',
     slug: 'ember-depths',
+    repo: 'agadabanka/ember-depths',
     tagline: "Hop the lava, ride the embers — descend the molten cave.",
     controls: "← → move · SPACE jump · stomp foes  (joystick on touch)",
     archetype: 'runner',
