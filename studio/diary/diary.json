@@ -623,6 +623,53 @@
         "rfc/001-engine-simplification.md"
       ],
       "commit": null
+    },
+    {
+      "id": "e27",
+      "date": "2026-06-10",
+      "phase": "Refactor",
+      "title": "RFC-001 implemented: Studio.Game.boot, studio CLI, rules.json + level-lint, notes-loop",
+      "what": "Executed the engine simplification. Studio.Game.boot(config) turns a game into data+theme+hooks (Ember's 513-line game.js → ~70-line config; one runtime owns world/theme/HUD/shell/autopilot/harness/win-death, runner + vertical archetypes). rules.json makes the geometry contract data; the forged level-lint brick gates levels statically before the browser gate. The studio CLI (new/next/run/lint/gate/feel/check/ship/notes) is the one front door; the registry absorbed verticals.json. The notes-loop brick (pull/triage) closes play→note→dispatch.",
+      "why": "The essential loop — clone, apply rules, call the right tool, gate — should be the size of that sentence. The deterministic gates made the rewrite safe (Ember held 6/6 throughout).",
+      "systems": [
+        "game-runtime",
+        "studio-cli",
+        "rules",
+        "notes-loop",
+        "registry",
+        "conductor",
+        "ember",
+        "game-template"
+      ],
+      "validator": "Ember --validate-all held ACCEPT across the port",
+      "status": "shipped",
+      "commit": null
+    },
+    {
+      "id": "e28",
+      "date": "2026-06-10",
+      "phase": "Game",
+      "title": "Nimbus Climb: a new vertical sky-climber proves the refactor (7/7 ACCEPT)",
+      "what": "Built a brand-new game in the clouds via boot({archetype:'vertical'}). New SDK verbs: updraft wind-columns (ride up, steer out), cloud/mist/crystal/storm materials, climb-axis Feel scoring, a waypoint-chain vertical autopilot. tools/level-gen/sky.mjs generates the 5 towers reachable-by-construction. Full Gemini art (painterly cloud backdrop, animated cloud-spirit hero) + Lyria sky music. Two validators were generalized beyond Ember's conventions in the process (music scans the vendored SDK for boot() games; texturing reads materials from theme-kit.json).",
+      "why": "A second, differently-shaped game is the real test of \"clone a game, apply rules\" — and it forced the engine + validators to become genuinely archetype-agnostic.",
+      "systems": [
+        "nimbus",
+        "game-runtime",
+        "level-gen",
+        "rules",
+        "lyria",
+        "studio-art",
+        "studio-distinct",
+        "studio-sound",
+        "texture-kit"
+      ],
+      "validator": "gate GREEN webgl+canvas, deterministic; --validate-all 7/7 ACCEPT (feel, gate, music 1.0, art 64.4, distinct 91.7, texturing 100, rules 100)",
+      "status": "shipped",
+      "artifacts": [
+        "games/nimbus/",
+        "https://nimbus-climb-production.up.railway.app"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -1047,6 +1094,51 @@
         "label": "RFC-001 Engine Simplification",
         "tier": "feedback",
         "desc": "rfc/001-engine-simplification.md — one bundle (phaser-studio.min.js built by the fork), one CLI front door, games as data+hooks via Studio.Game.boot, rules.json as first-class data, and a notes-loop brick so every playtest note feeds the next dispatch."
+      },
+      {
+        "id": "studio-cli",
+        "kind": "orchestrator",
+        "label": "studio CLI",
+        "tier": "orchestration",
+        "desc": "studio.mjs — one front door: new/next/run/lint/gate/feel/check/ship/notes; wraps conductor+dispatch+forge."
+      },
+      {
+        "id": "game-runtime",
+        "kind": "sdk",
+        "label": "Studio.Game.boot",
+        "tier": "engine",
+        "desc": "the declarative game runtime: a game is data + theme tokens + hooks; all per-game glue (world/theme/HUD/shell/autopilot/harness/win-death) is one SDK impl. runner + vertical archetypes."
+      },
+      {
+        "id": "rules",
+        "kind": "concept",
+        "label": "rules.json + level-lint",
+        "tier": "evaluation",
+        "validator": "rules",
+        "desc": "the geometry contract as data (per archetype) + the cheap static gate that lints levels before the browser gate."
+      },
+      {
+        "id": "notes-loop",
+        "kind": "tool",
+        "label": "notes-loop",
+        "tier": "feedback",
+        "validator": "feedback",
+        "desc": "tools/notes-loop — pull /api/notes from every deployed game, Gemini-triage to capabilities; closes play→note→dispatch→diary."
+      },
+      {
+        "id": "level-gen",
+        "kind": "tool",
+        "label": "sky level-gen",
+        "tier": "content",
+        "desc": "tools/level-gen/sky.mjs — generates vertical towers reachable-by-construction (staggered lanes, centre-column updrafts, storm framing)."
+      },
+      {
+        "id": "nimbus",
+        "kind": "game",
+        "label": "Nimbus Climb",
+        "tier": "games",
+        "validator": "gate",
+        "desc": "the cloud sky-climber (vertical archetype): updraft riding, storm walls, 5 towers. Built as a ~60-line boot() config. 7/7 validators ACCEPT."
       }
     ],
     "edges": [
@@ -1569,6 +1661,81 @@
       {
         "from": "engine-rfc",
         "to": "diary",
+        "rel": "feeds"
+      },
+      {
+        "from": "nimbus",
+        "to": "game-runtime",
+        "rel": "depends-on"
+      },
+      {
+        "from": "ember",
+        "to": "game-runtime",
+        "rel": "depends-on"
+      },
+      {
+        "from": "game-runtime",
+        "to": "sdk",
+        "rel": "builds-on"
+      },
+      {
+        "from": "nimbus",
+        "to": "level-gen",
+        "rel": "feeds"
+      },
+      {
+        "from": "nimbus",
+        "to": "gate",
+        "rel": "validated-by"
+      },
+      {
+        "from": "nimbus",
+        "to": "rules",
+        "rel": "validated-by"
+      },
+      {
+        "from": "nimbus",
+        "to": "texturing",
+        "rel": "validated-by"
+      },
+      {
+        "from": "nimbus",
+        "to": "music",
+        "rel": "validated-by"
+      },
+      {
+        "from": "nimbus",
+        "to": "art-cohesion",
+        "rel": "validated-by"
+      },
+      {
+        "from": "nimbus",
+        "to": "railway",
+        "rel": "produces"
+      },
+      {
+        "from": "studio-cli",
+        "to": "conductor",
+        "rel": "depends-on"
+      },
+      {
+        "from": "studio-cli",
+        "to": "dispatcher",
+        "rel": "depends-on"
+      },
+      {
+        "from": "rules",
+        "to": "game-gate-tool",
+        "rel": "feeds"
+      },
+      {
+        "from": "notes-loop",
+        "to": "conductor",
+        "rel": "feeds"
+      },
+      {
+        "from": "lyria",
+        "to": "nimbus",
         "rel": "feeds"
       }
     ]

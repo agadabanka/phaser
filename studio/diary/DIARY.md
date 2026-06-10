@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**26 entries** across 13 phases · **53 systems** · **104 edges** in the graph.
+**28 entries** across 15 phases · **59 systems** · **119 edges** in the graph.
 
 ---
 
@@ -268,6 +268,27 @@
 - **Validator:** each migration step gated by conductor --validate-all staying 6/6 on ember + template
 - **Artifacts:** `rfc/001-engine-simplification.md`
 
+## Refactor
+
+### RFC-001 implemented: Studio.Game.boot, studio CLI, rules.json + level-lint, notes-loop
+`2026-06-10` · 🚀 shipped
+
+- **What:** Executed the engine simplification. Studio.Game.boot(config) turns a game into data+theme+hooks (Ember's 513-line game.js → ~70-line config; one runtime owns world/theme/HUD/shell/autopilot/harness/win-death, runner + vertical archetypes). rules.json makes the geometry contract data; the forged level-lint brick gates levels statically before the browser gate. The studio CLI (new/next/run/lint/gate/feel/check/ship/notes) is the one front door; the registry absorbed verticals.json. The notes-loop brick (pull/triage) closes play→note→dispatch.
+- **Why:** The essential loop — clone, apply rules, call the right tool, gate — should be the size of that sentence. The deterministic gates made the rewrite safe (Ember held 6/6 throughout).
+- **Systems:** Studio.Game.boot, studio CLI, rules.json + level-lint, notes-loop, Lego registry, Conductor, Ember Depths, Game Template
+- **Validator:** Ember --validate-all held ACCEPT across the port
+
+## Game
+
+### Nimbus Climb: a new vertical sky-climber proves the refactor (7/7 ACCEPT)
+`2026-06-10` · 🚀 shipped
+
+- **What:** Built a brand-new game in the clouds via boot({archetype:'vertical'}). New SDK verbs: updraft wind-columns (ride up, steer out), cloud/mist/crystal/storm materials, climb-axis Feel scoring, a waypoint-chain vertical autopilot. tools/level-gen/sky.mjs generates the 5 towers reachable-by-construction. Full Gemini art (painterly cloud backdrop, animated cloud-spirit hero) + Lyria sky music. Two validators were generalized beyond Ember's conventions in the process (music scans the vendored SDK for boot() games; texturing reads materials from theme-kit.json).
+- **Why:** A second, differently-shaped game is the real test of "clone a game, apply rules" — and it forced the engine + validators to become genuinely archetype-agnostic.
+- **Systems:** Nimbus Climb, Studio.Game.boot, sky level-gen, rules.json + level-lint, Lyria Music (Vertex), Studio Art (cohesion judge), Studio Distinct (uniqueness judge), Studio Sound, Texture Kit (style-matched tiles)
+- **Validator:** gate GREEN webgl+canvas, deterministic; --validate-all 7/7 ACCEPT (feel, gate, music 1.0, art 64.4, distinct 91.7, texturing 100, rules 100)
+- **Artifacts:** `games/nimbus/`, `https://nimbus-climb-production.up.railway.app`
+
 ---
 
 ## Flows — the order systems are called
@@ -355,6 +376,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.Contraptions** | sdk | — | Registry of kinematic machines (seesaw/launcher/crumble), each with a feeling + design lens + interest weight; autopilot-safe flair. |
 | **Studio.Cam** | sdk | — | Follow camera with deadzone + bounds. |
 | **Studio.Touch** | sdk | — | On-screen multi-touch analog joystick + jump button for mobile. |
+| **Studio.Game.boot** | sdk | — | the declarative game runtime: a game is data + theme tokens + hooks; all per-game glue (world/theme/HUD/shell/autopilot/harness/win-death) is one SDK impl. runner + vertical archetypes. |
 
 ### 4. Content
 
@@ -370,6 +392,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio Sound** | tool | music | tools/studio-sound/ — the music brick (forged from the template; gated by validate.mjs). |
 | **Texture Kit (style-matched tiles)** | tool | texturing | tools/texture-kit/ — generates a SEAMLESS material tile kit + themed sprites from the game's own backdrop as Gemini style-ref (2×2 mirror quilt); deterministic validator: seam/energy/palette-affinity/alpha. |
 | **Lyria Music (Vertex)** | tool | music | tools/art/lyria.mjs — generates a real instrumental loop with Google Lyria 2 (Vertex AI), downmixes + crossfade-loops + MP3-encodes, writes a measured sidecar so the music validator can prove it is non-silent. |
+| **sky level-gen** | tool | — | tools/level-gen/sky.mjs — generates vertical towers reachable-by-construction (staggered lanes, centre-column updrafts, storm framing). |
 
 ### 5. Evaluation
 
@@ -389,6 +412,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Lego dispatcher** | orchestrator | — | lego/dispatch.mjs — the root accept/reject gate: ensure-vendor -> run the brick's validator -> ACCEPT/REJECT (exit code composes). |
 | **Studio Art (cohesion judge)** | tool | art-cohesion | tools/studio-art/ — screenshots a game headless and scores 9-dim VISUAL COHESION 0-100 with Gemini vision (threshold 60). |
 | **Studio Distinct (uniqueness judge)** | tool | distinctness | tools/studio-distinct/ — scores a game's UNIQUENESS vs a sibling or the stock-platformer baseline (Gemini vision, 6 axes). |
+| **rules.json + level-lint** | concept | rules | the geometry contract as data (per archetype) + the cheap static gate that lints levels before the browser gate. |
 
 ### 6. Feedback
 
@@ -402,6 +426,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Sysmap (interactive visualizer)** | tool | sysmap-check | tools/sysmap/ — vanilla JS+SVG force-graph of diary.json + registry.json; deployed at studio-sysmap-production.up.railway.app. |
 | **Playtest Shell** | sdk | — | Studio.Shell — DOM playtest overlay every game inherits: pause/resume (scene + music duck), 📝 notes POSTing {text + live game context} to the host's /api/notes, restart, mute. Inert until clicked, so the deterministic gate is untouched. |
 | **RFC-001 Engine Simplification** | concept | — | rfc/001-engine-simplification.md — one bundle (phaser-studio.min.js built by the fork), one CLI front door, games as data+hooks via Studio.Game.boot, rules.json as first-class data, and a notes-loop brick so every playtest note feeds the next dispatch. |
+| **notes-loop** | tool | feedback | tools/notes-loop — pull /api/notes from every deployed game, Gemini-triage to capabilities; closes play→note→dispatch→diary. |
 
 ### 7. Publish
 
