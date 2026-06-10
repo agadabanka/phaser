@@ -8,6 +8,8 @@
   Studio.Game.boot({
     title: 'Studio Template',
     slug: 'template',
+    tagline: "A Studio game.",
+    controls: "← → move · SPACE jump",
     archetype: 'runner',
     gravity: 1300,
     seed: 'studio-template',

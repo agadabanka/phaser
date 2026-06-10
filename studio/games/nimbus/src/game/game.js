@@ -9,6 +9,8 @@
   Studio.Game.boot({
     title: 'Nimbus Climb',
     slug: 'nimbus-climb',
+    tagline: "Ride the updrafts, dodge the storms — climb the sky to the Sun Bell.",
+    controls: "← → move · SPACE jump · ride the wind  (joystick on touch)",
     archetype: 'vertical',
     gravity: 1300,
     seed: 'nimbus-climb',

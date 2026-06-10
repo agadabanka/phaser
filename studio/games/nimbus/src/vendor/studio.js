@@ -971,6 +971,33 @@
     }
   };
 
+  // -------------------------------------------------------------------- Save
+  // Per-game progress in localStorage (parity with jazz/starsweeper: unlocked
+  // levels + best coins/time survive a refresh). EVAL-SAFE: the harness path
+  // never reads or writes it (boot()'s reset() always starts level 0 and only
+  // MANUAL play records progress), so the deterministic gate can't be affected
+  // by stale browser state. All calls guarded — headless/incognito no-op.
+  Studio.Save = {
+    _key: function (slug) { return 'studio:' + slug; },
+    load: function (slug) {
+      try { return JSON.parse(localStorage.getItem(this._key(slug))) || { unlocked: 1, best: {} }; }
+      catch (e) { return { unlocked: 1, best: {} }; }
+    },
+    // record a level clear: unlock the next level, keep best coins (max) + time (min)
+    levelClear: function (slug, levelIndex, stats) {
+      try {
+        var s = this.load(slug);
+        s.unlocked = Math.max(s.unlocked || 1, levelIndex + 2);
+        var b = s.best[levelIndex] || {};
+        if (stats && stats.coins != null) b.coins = Math.max(b.coins || 0, stats.coins);
+        if (stats && stats.timeMs != null) b.timeMs = b.timeMs != null ? Math.min(b.timeMs, stats.timeMs) : stats.timeMs;
+        s.best[levelIndex] = b;
+        localStorage.setItem(this._key(slug), JSON.stringify(s));
+        return s;
+      } catch (e) { return null; }
+    }
+  };
+
   // ------------------------------------------------------------------- Shell
   // The PLAYTEST SHELL — the hub-convention front end every Studio game host
   // already serves an API for (server.js: /api/notes, /api/meta). A DOM overlay
@@ -1046,19 +1073,34 @@
             : '<em style="opacity:.6">no notes yet — first one sets the bar</em>';
         }).catch(function () { list.innerHTML = '<em style="opacity:.6">notes API offline (static host)</em>'; });
       }
+      var savedCaps = null;
       function openPanel() {
         panelOpen = true; pausedByPanel = !paused; setPaused(true);
         veil.style.display = 'none';
         var c = opt.context ? opt.context() : {};
         ctxEl.textContent = c.where ? '· ' + c.where : '';
         panel.style.display = 'block'; refreshList();
-        try { scene.input.keyboard.enabled = false; } catch (e) {}   // type freely
+        // type freely: disable the plugin AND release Phaser's key CAPTURES —
+        // captured codes (Space, arrows from createCursorKeys) are preventDefault'd
+        // at the manager level even with the plugin off, which ate spaces/arrows
+        // in the textarea.
+        try {
+          var kb = scene.input.keyboard;
+          kb.enabled = false;
+          savedCaps = kb.getCaptures ? kb.getCaptures().slice() : null;
+          if (kb.clearCaptures) kb.clearCaptures();
+        } catch (e) {}
         setTimeout(function () { ta.focus(); }, 0);
       }
       function closePanel() {
         if (!panelOpen) return;
         panelOpen = false; panel.style.display = 'none';
-        try { scene.input.keyboard.enabled = true; } catch (e) {}
+        try {
+          var kb = scene.input.keyboard;
+          kb.enabled = true;
+          if (savedCaps && savedCaps.length && kb.addCapture) kb.addCapture(savedCaps);
+          savedCaps = null;
+        } catch (e) {}
         if (pausedByPanel) setPaused(false); else veil.style.display = paused ? 'flex' : 'none';
       }
       bNotes.onclick = function () { panelOpen ? closePanel() : openPanel(); };
@@ -1104,6 +1146,13 @@
       var input = { left: false, right: false, jump: false, down: false };
       var auto = false, deaths = 0, won = false, frame = 0, coins = 0, lastDeathX = 0, maxX = 0;
       var colliders = [], decor = [], landGuard = false, touchState = null, bedOn = false;
+      // menu/flow state (parity with jazz/starsweeper shells). EVAL-SAFE: the
+      // harness's reset() forces mode='play' and tears down any menu layer, so
+      // the deterministic gate never sees a menu. Humans get title → play →
+      // level-card → win; progress persists via Studio.Save (manual play only).
+      var mode = cfg.skipMenu ? 'play' : 'menu';   // 'menu' | 'play' | 'card' | 'win'
+      var menuLayer = null, levelStartFrame = 0, coinsAtLevelStart = 0;
+      var save = Studio.Save.load(cfg.slug || title);
 
       function tex(key, fb) { return key && scene.textures.exists(key) ? key : fb; }
       var MATTEX = TH.matTex || null;            // per-material overlay map (null => bare gradients, template look)
@@ -1165,7 +1214,7 @@
       }
 
       function toast(txt) {
-        if (!txt) return;
+        if (!txt || mode !== 'play') return;        // no toasts under menus (boot/card)
         var t = scene.add.text(480, 208, txt, {
           fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '30px', color: TH.hud && TH.hud.color || '#ffd9a0',
           stroke: TH.hud && TH.hud.stroke || '#1a1a22', strokeThickness: 6, align: 'center'
@@ -1174,6 +1223,108 @@
         decor.push(t);
       }
       function fmt(s, i, name) { return String(s || '').replace('{i}', i + 1).replace('{n}', LEVELS.length).replace('{name}', name || ''); }
+
+      // --------------------------------------------------------------- menus
+      // Canvas-native, themed from TH, driven by tap OR keyboard. Every layer
+      // lives in one container so teardown is a single destroy.
+      var INK = function () { return TH.hud && TH.hud.color || '#ffd9a0'; };
+      var STROKE = function () { return TH.hud && TH.hud.stroke || '#1a1a22'; };
+      function clearMenu() { if (menuLayer) { try { menuLayer.destroy(true); } catch (e) {} menuLayer = null; } }
+      function mtext(c, x, y, str, size, interactive) {
+        var t = scene.add.text(x, y, str, {
+          fontFamily: 'Georgia, "Times New Roman", serif', fontSize: size + 'px',
+          color: INK(), stroke: STROKE(), strokeThickness: Math.max(3, Math.round(size / 7)), align: 'center'
+        }).setOrigin(0.5);
+        if (interactive) { t.setInteractive({ useHandCursor: true }); t.on('pointerover', function () { t.setScale(1.07); }); t.on('pointerout', function () { t.setScale(1); }); }
+        c.add(t); return t;
+      }
+      function menuScrim(c, alpha) {
+        var r = scene.add.rectangle(480, 270, 960, 540, TH.sky != null ? TH.sky : 0x101018, alpha != null ? alpha : 0.55);
+        c.add(r); return r;
+      }
+      function newLayer() {
+        clearMenu();
+        // anchored at the camera's CURRENT scroll (world is paused while a menu is
+        // up, so it's static) — NOT scrollFactor(0): interactive children inside a
+        // scroll-factor-0 container hit-test at world coords, so pointer clicks
+        // would miss whenever the camera is scrolled.
+        var cam = scene.cameras.main;
+        menuLayer = scene.add.container(cam.scrollX, cam.scrollY).setDepth(400);
+        return menuLayer;
+      }
+      function pauseWorld(p) { try { p ? scene.physics.world.pause() : scene.physics.world.resume(); } catch (e) {} }
+
+      function showTitle() {
+        mode = 'menu'; pauseWorld(true);
+        var c = newLayer();
+        menuScrim(c, 0.5);
+        mtext(c, 480, 150, title.toUpperCase(), 52);
+        if (cfg.tagline) mtext(c, 480, 205, cfg.tagline, 16);
+        var start = mtext(c, 480, 290, '▶  START', 30, true);
+        start.on('pointerdown', function () { startGame(0); });
+        var lv = mtext(c, 480, 345, 'LEVELS', 18, true);
+        lv.on('pointerdown', function () { showLevels(); });
+        var muted = Studio.Audio.isMuted && Studio.Audio.isMuted();
+        var mu = mtext(c, 480, 388, muted ? '🔇 SOUND OFF' : '🔊 SOUND ON', 15, true);
+        mu.on('pointerdown', function () {
+          var m = !(Studio.Audio.isMuted && Studio.Audio.isMuted());
+          Studio.Audio.setMuted(m); mu.setText(m ? '🔇 SOUND OFF' : '🔊 SOUND ON');
+        });
+        mtext(c, 480, 470, cfg.controls || '← → move · SPACE jump  (joystick on touch)', 13).setAlpha(0.8);
+        scene.input.keyboard.once('keydown-ENTER', function () { if (mode === 'menu') startGame(0); });
+        scene.input.keyboard.once('keydown-SPACE', function () { if (mode === 'menu') startGame(0); });
+      }
+      function showLevels() {
+        mode = 'menu'; pauseWorld(true);
+        var c = newLayer();
+        menuScrim(c, 0.55);
+        mtext(c, 480, 120, 'CHOOSE YOUR ' + (TH.stageWord || 'stage').toUpperCase(), 26);
+        var unlocked = Math.max(1, save.unlocked || 1);
+        var n = LEVELS.length, gap = Math.min(150, 760 / n), x0 = 480 - ((n - 1) * gap) / 2;
+        LEVELS.forEach(function (L, i) {
+          var open = i < unlocked;
+          var chip = mtext(c, x0 + i * gap, 250, open ? String(i + 1) : '🔒', 34, open);
+          if (!open) chip.setAlpha(0.45);
+          if (open) chip.on('pointerdown', function () { startGame(i); });
+          var b = save.best[i];
+          if (b) mtext(c, x0 + i * gap, 300, (b.coins != null ? '¢' + b.coins : '') + (b.timeMs != null ? ' · ' + (b.timeMs / 1000).toFixed(1) + 's' : ''), 11).setAlpha(0.75);
+          mtext(c, x0 + i * gap, 330, L.name || '', 11).setAlpha(0.6);
+        });
+        var back = mtext(c, 480, 440, '← BACK', 16, true);
+        back.on('pointerdown', function () { showTitle(); });
+      }
+      function startGame(i) {
+        clearMenu(); mode = 'play'; pauseWorld(false);
+        deaths = 0; won = false; coins = 0; landGuard = false;
+        if (pc) pc.reset();
+        loadLevel(i); hud();
+      }
+      function showCard(clearedIndex, stats) {
+        mode = 'card'; pauseWorld(true);
+        var c = newLayer();
+        menuScrim(c, 0.5);
+        var L = LEVELS[clearedIndex] || {};
+        mtext(c, 480, 170, fmt(TH.toasts && TH.toasts.level || 'STAGE {i} · {name}', clearedIndex, L.name) + '  —  CLEAR!', 26);
+        var best = save.best[clearedIndex] || {};
+        mtext(c, 480, 240, 'coins ' + stats.coins + (stats.coinsTotal ? ' / ' + stats.coinsTotal : '') + '    ·    ' + (stats.timeMs / 1000).toFixed(1) + 's' + (best.timeMs != null ? '   (best ' + (best.timeMs / 1000).toFixed(1) + 's)' : ''), 18);
+        var next = mtext(c, 480, 330, '▶  ' + (TH.stageWord || 'stage').toUpperCase() + ' ' + (clearedIndex + 2), 24, true);
+        var go = function () { if (mode !== 'card') return; startGame(clearedIndex + 1); };
+        next.on('pointerdown', go);
+        scene.input.keyboard.once('keydown-ENTER', go);
+        scene.input.keyboard.once('keydown-SPACE', go);
+        scene.time.delayedCall(2600, go);                 // auto-advance (manual play only)
+      }
+      function showWin(stats) {
+        mode = 'win'; pauseWorld(true);
+        var c = newLayer();
+        menuScrim(c, 0.6);
+        mtext(c, 480, 160, TH.toasts && TH.toasts.win || 'CLEARED!', 36);
+        mtext(c, 480, 225, 'total coins ' + stats.coins + '    ·    ' + (stats.timeMs / 1000).toFixed(1) + 's', 18);
+        var re = mtext(c, 480, 310, '↻  PLAY AGAIN', 22, true);
+        re.on('pointerdown', function () { startGame(0); });
+        var mn = mtext(c, 480, 360, 'MENU', 16, true);
+        mn.on('pointerdown', function () { showTitle(); });
+      }
 
       // ------------------------------------------------------------ loadLevel
       function loadLevel(i) {
@@ -1345,11 +1496,13 @@
 
         player.setVelocity(0, 0);
         player.setPosition(spawn.x, spawn.y);
+        levelStartFrame = frame; coinsAtLevelStart = coins;
         toast(fmt(TH.toasts && TH.toasts.level || 'STAGE {i} · {name}', i, spec.name));
       }
 
       function hud() { if (scene._hud) scene._hud.setText('coins ' + coins + '   ' + (TH.stageWord || 'stage') + ' ' + (levelIndex + 1) + '/' + LEVELS.length); }
       function reset() {
+        clearMenu(); mode = 'play'; pauseWorld(false);   // the eval path never sees a menu
         deaths = 0; won = false; frame = 0; coins = 0; auto = false; landGuard = false;
         if (pc) pc.reset();
         loadLevel(0); hud();
@@ -1461,9 +1614,13 @@
               return { type: c.type, lens: c.lens, x: Math.round(c.spr ? c.spr.x : c.x), active: !!(c.spr ? c.spr.active : true), state: c.state ? c.state() : null };
             });
           };
+
+          if (!cfg.skipMenu) showTitle();   // humans: title first (harness reset() bypasses)
         },
         update: function (time, delta) {
-          if (!player) return; frame++;
+          if (!player) return;
+          if (mode !== 'play') return;                     // a menu/card owns the screen
+          frame++;
           var climb = VERT ? ((LEVELS[levelIndex] || {}).height || 0) - player.y : player.x;
           if (climb > maxX) maxX = climb;
           var b = player.body, onGround = b.blocked.down || b.touching.down;
@@ -1512,12 +1669,25 @@
             ? (Math.abs(player.x - levelGoalX) < 56 && player.y < levelGoalY + 30)
             : (player.x >= levelGoalX - 8);
           if (!won && reached) {
-            if (levelIndex < LEVELS.length - 1) {
+            var lastLevel = levelIndex >= LEVELS.length - 1;
+            var stats = {
+              coins: coins - coinsAtLevelStart, coinsTotal: ((LEVELS[levelIndex] || {}).coins || []).length,
+              timeMs: Math.round(((frame - levelStartFrame) / 60) * 1000)
+            };
+            if (!lastLevel) {
               Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 140, 255, 150, 60);
-              loadLevel(levelIndex + 1); if (pc) pc.reset(); landGuard = false;
+              if (!auto) {            // human flow: persist progress + interstitial card
+                save = Studio.Save.levelClear(cfg.slug || title, levelIndex, stats) || save;
+                showCard(levelIndex, stats);
+              } else {                // eval flow: instant advance (unchanged)
+                loadLevel(levelIndex + 1); if (pc) pc.reset(); landGuard = false;
+              }
             } else {
               won = true; Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 220, 255, 170, 70);
-              toast(TH.toasts && TH.toasts.win || 'CLEARED');
+              if (!auto) {
+                save = Studio.Save.levelClear(cfg.slug || title, levelIndex, stats) || save;
+                showWin({ coins: coins, timeMs: stats.timeMs });
+              } else toast(TH.toasts && TH.toasts.win || 'CLEARED');
             }
           }
           if (player.y > ((LEVELS[levelIndex] || {}).height || scene.scale.height) + 120) die();
