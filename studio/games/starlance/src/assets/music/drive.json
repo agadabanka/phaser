@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/drive.mp3",
+  "prompt": "Looping instrumental synthwave drive for a vertical space shooter called Starlance: pulsing arpeggiated bassline, bright neon analog synth lead, four-on-the-floor electronic drums, propulsive heroic climbing energy, no vocals, seamless loop, steady driving tempo.",
+  "generatedAt": "2026-06-10T19:45:15.336Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0695,
+  "peak": 0.3882,
+  "crossfadeSec": 1.6
+}

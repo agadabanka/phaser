@@ -1,0 +1,41 @@
+{
+  "name": "Starlance",
+  "tagline": "Climb the five veils of the nebula to the Hollow Star.",
+  "hero": "a lone crystalline interceptor",
+  "verb": "fly · dodge · blast",
+  "worlds": 1,
+  "levelCount": 5,
+  "controls": "← → move · auto-fire (joystick on touch)",
+  "art": "painterly synthwave space (Gemini)",
+  "music": "Lyria — a drive per veil",
+  "engine": "studio-phaser4",
+  "renderer": "webgl-canvas",
+  "phaserVersion": "4.1.0",
+  "physics": "arcade",
+  "capabilities": [
+    "shooter",
+    "curtain-gap",
+    "deterministic-eval",
+    "filters",
+    "particles"
+  ],
+  "builder": "/",
+  "designLens": "/",
+  "scaffolded_from": "agadabanka/phaser-private",
+  "url": null,
+  "gate": "pending",
+  "stages": {
+    "scaffold": true,
+    "identity": true,
+    "levels": false,
+    "gate": false,
+    "feel": false,
+    "hero": false,
+    "art": false,
+    "music": false,
+    "deploy": false
+  },
+  "slug": "starlance",
+  "repo": "agadabanka/starlance",
+  "archetype": "shooter"
+}
