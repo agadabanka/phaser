@@ -1,0 +1,1749 @@
+/*
+ * Studio SDK — an opinionated layer on top of Phaser 4 (phaser-private) that
+ * makes the AI-game-studio conventions native, so every scaffolded game inherits:
+ *
+ *   Studio.harness   deterministic stepper + semantic observability (the eval backbone)
+ *   Studio.Autopilot generic platformer driver (the 0-death gate)
+ *   Studio.Level     data-driven level DSL  ->  built world
+ *   Studio.Textures  procedural texture bakery (no external art needed)
+ *   Studio.Juice     tweens / particles / Phaser-4 GPU filters (the "feel" surface)
+ *   Studio.Audio     procedural WebAudio SFX + music hook
+ *   Studio.Cam       follow camera w/ deadzone + bounds
+ *   Studio.Materials look + footing + grounding (AI-safe surfaces)
+ *   Studio.Shell     playtest shell (pause / notes->/api/notes / restart / mute)
+ *
+ * Load order in a game:  <script src="phaser.min.js"></script>
+ *                        <script src="studio.js"></script>
+ */
+(function (root) {
+  'use strict';
+  var Studio = { version: '0.1.0' };
+
+  // ---------------------------------------------------------------- Materials
+  // Each surface declares its look + footing + machine-readable grounding,
+  // so levels are AI-completable by construction.
+  Studio.Materials = {
+    table: {
+      solid: { color: 0x3a5a40, top: 0x588157, friction: 1, deadly: false, ground: true },
+      stone: { color: 0x6b705c, top: 0x8a8d7a, friction: 1, deadly: false, ground: true },
+      ice: { color: 0x9fd3e0, top: 0xd6f1f7, friction: 0.05, deadly: false, ground: true },
+      lava: { color: 0xd00000, top: 0xff5400, friction: 1, deadly: true, ground: false },
+      mud: { color: 0x6f4518, top: 0x8a5a2b, friction: 2.2, deadly: false, ground: true },
+      // sky materials (vertical archetype): cloud = walkable cumulus, mist = soft
+      // low-grip vapor, storm = the deadly charged thunderhead (lava-of-the-sky).
+      cloud: { color: 0xdfe9f5, top: 0xfafdff, friction: 1, deadly: false, ground: true },
+      mist: { color: 0xb8c9e6, top: 0xe6f0fb, friction: 0.55, deadly: false, ground: true },
+      storm: { color: 0x2c3550, top: 0x46527a, friction: 1, deadly: true, ground: false }
+    },
+    get: function (name) { return this.table[name] || this.table.solid; }
+  };
+
+  // ---------- color helpers (hex int math) for the texture bakery ----------
+  Studio._mix = function (a, b, t) {
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255, br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return ((Math.round(ar + (br - ar) * t) << 16) | (Math.round(ag + (bg - ag) * t) << 8) | Math.round(ab + (bb - ab) * t));
+  };
+  Studio._lighten = function (c, t) { return Studio._mix(c, 0xffffff, t); };
+  Studio._darken = function (c, t) { return Studio._mix(c, 0x000000, t); };
+
+  // ----------------------------------------------------------- TextureFactory
+  // Procedural art: shaded, outlined sprites + gradient ground (no AI required).
+  Studio.Textures = {
+    bake: function (scene, key, w, h, draw) {
+      if (scene.textures.exists(key)) scene.textures.remove(key);
+      var g = scene.add.graphics(); draw(g, w, h); g.generateTexture(key, w, h); g.destroy(); return key;
+    },
+    // vertical gradient as horizontal bands — cross-renderer safe; stretches cleanly across a slab
+    gradStrip: function (scene, key, top, bottom, h) {
+      h = h || 64;
+      this.bake(scene, key, 16, h, function (g) {
+        var bands = 24, bh = Math.ceil(h / bands) + 1;
+        for (var i = 0; i < bands; i++) { var t = i / (bands - 1); g.fillStyle(Studio._mix(top, bottom, t), 1).fillRect(0, Math.round(t * (h - bh)), 16, bh); }
+      });
+    },
+    kit: function (scene, opt) {
+      opt = opt || {}; var T = opt.tile || 40, M = Studio.Materials, self = this;
+      Object.keys(M.table).forEach(function (name) {
+        var m = M.get(name);
+        self.gradStrip(scene, 'grad_' + name, Studio._lighten(m.top, 0.12), Studio._darken(m.color, 0.34));
+      });
+      var hero = opt.hero || 0xffd166, enemy = opt.enemy || 0xef476f, goal = opt.goal || 0x06d6a0;
+      this.bake(scene, 'hero', 30, 38, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, 30, 38, 8);
+        g.fillStyle(hero, 1).fillRoundedRect(2, 2, 26, 34, 6);
+        g.fillStyle(Studio._lighten(hero, 0.32), 1).fillRoundedRect(2, 2, 26, 13, 6);
+        g.fillStyle(Studio._darken(hero, 0.22), 1).fillRect(2, 29, 26, 7);
+        g.fillStyle(0xffffff, 1).fillCircle(11, 18, 4).fillCircle(20, 18, 4);
+        g.fillStyle(0x141414, 1).fillCircle(12, 18, 2).fillCircle(21, 18, 2);
+      });
+      this.bake(scene, 'enemy', 32, 28, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, 32, 26, 9);
+        g.fillStyle(enemy, 1).fillRoundedRect(2, 2, 28, 22, 7);
+        g.fillStyle(Studio._darken(enemy, 0.28), 1).fillRect(2, 15, 28, 9);
+        g.fillStyle(0xffffff, 1).fillCircle(11, 12, 4).fillCircle(21, 12, 4);
+        g.fillStyle(0x141414, 1).fillCircle(12, 13, 2).fillCircle(22, 13, 2);
+        g.fillStyle(0x141414, 1).fillRect(7, 24, 6, 4).fillRect(19, 24, 6, 4);
+      });
+      this.bake(scene, 'coin', 20, 20, function (g) {
+        g.fillStyle(0x9a6a00, 1).fillCircle(10, 10, 10);
+        g.fillStyle(0xffd700, 1).fillCircle(10, 10, 8);
+        g.fillStyle(0xfff3b0, 1).fillCircle(7, 7, 3);
+      });
+      this.bake(scene, 'goal', 18, 90, function (g) {
+        g.fillStyle(Studio._darken(goal, 0.25), 1).fillRoundedRect(0, 0, 18, 90, 5);
+        g.fillStyle(goal, 1).fillRoundedRect(2, 2, 14, 86, 4);
+        g.fillStyle(Studio._lighten(goal, 0.35), 1).fillRect(3, 3, 4, 84);
+      });
+      this.bake(scene, 'dot', 8, 8, function (g) { g.fillStyle(0xffffff, 1).fillCircle(4, 4, 4); });
+      this.bake(scene, 'block', T, T, function (g) { g.fillStyle(0xffffff, 1).fillRect(0, 0, T, T); });
+      // spring / bounce pad: a coiled base + a bright top plate (reads as "boing")
+      var spring = opt.spring || 0xffd166;
+      this.bake(scene, 'spring', T, 18, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, T, 18, 4);
+        g.fillStyle(Studio._darken(spring, 0.4), 1).fillRect(6, 8, T - 12, 8);   // coils
+        for (var i = 0; i < 3; i++) g.fillStyle(Studio._darken(spring, 0.55), 1).fillRect(6, 9 + i * 3, T - 12, 1);
+        g.fillStyle(spring, 1).fillRoundedRect(2, 0, T - 4, 8, 3);               // top plate
+        g.fillStyle(Studio._lighten(spring, 0.4), 1).fillRect(4, 1, T - 8, 2);
+      });
+
+      // -------- CONTRAPTION ART (themed via the palette; baked procedurally) --------
+      // A contraption's texture key is namespaced 'cx_<type>' so games can override.
+      // Colors pull from the level's stone material so they read as "machined rock".
+      var rockM = Studio.Materials.get('stone');
+      var cxBeam = opt.contraption || Studio._lighten(rockM.top, 0.05);   // base structural tone
+      var cxBolt = Studio._darken(cxBeam, 0.5);
+
+      // SEESAW — a long tilting plank with a center pivot wedge (drawn flat; the
+      // game rotates the art). Reads as a balance beam.
+      var seesawW = (opt.seesawW || 5 * T);
+      this.bake(scene, 'cx_seesaw', seesawW, 16, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 0, seesawW, 16, 5);
+        g.fillStyle(cxBeam, 1).fillRoundedRect(2, 2, seesawW - 4, 12, 4);          // plank face
+        g.fillStyle(Studio._lighten(cxBeam, 0.3), 1).fillRect(3, 3, seesawW - 6, 3); // lit top edge
+        g.fillStyle(Studio._darken(cxBeam, 0.3), 1).fillRect(3, 11, seesawW - 6, 2); // shaded underside
+        // end caps + a few rivets so the plank reads as machined
+        for (var i = 1; i < 5; i++) { var rx = i * (seesawW / 5); g.fillStyle(cxBolt, 1).fillCircle(rx, 8, 2); }
+      });
+      this.bake(scene, 'cx_pivot', 26, 22, function (g) {                          // the fulcrum wedge
+        g.fillStyle(0x141414, 1).fillTriangle(0, 22, 13, 0, 26, 22);
+        g.fillStyle(Studio._darken(cxBeam, 0.2), 1).fillTriangle(2, 21, 13, 3, 24, 21);
+        g.fillStyle(cxBolt, 1).fillCircle(13, 12, 3);
+      });
+
+      // LAUNCHER — a geyser/vent nozzle: a flared metal base + a bright plume mouth.
+      // Themed warm (uses the spring accent) so it reads as "release/exhilaration".
+      this.bake(scene, 'cx_launcher', T, 22, function (g) {
+        g.fillStyle(0x141414, 1).fillRoundedRect(0, 6, T, 16, 4);                  // nozzle body
+        g.fillStyle(Studio._darken(spring, 0.35), 1).fillRect(4, 10, T - 8, 10);
+        g.fillStyle(spring, 1).fillRoundedRect(2, 4, T - 4, 8, 3);                 // flared mouth
+        g.fillStyle(Studio._lighten(spring, 0.5), 1).fillRect(6, 0, T - 12, 6);    // bright plume core
+        g.fillStyle(Studio._lighten(spring, 0.3), 1).fillRect(4, 5, T - 8, 2);
+      });
+
+      // CRUMBLE — a cracked, fragile ledge. A second 'cx_crumble_x' frame shows it
+      // fracturing (the game swaps to it once contact starts the collapse timer).
+      var crumbleW = (opt.crumbleW || 3 * T);
+      this.bake(scene, 'cx_crumble', crumbleW, T, function (g) {
+        g.fillStyle(0x141414, 1).fillRect(0, 0, crumbleW, T);
+        g.fillStyle(Studio._darken(cxBeam, 0.1), 1).fillRect(2, 2, crumbleW - 4, T - 4);
+        g.fillStyle(Studio._lighten(cxBeam, 0.22), 1).fillRect(2, 2, crumbleW - 4, 4); // lit top
+        // a few hairline cracks
+        g.lineStyle(2, Studio._darken(cxBeam, 0.55), 1);
+        g.beginPath(); g.moveTo(crumbleW * 0.3, 2); g.lineTo(crumbleW * 0.36, T - 4); g.strokePath();
+        g.beginPath(); g.moveTo(crumbleW * 0.66, 2); g.lineTo(crumbleW * 0.6, T - 4); g.strokePath();
+      });
+      this.bake(scene, 'cx_crumble_x', crumbleW, T, function (g) {                 // fracturing frame
+        g.fillStyle(0x141414, 1).fillRect(0, 0, crumbleW, T);
+        g.fillStyle(Studio._darken(cxBeam, 0.28), 1).fillRect(2, 2, crumbleW - 4, T - 4);
+        g.lineStyle(3, Studio._darken(cxBeam, 0.6), 1);
+        for (var c = 1; c < 5; c++) { var cx = c * (crumbleW / 5); g.beginPath(); g.moveTo(cx, 2); g.lineTo(cx + 6, T - 4); g.strokePath(); }
+      });
+    }
+  };
+
+  // ----------------------------------------------------------------- Backdrop
+  // Gradient sky (pinned to camera) + parallax silhouette layers — instant depth.
+  Studio.Backdrop = function (scene, opt) {
+    opt = opt || {};
+    var W = scene.scale.width, H = scene.scale.height;
+    Studio.Textures.gradStrip(scene, '_sky', opt.top != null ? opt.top : 0x24304f, opt.bottom != null ? opt.bottom : 0x0b1021, 160);
+    scene.add.image(W / 2, H / 2, '_sky').setDisplaySize(W, H).setScrollFactor(0).setDepth(-100);
+    var span = opt.worldWidth || (W * 2);
+    (opt.layers || []).forEach(function (L, li) {
+      var g = scene.add.graphics().setScrollFactor(L.scroll != null ? L.scroll : 0.3, 1).setDepth(-90 + li);
+      g.fillStyle(L.color, L.alpha != null ? L.alpha : 1);
+      var base = L.y != null ? L.y : H * 0.74, step = L.step || 150, amp = L.amp || 70, ph = li * 9 + 1;
+      g.beginPath(); g.moveTo(-60, H + 30);
+      for (var x = -60; x <= span + 60; x += step) { var y = base - (Math.sin(x * 0.011 + ph) * 0.5 + 0.5) * amp; g.lineTo(x, y); }
+      g.lineTo(span + 60, H + 30); g.closePath(); g.fillPath();
+    });
+  };
+
+  // ---------------------------------------------------------------- Platformer
+  // A reusable, DETERMINISTIC movement controller carrying the proven jazz feel
+  // (coyote time, jump buffer, variable jump, asymmetric gravity, run-accel/skid)
+  // ported & scaled to the Studio 960x540 / 40px world. No Date.now/Math.random
+  // touches motion — it is driven only by input + a fixed dt the caller supplies.
+  //
+  //   var pc = Studio.Platformer.create({ tune: {...} });
+  //   // each frame, after computing onGround + foot friction:
+  //   pc.update(player, { left, right, jump, down }, { onGround, footFriction, dt });
+  //
+  // The controller owns horizontal velocity (accel toward ±maxRun, skid on
+  // reversal, friction when idle — all scaled by footFriction) and the jump arc
+  // (variable height + asymmetric gravity via body.setGravityY relative to the
+  // world's base gravity). It leaves collisions/overlaps to the game.
+  Studio.Platformer = {
+    // Ported from jazz/consts.js TUNE, scaled to 40px tiles & the ~1300 base
+    // gravity this template runs at. Tuned so a full (held) jump clears ~3 tiles
+    // up / ~4-5 tiles across, matching (and slightly exceeding) the proven
+    // -600/1300 ember hop the 0-death gate was built around.
+    DEFAULT_TUNE: {
+      maxRun: 220,          // top run speed (px/s) — matches the proven gate horizontal reach
+      runAccel: 1800,       // ground accel toward maxRun (reaches top in ~8 frames)
+      airAccel: 1200,       // weaker steering in the air
+      skidDecel: 2600,      // turnaround decel on reversal (~1.45x accel, SMB skid)
+      groundFriction: 1500, // decel when no input is held (per second)
+      jumpVel: 540,         // full-jump launch velocity (apex ~3 tiles w/ riseGravity)
+      jumpCut: 0.35,        // release-while-rising cuts upward velocity to this fraction
+      riseGravity: 1200,    // while holding jump + ascending (floaty climb)
+      apexGravity: 1000,    // near the top of the arc (|vy| < apexThreshold) -> brief hang
+      fallGravity: 1900,    // descending (heavier -> snappy fall, keeps air-time near the proven hop)
+      apexThreshold: 60,    // |vy| under which apex-hang gravity applies (brief, so reach stays bounded)
+      maxFall: 980,         // terminal fall speed clamp
+      springVel: 920,       // bounce-pad launch (~6 tiles up, well above a normal jump)
+      coyoteMs: 120,        // grace window to still jump just after leaving a ledge
+      bufferMs: 140         // a jump pressed just before landing still fires on touch
+    },
+    create: function (opt) {
+      opt = opt || {};
+      var tune = Object.assign({}, Studio.Platformer.DEFAULT_TUNE, opt.tune || {});
+      return {
+        tune: tune,
+        // per-controller state (NOT globals) so determinism holds across resets
+        coyote: 0, buffer: 0, jumpHeld: false, springLatch: false, facing: 1,
+        reset: function () { this.coyote = 0; this.buffer = 0; this.jumpHeld = false; this.springLatch = false; this.facing = 1; },
+        // Launch the player upward at a fixed velocity (springs / bounce tiles).
+        // Exempt from the variable-jump clamp until the player next lands.
+        launch: function (player, vel) {
+          player.body.velocity.y = -(vel != null ? vel : this.tune.springVel);
+          player.body.blocked.down = player.body.touching.down = false;
+          this.coyote = 0; this.buffer = 0; this.jumpHeld = true; this.springLatch = true;
+        },
+        update: function (player, input, ctx) {
+          ctx = ctx || {};
+          var t = this.tune, b = player.body;
+          var dt = ctx.dt != null ? ctx.dt : (1 / 60);          // caller-managed FIXED dt (deterministic)
+          var ms = dt * 1000;
+          var onGround = !!ctx.onGround;
+          var ff = ctx.footFriction != null ? ctx.footFriction : 1; // from Studio.Materials.<mat>.friction
+          var left = !!input.left, right = !!input.right, jump = !!input.jump;
+
+          // ---- horizontal: accel toward ±maxRun, skid on reversal, friction idle ----
+          var vx = b.velocity.x;
+          var accel = onGround ? t.runAccel : t.airAccel;
+          if (onGround) accel *= ff;                            // grip scales with the surface (ice sluggish, mud snappy)
+          if (left && !right) {
+            this.facing = -1;
+            // reversing direction at speed -> skid (stronger decel) before re-accelerating
+            var aL = (vx > 0 ? t.skidDecel * (onGround ? ff : 1) : accel);
+            vx -= aL * dt;
+            if (vx < -t.maxRun) vx = -t.maxRun;
+          } else if (right && !left) {
+            this.facing = 1;
+            var aR = (vx < 0 ? t.skidDecel * (onGround ? ff : 1) : accel);
+            vx += aR * dt;
+            if (vx > t.maxRun) vx = t.maxRun;
+          } else if (onGround) {
+            // no input: bleed speed by ground friction (scaled by footing)
+            var dec = t.groundFriction * ff * dt;
+            if (Math.abs(vx) <= dec) vx = 0; else vx -= Math.sign(vx) * dec;
+          }
+          b.velocity.x = vx;
+
+          // ---- coyote time + jump buffer (forgiving, gate-safe windows) ----
+          if (onGround) this.coyote = t.coyoteMs; else this.coyote -= ms;
+          var pressed = jump && !this.jumpHeld;
+          if (pressed) this.buffer = t.bufferMs; else this.buffer -= ms;
+          this.jumpHeld = jump;
+
+          // start a jump on a buffered press within the coyote window
+          if (this.buffer > 0 && this.coyote > 0) {
+            b.velocity.y = -t.jumpVel;
+            this.buffer = 0; this.coyote = 0; this.springLatch = false;
+          }
+
+          // variable jump height: a SPRING/bounce launch is fixed-height (exempt
+          // until landing); a normal jump cut to jumpCut% if released while rising.
+          if (this.springLatch) {
+            if (onGround && b.velocity.y >= 0) this.springLatch = false;
+          } else if (!jump && b.velocity.y < -t.jumpVel * t.jumpCut) {
+            b.velocity.y = -t.jumpVel * t.jumpCut;
+          }
+
+          // ---- asymmetric gravity: light rise (held), hang at apex, heavy fall ----
+          // Applied as an OFFSET on top of the world's base gravity so the body's
+          // own integrator stays the single source of vertical motion.
+          var base = (b.world && b.world.gravity ? b.world.gravity.y : 0);
+          var gNow = t.fallGravity;
+          if (!onGround) {
+            if (b.velocity.y < 0 && jump && !this.springLatch) gNow = t.riseGravity;
+            if (Math.abs(b.velocity.y) < t.apexThreshold) gNow = t.apexGravity;
+          }
+          b.setGravityY(gNow - base);
+
+          // clamp terminal fall
+          if (b.velocity.y > t.maxFall) b.velocity.y = t.maxFall;
+
+          if (player.setFlipX) player.setFlipX(this.facing < 0);
+          return { vx: b.velocity.x, vy: b.velocity.y, facing: this.facing, onGround: onGround };
+        }
+      };
+    }
+  };
+
+  // ------------------------------------------------------------- Contraptions
+  // A REGISTRY/dictionary of KINEMATIC contraptions — themed, deterministic
+  // machines that layer "feeling" over a level WITHOUT ever becoming a forced
+  // precision wall. Each entry is:
+  //
+  //   { feeling, lens, weight, build(scene, spec, world) }
+  //
+  //   feeling  human-readable emotional payload (balance, exhilaration, dread…)
+  //   lens     the design lens it serves (Challenge / Sensation / Tension / …),
+  //            so Studio.Feel + docs can group beats by intent
+  //   weight   the INTEREST weight a beat of this type contributes to Studio.Feel
+  //            (mirrors INTEREST.spring/mover so the fun model "sees" contraptions)
+  //   build()  -> a contraption RECORD the Level + game drive generically:
+  //              { type, spr, x, y,
+  //                tick(dt, ctx),                 advance motion off a phase clock
+  //                interact(player, ctx),         per-frame player interaction
+  //                reset() }                      restore state on level reset
+  //
+  // DETERMINISM CONTRACT (identical to movers): a contraption's motion is a PURE
+  // function of an internal phase clock advanced ONLY by world.tick(dt) with the
+  // caller's FIXED dt. No Matter.js, no Math.random / Date.now touches motion.
+  // Resets re-seed the clock to 0 so every gate run is bit-identical.
+  //
+  // AUTOPILOT-SAFETY CONTRACT ("spice over a safe path"): every contraption is
+  // FLAIR over ground the plain run/jump traversal already clears. The 0-death
+  // driver (run right, hop gaps/walls) must finish the level whether or not it
+  // engages the contraption. Each build() below documents how it stays safe.
+  Studio.Contraptions = (function () {
+    var TWO_PI = Math.PI * 2;
+
+    var REGISTRY = {
+      // --------------------------------------------------------------- seesaw
+      // A plank that TILTS on a sine (deterministic phase clock). A rider standing
+      // on it gets a small horizontal velocity NUDGE in the downhill direction —
+      // balance/tension/control. The plank sits FLAT-on-average on a continuous
+      // walkable slab, so the autopilot just runs across it; the nudge is bounded
+      // (|nudge| <= nudgeMax, default small) and never reverses a rightward runner,
+      // so it can't stall the gate. Pure flair on safe ground.
+      seesaw: {
+        feeling: 'balance / tension / control',
+        lens: 'Challenge',
+        weight: 7,
+        build: function (scene, spec, world) {
+          var T = spec.tile || 40;
+          var w = spec.w || (5 * T), artH = spec.h || 16;
+          var gy = spec.groundY || (spec.y != null ? spec.y : 0);
+          var amp = spec.tilt != null ? spec.tilt : 0.16;          // peak tilt (radians, ~9deg)
+          var period = spec.period || 2.2;                          // seconds per full tilt cycle
+          var phase0 = spec.phase || 0;
+          var nudgeMax = spec.nudge != null ? spec.nudge : 70;      // px/s of downhill carry at full tilt
+          // DETERMINISM + AUTOPILOT-SAFE design: the collision body is a STATIC strip
+          // whose TOP sits FLUSH with the floor line (groundY) — so the plank is NOT a
+          // step/wall (a rightward runner glides straight across at ground level: no
+          // blocked.right, no hop) AND, being STATIC + axis-aligned + NEVER rotated, it
+          // adds no floating-point jitter to the physics step (a dynamic, rotated body
+          // sitting on the floor does). The tilt is a SEPARATE art image (`_art`) that
+          // rotates for the visual; the physics sprite stays invisible & flat. The
+          // rider "feeling" is a bounded CARRY (applied post-controller by the game,
+          // like a mover) downhill — small, never reverses a runner, gate-safe.
+          var bodyH = 10;
+          var topY = spec.top != null ? spec.top : gy;             // flush with the floor by default
+          var y = topY + bodyH / 2;
+          var spr = scene.physics.add.staticImage(spec.x, y, 'cx_seesaw');
+          spr.setDisplaySize(w, bodyH); spr.refreshBody();         // thin flat collision strip
+          spr.setVisible(false);                                   // body is invisible; art carries the look
+          spr.setDepth(spec.depth || 3);
+          spr.mat = spec.mat || 'stone';
+          // the visible, tilting plank + its pivot wedge (pure visuals — no physics)
+          var art = scene.add.image(spec.x, topY, 'cx_seesaw').setDisplaySize(w, artH).setDepth(spec.depth || 3);
+          var pivot = scene.add.image(spec.x, topY + 9, 'cx_pivot').setDepth((spec.depth || 3) - 1);
+          var clock = 0, angle = 0, carry = 0, nudges = 0;
+          return {
+            type: 'seesaw', spr: spr, x: spec.x, y: y, _extra: [art, pivot],
+            // the game reads .carry (px to add to the rider's x this frame) post-controller
+            carry: 0,
+            state: function () { return { angle: +angle.toFixed(3), carry: +carry.toFixed(2), nudges: nudges }; },
+            tick: function (dt) {
+              clock += (dt != null ? dt : (1 / 60));
+              angle = Math.sin((clock / period) * TWO_PI + phase0 * TWO_PI) * amp;
+              art.setRotation(angle);                               // tilt the VISUAL only (body never rotates)
+              carry = Math.sin(angle) * nudgeMax * (dt != null ? dt : (1 / 60)); // downhill px this frame
+              this.carry = carry;
+            },
+            interact: function (player, ctx) {
+              // bounded downhill CARRY while standing on the plank — applied to POSITION
+              // after the controller (so it survives pc.update, exactly like a mover
+              // carry) and never overrides the run. Deterministic: carry is a pure fn
+              // of the phase clock.
+              var b = player.body, pb = spr.body;
+              var onTop = b.bottom <= pb.top + 10 && b.bottom >= pb.top - 12
+                && b.right > pb.left + 2 && b.left < pb.right - 2 && b.velocity.y >= -30;
+              if (!onTop) { this._riding = false; return; }
+              this._riding = true; nudges++;
+              player.x += carry;                                    // gentle downhill drift (position, post-tick)
+            },
+            reset: function () { clock = 0; angle = 0; carry = 0; this.carry = 0; this._riding = false; art.setRotation(0); }
+          };
+        }
+      },
+
+      // ------------------------------------------------------------- launcher
+      // A geyser / bounce pad that BOOSTS the player upward via pc.launch — pure
+      // exhilaration / release. Two trigger modes, both autopilot-safe:
+      //   - 'contact' (default): launches on overlap (like a spring) with a short
+      //     cooldown — run into it, get flung up. No timing required.
+      //   - 'cycle' : the geyser also auto-fires on its phase clock IF the player
+      //     is resting on/near the mouth, so even a stationary bot gets lofted.
+      // It sits on a continuous slab so the arc lands back on ground; it only ADDS
+      // height/route and NEVER forces a precise landing, so the gate is unaffected.
+      launcher: {
+        feeling: 'exhilaration / release',
+        lens: 'Sensation',
+        weight: 9,
+        build: function (scene, spec, world) {
+          var T = spec.tile || 40;
+          var gy = spec.groundY || 0;
+          var y = spec.y != null ? spec.y : (gy - 11);
+          var vel = spec.vel || 920;                                // launch velocity (~spring height)
+          var mode = spec.mode || 'contact';
+          var period = spec.period || 1.4;                          // cycle-fire period (seconds)
+          var spr = scene.physics.add.staticImage(spec.x, y, 'cx_launcher');
+          spr.refreshBody(); spr.setDepth(spec.depth || 3);
+          var clock = 0, cool = 0, fired = 0;
+          function fire(player, pc) {
+            if (cool > 0) return false;
+            if (player.body.velocity.y < -120) return false;        // already rocketing up
+            cool = 14; fired++;                                     // one launch per contact window
+            if (pc && pc.launch) pc.launch(player, vel);
+            else { player.body.velocity.y = -vel; }                 // fallback if no controller
+            if (spr._onFire) spr._onFire(spr);
+            return true;
+          }
+          var rec = {
+            type: 'launcher', spr: spr, x: spec.x, y: y, fire: fire,
+            state: function () { return { fired: fired, cool: cool }; },
+            tick: function (dt) {
+              clock += (dt != null ? dt : (1 / 60));
+              if (cool > 0) cool--;
+            },
+            interact: function (player, ctx) {
+              var pc = ctx && ctx.pc, b = player.body, pb = spr.body;
+              // overlap with the mouth (a touch above the nozzle)
+              var over = b.right > pb.left && b.left < pb.right
+                && b.bottom > pb.top - 6 && b.top < pb.bottom + 4;
+              if (mode === 'cycle') {
+                // auto-geyser: when the phase says "erupt" and the player is over it
+                var ph = (clock / period) % 1;
+                if (over && ph < 0.06) fire(player, pc);
+              }
+              if (over) fire(player, pc);                           // contact always fires (cooldown-gated)
+            },
+            reset: function () { clock = 0; cool = 0; fired = 0; }
+          };
+          return rec;
+        }
+      },
+
+      // -------------------------------------------------------------- crumble
+      // A ledge that DISABLES a few frames after first contact — urgency / dread —
+      // then is RESTORED on level reset. AUTOPILOT-SAFE by placement: it is laid
+      // OVER continuous safe ground (it is a thin riser the player runs across, not
+      // a bridge over a pit). When it collapses the player simply drops onto the
+      // solid floor below and keeps running, so a 0-death run never depends on it.
+      // The collapse delay (frames) is generous so a runner clears it well before
+      // it goes. Deterministic: the timer is frame-counted off world.tick(dt).
+      crumble: {
+        feeling: 'urgency / dread',
+        lens: 'Tension',
+        weight: 7,
+        build: function (scene, spec, world) {
+          var T = spec.tile || 40;
+          var w = spec.w || (3 * T), h = spec.h || T;
+          var gy = spec.groundY || 0;
+          // sits as a thin riser whose TOP is a little above the floor line, so the
+          // player runs onto it then drops to safe ground when it crumbles.
+          var top = spec.top != null ? spec.top : (gy - Math.round(T * 0.5));
+          var y = top + h / 2;
+          var delay = spec.delay != null ? spec.delay : 26;        // frames after first touch before it falls
+          var spr = scene.physics.add.staticImage(spec.x, y, 'cx_crumble');
+          spr.setDisplaySize(w, h); spr.refreshBody(); spr.setDepth(spec.depth || 3);
+          spr.mat = spec.mat || 'stone';
+          var armed = false, timer = 0, gone = false;
+          function disable() {
+            gone = true; armed = false;
+            spr.disableBody(true, true);
+            if (spr._onFall) spr._onFall(spr);
+          }
+          return {
+            type: 'crumble', spr: spr, x: spec.x, y: y,
+            state: function () { return { armed: armed, gone: gone, timer: timer }; },
+            tick: function (dt) {
+              if (armed && !gone) { timer--; if (timer <= 0) disable(); }
+            },
+            interact: function (player, ctx) {
+              if (gone || armed) return;
+              var b = player.body, pb = spr.body;
+              var onTop = b.bottom <= pb.top + 10 && b.bottom >= pb.top - 12
+                && b.right > pb.left + 2 && b.left < pb.right - 2 && b.velocity.y >= -30;
+              if (onTop) { armed = true; timer = delay; if (spr._onArm) spr._onArm(spr); } // start the collapse
+            },
+            reset: function () {
+              armed = false; gone = false; timer = 0;
+              if (!spr.active) { spr.enableBody(true, spec.x, y, true, true); } // restore at its home x/y
+              spr.setTexture('cx_crumble'); spr.setDisplaySize(w, h); spr.refreshBody();
+            }
+          };
+        }
+      }
+    };
+
+    // ---------------------------------------------------------------- updraft
+    // A vertical WIND COLUMN (the sky game's signature verb). While the player is
+    // inside the column they accelerate upward toward a capped rise speed — a
+    // float, not a fling, so steering stays in the player's hands the whole ride.
+    // DETERMINISM: the field is CONSTANT (no clock in the force math); the only
+    // motion change is a pure function of position + the caller's fixed dt.
+    // AUTOPILOT-SAFE: the vertical driver just steers to the column's center and
+    // rides; the column always tops out beside/above a walkable platform.
+    REGISTRY.updraft = {
+      feeling: 'lift / wonder / weightlessness',
+      lens: 'Sensation',
+      weight: 8,
+      build: function (scene, spec) {
+        var x = spec.x, w = spec.w || 120, y0 = spec.y0, y1 = spec.y1;   // column top/bottom (y0 < y1)
+        var lift = spec.lift != null ? spec.lift : 2600;                  // upward accel px/s^2 (beats fallGravity)
+        var maxRise = spec.maxRise != null ? spec.maxRise : 250;          // capped float speed
+        var active = false;
+        var spr = scene.add.rectangle(x, (y0 + y1) / 2, w, y1 - y0, 0xffffff, 0).setDepth(0); // invisible anchor (decor/teardown path)
+        spr.setVisible(false);
+        function contains(p) { return p.x > x - w / 2 && p.x < x + w / 2 && p.y > y0 && p.y < y1; }
+        return {
+          type: 'updraft', spr: spr, x: x, y: (y0 + y1) / 2, w: w, y0: y0, y1: y1,
+          contains: function (p) { return contains(p); },
+          state: function () { return { active: active }; },
+          tick: function () {},
+          interact: function (player, ctx) {
+            var inside = contains(player);
+            if (inside) {
+              var b = player.body, dt = (ctx && ctx.dt != null) ? ctx.dt : (1 / 60);
+              b.velocity.y -= lift * dt;
+              if (b.velocity.y < -maxRise) b.velocity.y = -maxRise;
+              if (!active && spr._onEnter) spr._onEnter(spr);
+            }
+            active = inside;
+          },
+          reset: function () { active = false; }
+        };
+      }
+    };
+
+    // ------------------------------------------------------------------- gust
+    // A horizontal WIND GUST zone that blows on a deterministic phase clock
+    // (period/duty, like the movers' triangle wave): timing/tension — cross when
+    // it rests, or fight it with the stick. Push is capped so it can shove but
+    // never pin a runner at full speed.
+    REGISTRY.gust = {
+      feeling: 'timing / tension / lean-into-it',
+      lens: 'Challenge',
+      weight: 7,
+      build: function (scene, spec) {
+        var x = spec.x, y = spec.y, w = spec.w || 240, h = spec.h || 140;
+        var dir = spec.dir === -1 ? -1 : 1;
+        var period = spec.period || 3.2, duty = spec.duty != null ? spec.duty : 0.45;
+        var push = spec.push != null ? spec.push : 900;                   // px/s^2 while blowing
+        var vxCap = spec.vxCap != null ? spec.vxCap : 300;
+        var clock = spec.phase ? spec.phase * period : 0, active = false;
+        var spr = scene.add.rectangle(x, y, w, h, 0xffffff, 0).setDepth(0);
+        spr.setVisible(false);
+        function contains(p) { return p.x > x - w / 2 && p.x < x + w / 2 && p.y > y - h / 2 && p.y < y + h / 2; }
+        return {
+          type: 'gust', spr: spr, x: x, y: y, w: w, h: h, dir: dir,
+          contains: function (p) { return contains(p); },
+          state: function () { return { active: active, clock: +clock.toFixed(3) }; },
+          tick: function (dt) {
+            clock += (dt != null ? dt : 1 / 60);
+            var was = active;
+            active = ((clock / period) % 1) < duty;
+            if (active && !was && spr._onBlow) spr._onBlow(spr);
+          },
+          interact: function (player, ctx) {
+            if (!active || !contains(player)) return;
+            var b = player.body, dt = (ctx && ctx.dt != null) ? ctx.dt : (1 / 60);
+            b.velocity.x += dir * push * dt;
+            if (b.velocity.x > vxCap) b.velocity.x = vxCap;
+            if (b.velocity.x < -vxCap) b.velocity.x = -vxCap;
+          },
+          reset: function () { clock = spec.phase ? spec.phase * period : 0; active = false; }
+        };
+      }
+    };
+
+    // PUBLIC: the dictionary is iterable + queryable by Studio.Feel / docs.
+    // Studio.Contraptions.types  -> ['seesaw','launcher','crumble', …]
+    // Studio.Contraptions.get(t) -> the registry entry (with build())
+    // Studio.Contraptions.meta(t)-> { feeling, lens, weight } (no build fn)
+    REGISTRY.types = Object.keys(REGISTRY).filter(function (k) { return REGISTRY[k] && REGISTRY[k].build; });
+    REGISTRY.has = function (t) { return !!(REGISTRY[t] && REGISTRY[t].build); };
+    REGISTRY.get = function (t) { return REGISTRY[t]; };
+    REGISTRY.meta = function (t) {
+      var e = REGISTRY[t]; if (!e) return null;
+      return { feeling: e.feeling, lens: e.lens, weight: e.weight };
+    };
+    // build a contraption record from a spec ({type, x, ...}) against a world/level
+    REGISTRY.build = function (scene, spec, world, levelSpec) {
+      var e = REGISTRY[spec && spec.type];
+      if (!e || !e.build) return null;
+      // pass groundY/tile defaults down so contraption specs can be terse
+      var merged = Object.assign({ tile: levelSpec && levelSpec.tile, groundY: levelSpec && levelSpec.groundY }, spec);
+      var rec = e.build(scene, merged, world);
+      if (rec) { rec.feeling = e.feeling; rec.lens = e.lens; rec.weight = e.weight; }
+      return rec;
+    };
+    return REGISTRY;
+  })();
+
+  // --------------------------------------------------------------- Level DSL
+  // A level is data. build() returns { platforms, hazards, coins, enemies, spawn, goalX, springs, movers, contraptions, tick }.
+  Studio.Level = {
+    build: function (scene, spec) {
+      var T = spec.tile || 40, H = spec.height || 540;
+      var platforms = scene.physics.add.staticGroup();
+      var hazards = scene.physics.add.staticGroup();
+      // ONE wide static body per slab — the player slides smoothly with no seams
+      // to catch on (which would spoof blocked.right and break the autopilot).
+      function slab(group, cx, cy, w, h, mat) {
+        // one wide static body, textured with the material's vertical gradient
+        // (bright lit top -> dark depth); no separate decor objects to leak on rebuild.
+        var img = group.create(cx, cy, 'grad_' + (mat || 'solid')); img.setDisplaySize(w, h).refreshBody();
+        img.mat = mat || 'solid';            // stash the material name so the game can read foot friction
+        return img;
+      }
+      (spec.ground || []).forEach(function (seg) {
+        var mat = seg[2] || 'solid', w = seg[1] - seg[0], h = H - spec.groundY;
+        slab(Studio.Materials.get(mat).deadly ? hazards : platforms, seg[0] + w / 2, spec.groundY + h / 2, w, h, mat);
+      });
+      (spec.walls || []).forEach(function (w) {
+        var ht = (w.tiles || 1) * T; slab(platforms, w.x + T / 2, spec.groundY - ht / 2, T, ht, w.mat || 'stone');
+      });
+      (spec.platforms || []).forEach(function (p) {
+        var pm = Studio.Materials.get(p.mat || 'solid');
+        slab(pm.deadly ? hazards : platforms, p.x + p.w / 2, p.y + T / 2, p.w, T, p.mat || 'solid');
+      });
+      var coins = scene.physics.add.staticGroup();
+      (spec.coins || []).forEach(function (c) { coins.create(c.x, c.y, 'coin'); });
+      var enemies = scene.physics.add.group({ allowGravity: false, immovable: true });
+      (spec.enemies || []).forEach(function (e) {
+        // vertical levels give enemies an explicit y (patrolling a platform line)
+        var s = enemies.create(e.x, e.y != null ? e.y : spec.groundY - 14, 'enemy'); s.patrol = e.patrol || 60; s.homeX = e.x; s.dir = 1;
+      });
+
+      // SPRINGS — bounce pads sitting on the ground line. A static body the game
+      // overlaps to fling the player up (Studio.Platformer .launch). Run INTO at
+      // speed, so no pixel-perfect landing is needed and it is NOT a step to hop.
+      var springs = scene.physics.add.staticGroup();
+      (spec.springs || []).forEach(function (s) {
+        var img = springs.create(s.x, s.y != null ? s.y : spec.groundY - 9, 'spring'); img.refreshBody();
+        img.vel = s.vel || null;        // optional per-spring launch override (else controller default)
+        img.cool = 0;                   // launch cooldown (frames), driven by world.tick
+      });
+
+      // MOVERS — kinematic platforms that patrol along an axis within ±range and
+      // CARRY a rider. Dynamic body w/ no gravity + immovable, repositioned each
+      // world.tick(dt) off an internal phase clock (deterministic: driven only by
+      // the caller's fixed dt). The game reads .vx/.vy (per-tick delta) to carry.
+      var moverGroup = scene.physics.add.group({ allowGravity: false, immovable: true });
+      var movers = [];
+      (spec.movers || []).forEach(function (m) {
+        var w = m.w || (3 * T), h = m.h || Math.round(T * 0.5);
+        var img = moverGroup.create(m.x, m.y, 'grad_' + (m.mat || 'stone'));
+        img.setDisplaySize(w, h); img.body.setSize(w, h); img.body.setAllowGravity(false); img.body.setImmovable(true);
+        img.mat = m.mat || 'stone';
+        var rec = {
+          spr: img, axis: m.axis || 'x', range: m.range || (2 * T), speed: m.speed || 60,
+          homeX: m.x, homeY: m.y, phase: m.phase || 0, vx: 0, vy: 0, _prevX: m.x, _prevY: m.y
+        };
+        movers.push(rec);
+      });
+
+      // CONTRAPTIONS — kinematic themed machines from Studio.Contraptions. Each
+      // spec ({type, x, ...}) is built through the registry into a record carrying
+      // its own phase clock; the records are advanced inside world.tick(dt) below
+      // (deterministic, exactly like movers) and reset via world.resetContraptions().
+      var contraptions = [];
+      (spec.contraptions || []).forEach(function (cs) {
+        var rec = Studio.Contraptions.build(scene, cs, { platforms: platforms, hazards: hazards }, spec);
+        if (rec) contraptions.push(rec);
+      });
+      // sugar: spec.updrafts / spec.gusts are contraption shorthands (the vertical
+      // archetype's signature verbs) — routed through the same registry/clock.
+      (spec.updrafts || []).forEach(function (u) {
+        var rec = Studio.Contraptions.build(scene, Object.assign({ type: 'updraft' }, u), { platforms: platforms, hazards: hazards }, spec);
+        if (rec) contraptions.push(rec);
+      });
+      (spec.gusts || []).forEach(function (g) {
+        var rec = Studio.Contraptions.build(scene, Object.assign({ type: 'gust' }, g), { platforms: platforms, hazards: hazards }, spec);
+        if (rec) contraptions.push(rec);
+      });
+
+      // deterministic phase clock for movers — advanced by the caller's fixed dt
+      var clock = 0;
+      function tick(dt) {
+        // advance contraptions every tick (their motion is a pure fn of their clock)
+        for (var c = 0; c < contraptions.length; c++) { if (contraptions[c].tick) contraptions[c].tick(dt); }
+        if (!movers.length) return;
+        clock += (dt != null ? dt : (1 / 60));
+        for (var i = 0; i < movers.length; i++) {
+          var m = movers[i];
+          // smooth ping-pong: a triangle wave over a full period (cover 2*range each way)
+          var period = (4 * m.range) / m.speed;                 // seconds for a full back-and-forth
+          var ph = ((clock / period) + m.phase) % 1; if (ph < 0) ph += 1;
+          var tri = ph < 0.5 ? (ph * 2) : (2 - ph * 2);          // 0..1..0
+          var off = (tri * 2 - 1) * m.range;                     // -range .. +range
+          var nx = m.homeX + (m.axis === 'x' ? off : 0);
+          var ny = m.homeY + (m.axis === 'y' ? off : 0);
+          m.vx = nx - m._prevX; m.vy = ny - m._prevY;
+          var sp = m.spr;
+          sp.setPosition(nx, ny);
+          sp.body.x = nx - sp.body.halfWidth; sp.body.y = ny - sp.body.halfHeight;
+          m._prevX = nx; m._prevY = ny;
+        }
+      }
+
+      return {
+        platforms: platforms, hazards: hazards, coins: coins, enemies: enemies,
+        springs: springs, movers: movers, moverGroup: moverGroup, tick: tick,
+        contraptions: contraptions,
+        // generic per-frame interaction pass — the game calls this once a frame with
+        // the player + {dt, pc} so each contraption can carry/launch/collapse via the
+        // registry (no per-type wiring needed in the game).
+        contraptionsInteract: function (player, ctx) {
+          for (var i = 0; i < contraptions.length; i++) { if (contraptions[i].interact) contraptions[i].interact(player, ctx); }
+        },
+        // restore all contraptions to their armed/full state (called on level reset
+        // BEFORE the deterministic gate run, so crumble ledges come back, clocks reseed)
+        resetContraptions: function () {
+          for (var i = 0; i < contraptions.length; i++) { if (contraptions[i].reset) contraptions[i].reset(); }
+        },
+        spawn: spec.spawn || { x: 60, y: spec.groundY - 80 },
+        goalX: spec.goal != null ? spec.goal : (spec.width - 60),
+        // vertical levels climb to a goal near the top instead of running right
+        goalY: spec.goalY != null ? spec.goalY : null
+      };
+    }
+  };
+
+  // --------------------------------------------------------------- Autopilot
+  // Generic platformer policy. Feed it a "sense" object each frame; it returns input.
+  // sense = { onGround, groundAhead, blockedRight, enemyAhead, x, goalX, vy }
+  //
+  // Variable-jump aware: with Studio.Platformer, a one-frame jump press would be
+  // read as an early release and cut to ~35% height. So the driver HOLDS jump
+  // through the whole ascent — it decides to jump on the ground, then keeps the
+  // button down while still rising (vy < 0) so the controller delivers the FULL
+  // height needed to clear a wide gap / tall wall, releasing once it tops out so
+  // the next ground contact registers as a fresh press. Springs (run-into) and
+  // movers (carry) need no special input; the existing run-right policy rides them.
+  Studio.Autopilot = {
+    platformer: function (sense) {
+      var out = { left: false, right: true, jump: false };
+      var need = sense.onGround && (!sense.groundAhead || sense.blockedRight || sense.enemyAhead);
+      if (need) out.jump = true;                                  // launch from the ground
+      else if (!sense.onGround && (sense.vy != null) && sense.vy < -10) out.jump = true; // keep holding while rising -> full height
+      return out;
+    },
+    // VERTICAL policy (climb games): chase an ordered waypoint chain upward.
+    // sense = { x, y, onGround, vy, target:{x,y}, inUpdraft }
+    // - steer toward the target's x;
+    // - inside an updraft: just ride (steer only — the column does the lifting);
+    // - on the ground, roughly under a target that sits above: full hop
+    //   (held through the ascent, same variable-jump-aware hold as the runner).
+    vertical: function (sense) {
+      var out = { left: false, right: false, jump: false };
+      var dx = sense.target.x - sense.x;
+      if (dx < -8) out.left = true; else if (dx > 8) out.right = true;
+      if (sense.inUpdraft) return out;
+      var above = sense.target.y < sense.y - 12;
+      if (sense.onGround && above && Math.abs(dx) < 150) out.jump = true;
+      else if (!sense.onGround && sense.vy != null && sense.vy < -10) out.jump = true;
+      return out;
+    },
+    // convenience: probe a static group for ground under a point
+    groundAt: function (group, px, py, tile) {
+      var kids = group.getChildren();
+      for (var i = 0; i < kids.length; i++) {
+        var b = kids[i] && kids[i].body; if (!b) continue;
+        if (px >= b.left - 2 && px <= b.right + 2 && b.top >= py - 6 && b.top <= py + (tile || 40)) return true;
+      }
+      return false;
+    }
+  };
+
+  // -------------------------------------------------------------------- Juice
+  // The "feel" surface. GPU filters are WebGL-only -> every call is guarded.
+  Studio.Juice = {
+    shake: function (scene, dur, amt) { try { scene.cameras.main.shake(dur || 120, amt || 0.008); } catch (e) {} },
+    flash: function (scene, dur, r, g, b) { try { scene.cameras.main.flash(dur || 120, r || 255, g || 255, b || 255); } catch (e) {} },
+    hitStop: function (scene, ms) { try { var t = scene.time; scene.physics.world.pause(); t.delayedCall(ms || 60, function () { scene.physics.world.resume(); }); } catch (e) {} },
+    squash: function (scene, obj, sx, sy, dur) {
+      try { scene.tweens.add({ targets: obj, scaleX: sx || 1.25, scaleY: sy || 0.8, yoyo: true, duration: dur || 90, ease: 'Quad.out' }); } catch (e) {}
+    },
+    burst: function (scene, x, y, opt) {
+      opt = opt || {};
+      try {
+        var em = scene.add.particles(x, y, opt.texture || 'dot', {
+          speed: { min: opt.spMin || 60, max: opt.spMax || 180 }, angle: { min: 0, max: 360 },
+          lifespan: opt.life || 500, scale: { start: opt.scale || 0.9, end: 0 }, quantity: opt.n || 12,
+          blendMode: 'ADD', emitting: false, tint: opt.tint
+        });
+        em.explode(opt.n || 12); scene.time.delayedCall(opt.life || 500, function () { em.destroy(); });
+        return em;
+      } catch (e) {}
+    },
+    ambient: function (scene, w, opt) {
+      opt = opt || {};
+      try {
+        return scene.add.particles(0, opt.y != null ? opt.y : -8, opt.texture || 'dot', {
+          x: { min: 0, max: w }, lifespan: 5000, speedY: { min: 16, max: 50 },
+          scale: { start: opt.scale || 0.7, end: 0 }, alpha: { start: 0.4, end: 0 }, quantity: 1, frequency: 120, blendMode: 'ADD'
+        });
+      } catch (e) {}
+    },
+    // GPU filters (WebGL only) — no-op on canvas
+    glow: function (obj, color, outer) { try { if (!obj.enableFilters) return; obj.enableFilters(); obj.filters.internal.addGlow(color != null ? color : 0xffffff, outer || 4); } catch (e) {} },
+    vignette: function (scene, strength) { try { var c = scene.cameras.main; if (!c.enableFilters) return; c.enableFilters(); c.filters.internal.addVignette(0.5, 0.5, 0.6, strength || 0.5); } catch (e) {} },
+    grade: function (scene, fn) { try { var c = scene.cameras.main; if (!c.enableFilters) return; c.enableFilters(); var cm = c.filters.internal.addColorMatrix(); if (fn) fn(cm); return cm; } catch (e) {} }
+  };
+
+  // -------------------------------------------------------------------- Audio
+  Studio.Audio = (function () {
+    var ctx = null;
+    function ac() { if (!ctx) { try { ctx = new (root.AudioContext || root.webkitAudioContext)(); } catch (e) {} } return ctx; }
+    function tone(freq, dur, type, vol) {
+      var a = ac(); if (!a) return;
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = type || 'square'; o.frequency.value = freq; g.gain.value = vol || 0.08;
+      o.connect(g); g.connect(a.destination);
+      var t = a.currentTime; o.start(t); g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.12)); o.stop(t + (dur || 0.12));
+    }
+    var SFX = {
+      jump: function () { tone(420, 0.12, 'square'); }, coin: function () { tone(880, 0.08, 'triangle'); tone(1320, 0.08, 'triangle'); },
+      stomp: function () { tone(160, 0.12, 'sawtooth'); }, hurt: function () { tone(120, 0.25, 'sawtooth', 0.12); },
+      win: function () { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { tone(f, 0.16, 'triangle'); }, i * 110); }); }
+    };
+    // PROCEDURAL music bed — Studio.Audio.music('proc:<mood>') synthesizes a quiet
+    // looping ambience (two slow detuned drones through a lowpass, breathing via an
+    // LFO, plus a sparse seeded pentatonic pluck) instead of streaming a file.
+    // Call it from a USER-GESTURE handler (autoplay policy); it never touches game
+    // state, so the deterministic gate is unaffected. Returns { stop() }.
+    var MOODS = { cave: { root: 55, fifth: 82.41, cutoff: 420, pluck: [220, 261.63, 293.66, 329.63, 392] } };
+    function bed(mood, vol) {
+      var a = ac(); if (!a) return null;
+      var m = MOODS[mood] || MOODS.cave, master = a.createGain(), lp = a.createBiquadFilter();
+      master.gain.value = (vol || 0.3) * 0.5; lp.type = 'lowpass'; lp.frequency.value = m.cutoff;
+      lp.connect(master); master.connect(a.destination);
+      var stops = [];
+      [m.root, m.root * 1.005, m.fifth].forEach(function (f, i) {
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = i === 2 ? 'triangle' : 'sine'; o.frequency.value = f; g.gain.value = i === 2 ? 0.18 : 0.3;
+        var lfo = a.createOscillator(), lg = a.createGain();
+        lfo.frequency.value = 0.06 + i * 0.021; lg.gain.value = 0.12;     // slow breathing
+        lfo.connect(lg); lg.connect(g.gain);
+        o.connect(g); g.connect(lp); o.start(); lfo.start();
+        stops.push(o, lfo);
+      });
+      var step = 0, timer = setInterval(function () {                      // sparse seeded pluck
+        step++; if ((step * 2654435761 >>> 0) % 7 > 1) return;
+        var n = m.pluck[(step * 40503 >>> 0) % m.pluck.length];
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = 'sine'; o.frequency.value = n; g.gain.value = 0.05;
+        o.connect(g); g.connect(lp);
+        var t = a.currentTime; o.start(t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4); o.stop(t + 1.4);
+      }, 1800);
+      var baseGain = master.gain.value;
+      return {
+        stop: function () { try { clearInterval(timer); stops.forEach(function (o) { o.stop(); }); master.disconnect(); } catch (e) {} },
+        mute: function (m) { try { master.gain.value = m ? 0 : baseGain; } catch (e) {} }
+      };
+    }
+    // mute plumbing: every bed (proc handle or <audio>) registers here so the
+    // Shell's mute / pause controls reach playback without owning the handles.
+    var muted = false, beds = [];
+    function applyMute(h, m) {
+      try {
+        if (!h) return;
+        if (h.mute) h.mute(m);                      // proc bed handle
+        else if ('muted' in h) h.muted = m;         // HTMLAudioElement
+      } catch (e) {}
+    }
+    return {
+      sfx: function (n) { if (muted) return; try { (SFX[n] || function () {})(); } catch (e) {} },
+      music: function (url, vol) {
+        try {
+          var h;
+          if (typeof url === 'string' && url.indexOf('proc:') === 0) h = bed(url.slice(5), vol);
+          else { h = new Audio(url); h.loop = true; h.volume = vol || 0.4; h.play(); }
+          if (h) { beds.push(h); applyMute(h, muted); }
+          return h;
+        } catch (e) {}
+      },
+      setMuted: function (m) { muted = !!m; beds.forEach(function (h) { applyMute(h, muted); }); },
+      isMuted: function () { return muted; }
+    };
+  })();
+
+  // ---------------------------------------------------------------------- Cam
+  Studio.Cam = {
+    follow: function (scene, target, opt) {
+      opt = opt || {}; var c = scene.cameras.main;
+      if (opt.bounds) c.setBounds(opt.bounds[0], opt.bounds[1], opt.bounds[2], opt.bounds[3]);
+      c.startFollow(target, true, opt.lerp || 0.12, opt.lerp || 0.12);
+      if (opt.deadzone) c.setDeadzone(opt.deadzone[0], opt.deadzone[1]);
+      return c;
+    }
+  };
+
+  // ------------------------------------------------------------------- Touch
+  // On-screen analog joystick (bottom-left) + jump button (bottom-right) for
+  // mobile. Returns a live { left, right, down, jump } state to merge into input.
+  // Mirrors the jazz/starsweeper control feel. Multi-touch so stick + jump hold together.
+  Studio.Touch = {
+    create: function (scene, opt) {
+      opt = opt || {};
+      var W = scene.scale.width, H = scene.scale.height, DEPTH = 300;
+      var isTouch = false; try { isTouch = !!(scene.sys.game.device.input.touch) || (typeof window !== 'undefined' && 'ontouchstart' in window); } catch (e) {}
+      if (isTouch) scene.input.addPointer(3); // so the stick + jump button work together
+      var st = { left: false, right: false, down: false, _up: false, _btn: false };
+      Object.defineProperty(st, 'jump', { get: function () { return st._up || st._btn; } });
+      Object.defineProperty(st, 'up', { get: function () { return st._up; } });
+      // opt.theme lets a game match the touch UI to its art direction (additive;
+      // defaults are the original neutral palette).
+      var th = Object.assign({
+        base: 0x0f1528, baseA: 0.4, baseStroke: 0xffffff,
+        thumb: 0x2a3556, thumbStroke: 0xffd34d,
+        btn: 0x3a1420, btnA: 0.5, btnStroke: 0xffae6b, label: '#ffce9e'
+      }, opt.theme || {});
+      var bx = 120, by = H - 86, R = 68;
+      var ring = scene.add.circle(bx, by, R, th.base, th.baseA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.baseStroke, 0.22);
+      var thumb = scene.add.circle(bx, by, 30, th.thumb, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, th.thumbStroke, 0.85);
+      var jx = W - 96, jy = H - 84;
+      var jbtn = scene.add.circle(jx, jy, 54, th.btn, th.btnA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.btnStroke, 0.7).setInteractive();
+      var jlbl = scene.add.text(jx, jy, 'JUMP', { fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', color: th.label }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      // touch UI only ON TOUCH DEVICES (opt.always forces it): a desktop/keyboard
+      // player should never stare at a joystick they can't use.
+      if (!isTouch && !opt.always) [ring, thumb, jbtn, jlbl].forEach(function (e) { e.setVisible(false); });
+      jbtn.on('pointerdown', function () { st._btn = true; }); jbtn.on('pointerup', function () { st._btn = false; }); jbtn.on('pointerout', function () { st._btn = false; });
+      var pid = null;
+      function setFrom(px, py) { var dx = px - bx, dy = py - by, m = Math.hypot(dx, dy) || 1; if (m > R) { dx = dx / m * R; dy = dy / m * R; } thumb.setPosition(bx + dx, by + dy); var nx = dx / R, ny = dy / R; st.left = nx < -0.35; st.right = nx > 0.35; st._up = ny < -0.45; st.down = ny > 0.45; }
+      function release() { pid = null; thumb.setPosition(bx, by); st.left = st.right = st._up = st.down = false; }
+      scene.input.on('pointerdown', function (p) { if (pid != null || p.x > W * 0.5) return; pid = p.id; setFrom(p.x, p.y); }); // left half drives the stick
+      scene.input.on('pointermove', function (p) { if (p.id === pid) setFrom(p.x, p.y); });
+      scene.input.on('pointerup', function (p) { if (p.id === pid) release(); });
+      return st;
+    }
+  };
+
+  // ------------------------------------------------------------------- Shell
+  // The PLAYTEST SHELL — the hub-convention front end every Studio game host
+  // already serves an API for (server.js: /api/notes, /api/meta). A DOM overlay
+  // (not canvas) so it works while the scene is paused and never touches the
+  // render pipeline:
+  //   ⏸ pause/resume the scene (music auto-ducks)   ↻ restart (game callback)
+  //   📝 note-taking: pauses, opens a panel, POSTs {text + game context} to
+  //      /api/notes and lists the latest notes back        🔊 mute toggle
+  // Everything is INERT until clicked — the eval harness never clicks, so the
+  // deterministic gate is unaffected.
+  Studio.Shell = {
+    create: function (scene, opt) {
+      opt = opt || {};
+      if (typeof document === 'undefined') return null;
+      var th = Object.assign({ bg: 'rgba(20,13,8,0.82)', border: '#ffb24a', text: '#ffd9a0', accent: '#ff9a3c' }, opt.theme || {});
+      var FONT = 'Georgia, "Times New Roman", serif';
+      var key = scene.scene.key, mgr = scene.sys.game.scene;
+      var paused = false, userMuted = false, panelOpen = false, pausedByPanel = false;
+
+      var root_ = document.createElement('div');
+      root_.id = 'studio-shell';
+      root_.style.cssText = 'position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:1000;display:flex;gap:8px;font-family:' + FONT + ';';
+      document.body.appendChild(root_);
+
+      function btn(label, title) {
+        var b = document.createElement('button');
+        b.textContent = label; b.title = title;
+        b.style.cssText = 'width:40px;height:40px;border-radius:10px;border:1px solid ' + th.border + ';background:' + th.bg + ';color:' + th.text + ';font-size:18px;line-height:1;cursor:pointer;padding:0;touch-action:manipulation;';
+        root_.appendChild(b); return b;
+      }
+      var bPause = btn('⏸', 'pause / resume');
+      var bNotes = btn('📝', 'playtest notes');
+      var bRestart = btn('↻', 'restart');
+      var bMute = btn('🔊', 'mute / unmute');
+
+      var veil = document.createElement('div');   // PAUSED veil
+      veil.textContent = 'PAUSED';
+      veil.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:998;background:rgba(10,5,3,0.45);color:' + th.text + ';font-family:' + FONT + ';font-size:42px;letter-spacing:6px;text-shadow:0 2px 8px #000;pointer-events:none;';
+      document.body.appendChild(veil);
+
+      function setPaused(p) {
+        if (p === paused) return;
+        paused = p;
+        try { p ? mgr.pause(key) : mgr.resume(key); } catch (e) {}
+        try { Studio.Audio.setMuted(p || userMuted); } catch (e) {}
+        bPause.textContent = p ? '▶' : '⏸';
+        veil.style.display = (p && !panelOpen) ? 'flex' : 'none';
+        if (opt.onPause) try { opt.onPause(p); } catch (e) {}
+      }
+      bPause.onclick = function () { setPaused(!paused); };
+      bRestart.onclick = function () { setPaused(false); closePanel(); if (opt.onRestart) try { opt.onRestart(); } catch (e) {} };
+      bMute.onclick = function () { userMuted = !userMuted; try { Studio.Audio.setMuted(userMuted || paused); } catch (e) {} bMute.textContent = userMuted ? '🔇' : '🔊'; };
+
+      // ---- notes panel (open = auto-pause + keyboard released to the textarea) ----
+      var panel = document.createElement('div');
+      panel.style.cssText = 'position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:999;width:min(320px,calc(100vw - 24px));background:' + th.bg + ';border:1px solid ' + th.border + ';border-radius:12px;padding:10px;display:none;color:' + th.text + ';font-family:' + FONT + ';backdrop-filter:blur(3px);';
+      panel.innerHTML =
+        '<div style="font-size:14px;margin-bottom:6px;">📝 Playtest notes <span data-ctx style="opacity:.7;font-size:12px;"></span></div>' +
+        '<textarea data-text rows="3" placeholder="what did you feel / find?" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid ' + th.border + ';border-radius:8px;color:' + th.text + ';font-family:' + FONT + ';font-size:14px;padding:6px;"></textarea>' +
+        '<div style="display:flex;gap:8px;margin-top:6px;align-items:center;">' +
+        '<button data-save style="flex:0 0 auto;border:1px solid ' + th.border + ';background:' + th.accent + ';color:#221007;border-radius:8px;padding:6px 14px;font-family:' + FONT + ';font-size:14px;cursor:pointer;">Save note</button>' +
+        '<span data-status style="font-size:12px;opacity:.8;"></span></div>' +
+        '<div data-list style="margin-top:8px;font-size:12px;line-height:1.5;max-height:130px;overflow:auto;"></div>';
+      document.body.appendChild(panel);
+      var ta = panel.querySelector('[data-text]'), status = panel.querySelector('[data-status]'),
+          list = panel.querySelector('[data-list]'), ctxEl = panel.querySelector('[data-ctx]');
+
+      function refreshList() {
+        fetch('/api/notes').then(function (r) { return r.json(); }).then(function (ns) {
+          var last = (ns || []).slice(-4).reverse();
+          list.innerHTML = last.length
+            ? last.map(function (n) { return '<div style="border-top:1px dashed rgba(255,178,74,.3);padding-top:4px;margin-top:4px;">' + String(n.text || '').replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) + ' <span style="opacity:.55">— ' + (n.where || '') + '</span></div>'; }).join('')
+            : '<em style="opacity:.6">no notes yet — first one sets the bar</em>';
+        }).catch(function () { list.innerHTML = '<em style="opacity:.6">notes API offline (static host)</em>'; });
+      }
+      function openPanel() {
+        panelOpen = true; pausedByPanel = !paused; setPaused(true);
+        veil.style.display = 'none';
+        var c = opt.context ? opt.context() : {};
+        ctxEl.textContent = c.where ? '· ' + c.where : '';
+        panel.style.display = 'block'; refreshList();
+        try { scene.input.keyboard.enabled = false; } catch (e) {}   // type freely
+        setTimeout(function () { ta.focus(); }, 0);
+      }
+      function closePanel() {
+        if (!panelOpen) return;
+        panelOpen = false; panel.style.display = 'none';
+        try { scene.input.keyboard.enabled = true; } catch (e) {}
+        if (pausedByPanel) setPaused(false); else veil.style.display = paused ? 'flex' : 'none';
+      }
+      bNotes.onclick = function () { panelOpen ? closePanel() : openPanel(); };
+      panel.querySelector('[data-save]').onclick = function () {
+        var text = (ta.value || '').trim();
+        if (!text) { status.textContent = 'write something first'; return; }
+        var c = opt.context ? opt.context() : {};
+        status.textContent = 'saving…';
+        fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ text: text, ts: new Date().toISOString() }, c)) })
+          .then(function (r) { if (!r.ok) throw 0; status.textContent = 'saved ✓'; ta.value = ''; refreshList(); })
+          .catch(function () { status.textContent = 'save failed — notes API offline?'; });
+      };
+
+      var api = { setPaused: setPaused, isPaused: function () { return paused; }, openNotes: openPanel, closeNotes: closePanel,
+        destroy: function () { [root_, panel, veil].forEach(function (e) { try { e.remove(); } catch (x) {} }); } };
+      return api;
+    }
+  };
+
+  // -------------------------------------------------------------------- Game
+  // RFC-001 §1 — the DECLARATIVE GAME RUNTIME. Everything that used to be ~500
+  // lines of per-game glue (world build + theming overlays + follower art + HUD +
+  // toasts + shell/music/touch wiring + autopilot sense/snapshot + harness install
+  // + win/death rules) lives HERE once, parameterized by a theme. A game is now:
+  //
+  //   Studio.Game.boot({ title, archetype: 'runner'|'vertical', levels: window.LEVELS,
+  //                      theme: {...tokens...}, hooks: {...the truly game-specific 10%...} });
+  //
+  // The eval contract (window.__game/__sense/__cx, harness, 0-death autopilot) has
+  // exactly ONE implementation now — it can never drift per game again.
+  Studio.Game = {
+    boot: function (cfg) {
+      cfg = cfg || {};
+      var TH = cfg.theme || {};
+      var HOOKS = cfg.hooks || {};
+      var VERT = cfg.archetype === 'vertical';
+      var GRAV = cfg.gravity != null ? cfg.gravity : 1300;
+      var LEVELS = cfg.levels || root.LEVELS || [];
+      var title = cfg.title || 'Studio Game';
+
+      var scene, player, world, spawn, pc = null, heroArt = null, bgImg = null;
+      var levelGoalX = 0, levelGoalY = 0, levelIndex = 0, wpIndex = 0;
+      var input = { left: false, right: false, jump: false, down: false };
+      var auto = false, deaths = 0, won = false, frame = 0, coins = 0, lastDeathX = 0, maxX = 0;
+      var colliders = [], decor = [], landGuard = false, touchState = null, bedOn = false;
+
+      function tex(key, fb) { return key && scene.textures.exists(key) ? key : fb; }
+      var MATTEX = TH.matTex || null;            // per-material overlay map (null => bare gradients, template look)
+      var TILE_SCALE = TH.tileScale != null ? TH.tileScale : 0.35;
+      var PART = (TH.particle && TH.particle.key) || 'spark';
+
+      // ---------------------------------------------------------------- sense
+      function senseRunner(onGround) {
+        var probeX = player.x + 26, footY = player.y + 22, T = (LEVELS[levelIndex] || {}).tile || 40;
+        var groundAhead = Studio.Autopilot.groundAt(world.platforms, probeX, footY, T)
+          || Studio.Autopilot.groundAt(world.moverGroup, probeX, footY, T);
+        var blockedRight = player.body.blocked.right;
+        var enemyAhead = false;
+        world.enemies.getChildren().forEach(function (e) {
+          if (e.active && e.x > player.x && e.x - player.x < 64 && Math.abs(e.y - player.y) < 52) enemyAhead = true;
+        });
+        return { onGround: onGround, groundAhead: groundAhead, blockedRight: blockedRight, enemyAhead: enemyAhead, x: player.x, goalX: levelGoalX, vy: player.body.velocity.y };
+      }
+      function senseVertical(onGround) {
+        var L = LEVELS[levelIndex] || {}, chain = L.chain || [];
+        while (wpIndex < chain.length - 1) {
+          var t = chain[wpIndex];
+          if (Math.abs(player.x - t.x) < 46 && player.y <= t.y + 14) wpIndex++; else break;
+        }
+        var target = chain[Math.min(wpIndex, Math.max(0, chain.length - 1))] || { x: player.x, y: player.y };
+        var inUp = false;
+        (world.contraptions || []).forEach(function (c) { if (c.type === 'updraft' && c.contains && c.contains(player)) inUp = true; });
+        return { x: player.x, y: player.y, onGround: onGround, vy: player.body.velocity.y, target: target, inUpdraft: inUp, goalX: levelGoalX, wp: wpIndex };
+      }
+      function decide(sn) { return VERT ? Studio.Autopilot.vertical(sn) : Studio.Autopilot.platformer(sn); }
+
+      function footFrictionUnder() {
+        var px = player.x, py = player.body.bottom + 4, best = 1;
+        var groups = [world.platforms, world.moverGroup];
+        for (var gi = 0; gi < groups.length; gi++) {
+          var kids = groups[gi].getChildren();
+          for (var i = 0; i < kids.length; i++) {
+            var s = kids[i], bdy = s && s.body; if (!bdy) continue;
+            if (px >= bdy.left - 2 && px <= bdy.right + 2 && py >= bdy.top - 8 && py <= bdy.top + 14) {
+              return Studio.Materials.get(s.mat || 'solid').friction;
+            }
+          }
+        }
+        return best;
+      }
+
+      function snapshot() {
+        return {
+          x: Math.round(player.x), y: Math.round(player.y),
+          vx: Math.round(player.body.velocity.x), vy: Math.round(player.body.velocity.y),
+          onGround: !!(player.body.blocked.down || player.body.touching.down),
+          deaths: deaths, dead: deaths > 0, won: won, frame: frame, coins: coins,
+          goalX: levelGoalX, goalY: VERT ? levelGoalY : undefined,
+          level: levelIndex, lastDeathX: lastDeathX, maxX: Math.round(maxX), wp: VERT ? wpIndex : undefined
+        };
+      }
+
+      function toast(txt) {
+        if (!txt) return;
+        var t = scene.add.text(480, 208, txt, {
+          fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '30px', color: TH.hud && TH.hud.color || '#ffd9a0',
+          stroke: TH.hud && TH.hud.stroke || '#1a1a22', strokeThickness: 6, align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(120).setAlpha(0);
+        scene.tweens.add({ targets: t, alpha: 1, y: 196, duration: 420, ease: 'Sine.easeOut', yoyo: true, hold: 1100, onComplete: function () { try { t.destroy(); } catch (e) {} } });
+        decor.push(t);
+      }
+      function fmt(s, i, name) { return String(s || '').replace('{i}', i + 1).replace('{n}', LEVELS.length).replace('{name}', name || ''); }
+
+      // ------------------------------------------------------------ loadLevel
+      function loadLevel(i) {
+        var spec = LEVELS[i];
+        levelIndex = i; wpIndex = 0;
+        colliders.forEach(function (c) { try { c.destroy(); } catch (e) {} }); colliders = [];
+        decor.forEach(function (d) { try { d.destroy(); } catch (e) {} }); decor = [];
+        if (world) {
+          ['platforms', 'hazards', 'coins', 'enemies', 'springs'].forEach(function (k) {
+            try { world[k].clear(true, true); } catch (e) {}
+            try { world[k].destroy(true); } catch (e) {}
+          });
+          try { world.moverGroup.clear(true, true); world.moverGroup.destroy(true); } catch (e) {}
+        }
+
+        scene.cameras.main.setBackgroundColor(spec.sky || TH.sky || 0x101018);
+        if (bgImg) bgImg.setTint(spec.bgTint || 0xffffff);
+        world = Studio.Level.build(scene, spec);
+        spawn = world.spawn; levelGoalX = world.goalX;
+        var chain = spec.chain || [];
+        var top = chain.length ? chain[chain.length - 1] : null;
+        levelGoalY = world.goalY != null ? world.goalY : (top ? top.y : 0);
+        if (VERT && top) levelGoalX = top.x;
+
+        // themed overlays (only when the theme declares a material map)
+        if (MATTEX) {
+          world.platforms.getChildren().forEach(function (s) {
+            s.setVisible(false);
+            var key = tex(MATTEX[s.mat] || MATTEX._default, null);
+            var hsh = ((s.x * 2654435761) >>> 0);
+            if (key) {
+              var ts = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, key).setDepth(1);
+              ts.setTileScale(TILE_SCALE); ts.setTilePosition(hsh % 512, (hsh >> 9) % 512);
+              ts.setTint([0xffffff, 0xf6ece2, 0xefe0d2][hsh % 3]); decor.push(ts);
+            } else s.setVisible(true);
+            var lipDef = (TH.lip && TH.lip.perMat && TH.lip.perMat[s.mat]) || TH.lip;
+            if (lipDef && key) {
+              var lip = scene.add.rectangle(s.x, s.y - s.displayHeight / 2 + 2, s.displayWidth, 3, lipDef.color != null ? lipDef.color : 0xffffff, lipDef.alpha != null ? lipDef.alpha : 0.4).setDepth(2);
+              try { lip.setBlendMode(Phaser.BlendModes.ADD); } catch (e) {}
+              decor.push(lip);
+            }
+          });
+          world.hazards.getChildren().forEach(function (s) {
+            s.setVisible(false);
+            var key = tex(TH.hazardTex, null);
+            if (key) { var ts = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, key).setDepth(1); ts.setTileScale(TILE_SCALE); decor.push(ts); }
+            else s.setVisible(true);
+          });
+        }
+        // enemy follower art
+        if (TH.enemy && TH.enemy.img) {
+          world.enemies.getChildren().forEach(function (e) {
+            e.setVisible(false);
+            var art = scene.add.image(e.x, e.y, 'enemy_art').setDepth(5); art.setScale((TH.enemy.h || 50) / art.height);
+            e._art = art; decor.push(art);
+          });
+        }
+        // themed coins (bob is art-only)
+        var coinKey = tex(TH.coinArt && TH.coinArt.key, null);
+        if (coinKey) {
+          world.coins.getChildren().forEach(function (c) {
+            c.setVisible(false);
+            var art = scene.add.image(c.x, c.y, coinKey).setDepth(4); art.setScale((TH.coinArt.h || 26) / art.height);
+            scene.tweens.add({ targets: art, y: c.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            c._art = art; decor.push(art);
+          });
+        }
+        // goal gate
+        var goalKey = tex(TH.goalArt && TH.goalArt.key, 'goal');
+        var gy = VERT ? levelGoalY : (spec.groundY - 42);
+        var goalImg = scene.add.image(levelGoalX, gy, goalKey).setDepth(4);
+        if (goalKey !== 'goal') { goalImg.setScale((TH.goalArt.h || 96) / goalImg.height); goalImg.setY(gy + (VERT ? -goalImg.displayHeight / 2 + 6 : (spec.groundY - goalImg.displayHeight / 2) - gy)); }
+        Studio.Juice.glow(goalImg, TH.accent || 0xffd27a, 3); decor.push(goalImg);
+
+        Studio.Cam.follow(scene, player, { bounds: [0, 0, spec.width, spec.height], deadzone: VERT ? [220, 130] : [260, 200] });
+        scene.cameras.main.centerOn(spawn.x, spawn.y);
+
+        // ambient drift + theme hook
+        var motes = Studio.Juice.ambient(scene, spec.width, { texture: PART, y: -8, scale: TH.particle && TH.particle.ambientScale || 0.7 });
+        if (motes) decor.push(motes);
+        if (HOOKS.onLevelLoaded) try { HOOKS.onLevelLoaded(scene, world, spec, { decor: decor, particle: PART }); } catch (e) {}
+
+        // collisions + interactions (identical contracts to the proven Ember build)
+        colliders.push(scene.physics.add.collider(player, world.platforms));
+        colliders.push(scene.physics.add.overlap(player, world.coins, function (p, c) {
+          c.disableBody(true, true); if (c._art) c._art.setVisible(false); coins++; Studio.Audio.sfx('coin');
+          Studio.Juice.burst(scene, c.x, c.y, { texture: PART, n: 10, tint: TH.accent || 0xffcc33, life: 380, spMax: 160 });
+          hud();
+          if (HOOKS.onCoin) try { HOOKS.onCoin(scene, c); } catch (e) {}
+        }));
+        colliders.push(scene.physics.add.overlap(player, world.hazards, function () { die(); }));
+        colliders.push(scene.physics.add.overlap(player, world.enemies, function (p, e) {
+          if (!e.active) return;
+          if (p.body.velocity.y > 40 && p.y < e.y - 6) {
+            e.disableBody(true, true); if (e._art) e._art.setVisible(false); pc.launch(p, 380); Studio.Audio.sfx('stomp');
+            Studio.Juice.squash(scene, p); Studio.Juice.shake(scene, 90, 0.006);
+            Studio.Juice.burst(scene, e.x, e.y, { texture: PART, n: 12, tint: TH.enemyBurst || 0xff5a3c, life: 420 });
+            if (HOOKS.onStomp) try { HOOKS.onStomp(scene, p, e); } catch (e2) {}
+          }
+        }));
+        var springKey = tex(TH.springArt && TH.springArt.key, 'spring');
+        world.springs.getChildren().forEach(function (s) {
+          s.setDepth(3);
+          var art = scene.add.image(s.x, s.y, springKey).setDepth(8);
+          if (springKey !== 'spring') { art.setScale((TH.springArt.h || 46) / art.height); art.setY(s.body ? s.body.bottom - art.displayHeight / 2 : s.y); }
+          decor.push(art); s._art = art;
+        });
+        colliders.push(scene.physics.add.overlap(player, world.springs, function (p, s) {
+          if (p.body.velocity.y < -120 || s.cool > 0) return;
+          s.cool = 12; pc.launch(p, s.vel);
+          Studio.Audio.sfx('jump'); Studio.Juice.squash(scene, p, 0.8, 1.2);
+          Studio.Juice.burst(scene, p.x, p.body.bottom, { texture: PART, n: 8, tint: TH.accent || 0xffd166, life: 320 });
+        }));
+        if (world.moverGroup) colliders.push(scene.physics.add.collider(player, world.moverGroup));
+        world.movers.forEach(function (m) {
+          var mKey = tex(MATTEX && (MATTEX[m.spr.mat] || MATTEX._default), null);
+          if (mKey) {
+            var art = scene.add.tileSprite(m.spr.x, m.spr.y, m.spr.displayWidth, m.spr.displayHeight, mKey).setDepth(2);
+            art.setTileScale(TILE_SCALE); decor.push(art); m._art = art; m.spr.setVisible(false);
+          }
+        });
+
+        // contraptions: themed FX defaults + per-type hooks; updraft/gust get zone visuals
+        world.contraptions.forEach(function (cx) {
+          var s = cx.spr;
+          decor.push(s); (cx._extra || []).forEach(function (e) { decor.push(e); });
+          if (cx.type === 'crumble') {
+            colliders.push(scene.physics.add.collider(player, s));
+            s.setVisible(false);
+            var ct = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, tex(MATTEX && (MATTEX._fragile || MATTEX._default), 'cx_crumble')).setDepth(3);
+            ct.setTileScale(0.3); ct.setTint(TH.fragileTint || 0xc8a888);
+            cx._tile = ct; decor.push(ct);
+            s._onArm = function () { ct.setTint(TH.fragileArmTint || 0x8a5a3c); Studio.Juice.shake(scene, 80, 0.005); };
+            s._onFall = function (sp) {
+              ct.setVisible(false); Studio.Audio.sfx('hurt'); Studio.Juice.shake(scene, 120, 0.008);
+              Studio.Juice.burst(scene, sp.x, sp.y, { texture: PART, n: 16, tint: TH.fragileBurst || 0x8a5a2b, life: 520, spMax: 180 });
+            };
+          } else if (cx.type === 'launcher') {
+            s._onFire = function (sp) {
+              Studio.Audio.sfx('jump'); Studio.Juice.squash(scene, player, 0.8, 1.25);
+              Studio.Juice.burst(scene, sp.x, sp.y - 8, { texture: PART, n: 14, tint: TH.accent || 0xffd166, life: 460, spMax: 220 });
+            };
+          } else if (cx.type === 'updraft') {
+            // the visible wind: a faint column + a steady stream of rising motes
+            var col = scene.add.rectangle(cx.x, (cx.y0 + cx.y1) / 2, cx.w, cx.y1 - cx.y0, TH.updraftTint || 0xbfe8ff, 0.07).setDepth(1);
+            try { col.setBlendMode(Phaser.BlendModes.ADD); } catch (e) {}
+            decor.push(col);
+            try {
+              var em = scene.add.particles(cx.x, cx.y1, PART, {
+                x: { min: -cx.w / 2 + 8, max: cx.w / 2 - 8 },
+                lifespan: Math.min(2400, (cx.y1 - cx.y0) * 6), speedY: { min: -200, max: -120 }, speedX: { min: -8, max: 8 },
+                scale: { start: 0.7, end: 0 }, alpha: { start: 0.5, end: 0 }, quantity: 1, frequency: 70, blendMode: 'ADD'
+              });
+              em.setDepth(2); decor.push(em);
+            } catch (e) {}
+          } else if (cx.type === 'gust') {
+            try {
+              var gem = scene.add.particles(cx.x - cx.dir * cx.w / 2, cx.y, PART, {
+                y: { min: -cx.h / 2 + 10, max: cx.h / 2 - 10 },
+                lifespan: 600, speedX: { min: cx.dir * 260, max: cx.dir * 380 }, speedY: { min: -6, max: 6 },
+                scale: { start: 0.5, end: 0 }, alpha: { start: 0.45, end: 0 }, quantity: 1, frequency: 50, blendMode: 'ADD'
+              });
+              gem.setDepth(2); decor.push(gem); cx._em = gem; gem.emitting = false;
+            } catch (e) {}
+          }
+          if (HOOKS.contraptionFX && HOOKS.contraptionFX[cx.type]) try { HOOKS.contraptionFX[cx.type](cx, scene, { decor: decor, particle: PART }); } catch (e) {}
+          if (cx.type !== 'updraft' && cx.type !== 'gust') Studio.Juice.glow(s, TH.accent || 0xffb24a, 2);
+        });
+
+        player.setVelocity(0, 0);
+        player.setPosition(spawn.x, spawn.y);
+        toast(fmt(TH.toasts && TH.toasts.level || 'STAGE {i} · {name}', i, spec.name));
+      }
+
+      function hud() { if (scene._hud) scene._hud.setText('coins ' + coins + '   ' + (TH.stageWord || 'stage') + ' ' + (levelIndex + 1) + '/' + LEVELS.length); }
+      function reset() {
+        deaths = 0; won = false; frame = 0; coins = 0; auto = false; landGuard = false;
+        if (pc) pc.reset();
+        loadLevel(0); hud();
+      }
+      function respawn() {
+        player.setVelocity(0, 0); player.setPosition(spawn.x, spawn.y);
+        wpIndex = 0;
+        if (pc) pc.reset();
+        if (world && world.resetContraptions) world.resetContraptions();
+        (world && world.contraptions || []).forEach(function (cx) { if (cx._tile) { cx._tile.setVisible(true); cx._tile.setTint(TH.fragileTint || 0xc8a888); } });
+      }
+      function die() { deaths++; lastDeathX = Math.round(player.x); respawn(); }
+
+      // ----------------------------------------------------------------- scene
+      var Play = {
+        key: 'Play',
+        preload: function () {
+          if (TH.bgImage) this.load.image('bg_main', TH.bgImage);
+          if (TH.hero && TH.hero.fallback) this.load.image('hero_art', TH.hero.fallback);
+          if (TH.hero && TH.hero.sheet) this.load.spritesheet('hero_sheet', TH.hero.sheet, { frameWidth: TH.hero.fw, frameHeight: TH.hero.fh });
+          if (TH.enemy && TH.enemy.img) this.load.image('enemy_art', TH.enemy.img);
+          var kit = TH.kitFiles || {};
+          for (var k in kit) this.load.image(k, kit[k]);
+        },
+        create: function () {
+          scene = this;
+          Studio.Textures.kit(this, Object.assign({ tile: (LEVELS[0] || {}).tile || 40 }, TH.bakeKit || {}));
+          var pdef = TH.particle || {};
+          Studio.Textures.bake(this, PART, 10, 10, pdef.draw || function (g) {
+            g.fillStyle(pdef.halo != null ? pdef.halo : 0xff7a18, 1).fillCircle(5, 5, 5);
+            g.fillStyle(pdef.core != null ? pdef.core : 0xffd27a, 1).fillCircle(5, 5, 2.4);
+          });
+          if (TH.bgImage) bgImg = this.add.image(480, 270, 'bg_main').setScrollFactor(0).setDepth(-100).setDisplaySize(960, 540);
+
+          player = this.physics.add.sprite(60, 360, 'hero');
+          player.setVisible(false);
+          pc = Studio.Platformer.create({ tune: TH.tune || null });
+          player.setMaxVelocity(pc.tune.maxRun + (TH.vxHeadroom || 90), pc.tune.maxFall);
+
+          var sheetOK = TH.hero && TH.hero.sheet && this.textures.exists('hero_sheet') && this.textures.get('hero_sheet').frameTotal > ((TH.hero.anims && TH.hero.anims.total) || 8);
+          if (sheetOK) {
+            var A = this.anims, an = TH.hero.anims;
+            if (!A.exists('hero_run')) A.create({ key: 'hero_run', frames: A.generateFrameNumbers('hero_sheet', { start: an.run[0], end: an.run[1] }), frameRate: an.run[2] || 14, repeat: -1 });
+            if (!A.exists('hero_idle')) A.create({ key: 'hero_idle', frames: [{ key: 'hero_sheet', frame: an.idle }], frameRate: 1, repeat: -1 });
+            if (!A.exists('hero_jump')) A.create({ key: 'hero_jump', frames: [{ key: 'hero_sheet', frame: an.jump }], frameRate: 1, repeat: -1 });
+            heroArt = this.add.sprite(player.x, player.y, 'hero_sheet', an.idle).setDepth(6);
+            heroArt.play('hero_idle');
+          } else if (TH.hero && TH.hero.fallback) {
+            heroArt = this.add.image(player.x, player.y, 'hero_art').setDepth(6);
+          } else {
+            player.setVisible(true);                     // bare template look
+          }
+          if (heroArt) heroArt.setScale((TH.hero.scale || 64) / heroArt.height);
+
+          if (TH.grade) Studio.Juice.grade(this, function (cm) {
+            try { cm.brightness(TH.grade.brightness != null ? TH.grade.brightness : 1); cm.saturate(TH.grade.saturate || 0); cm.hue(TH.grade.hue || 0); } catch (e) {}
+          });
+          if (TH.vignette) Studio.Juice.vignette(this, TH.vignette);
+          if (heroArt && TH.hero.glow) Studio.Juice.glow(heroArt, TH.hero.glow, 5);
+
+          loadLevel(0);
+
+          scene._hud = this.add.text(16, 12, '', {
+            fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '18px', color: TH.hud && TH.hud.color || '#ffd9a0',
+            stroke: TH.hud && TH.hud.stroke || '#1a1a22', strokeThickness: 5
+          }).setScrollFactor(0).setDepth(100);
+          hud();
+          this.cursors = this.input.keyboard.createCursorKeys();
+          touchState = Studio.Touch.create(this, { theme: TH.touch || null });
+
+          var startBed = function () {
+            if (bedOn || !TH.music) return; bedOn = true;
+            var au = Studio.Audio.music(TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55);
+            if (au && au.addEventListener && TH.music.fallback) au.addEventListener('error', function () { Studio.Audio.music(TH.music.fallback, 0.3); });
+            else if (!au && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3);
+          };
+          this.input.once('pointerdown', startBed);
+          if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
+
+          Studio.Shell.create(this, {
+            theme: TH.shell || null,
+            context: function () {
+              var L = LEVELS[levelIndex] || {};
+              var base = {
+                where: (TH.stagePrefix || 'S') + (levelIndex + 1) + ' ' + (L.name || '') + ' @' + Math.round(player.x) + (VERT ? ',' + Math.round(player.y) : ''),
+                level: levelIndex + 1, levelName: L.name || '', x: Math.round(player.x), y: Math.round(player.y),
+                coins: coins, deaths: deaths, won: won, game: cfg.slug || title.toLowerCase().replace(/\s+/g, '-')
+              };
+              if (HOOKS.context) try { Object.assign(base, HOOKS.context()); } catch (e) {}
+              return base;
+            },
+            onRestart: function () { reset(); }
+          });
+
+          Studio.harness.install(root.game, {
+            snapshot: snapshot,
+            setInput: function (o) { input = Object.assign({ left: false, right: false, jump: false, down: false }, o || {}); },
+            autopilot: function (on) { auto = !!on; input = { left: false, right: false, jump: false, down: false }; },
+            reset: reset
+          });
+          root.__sense = function () {
+            var og = player.body.blocked.down || player.body.touching.down;
+            var s = VERT ? senseVertical(og) : senseRunner(og);
+            s.decision = decide(s);
+            return s;
+          };
+          root.__cx = function () {
+            return (world.contraptions || []).map(function (c) {
+              return { type: c.type, lens: c.lens, x: Math.round(c.spr ? c.spr.x : c.x), active: !!(c.spr ? c.spr.active : true), state: c.state ? c.state() : null };
+            });
+          };
+        },
+        update: function (time, delta) {
+          if (!player) return; frame++;
+          var climb = VERT ? ((LEVELS[levelIndex] || {}).height || 0) - player.y : player.x;
+          if (climb > maxX) maxX = climb;
+          var b = player.body, onGround = b.blocked.down || b.touching.down;
+          var dt = Math.min((delta || (1000 / 60)) / 1000, 1 / 30);
+
+          if (onGround && !landGuard) { landGuard = true; Studio.Juice.shake(scene, 60, 0.004); }
+          if (!onGround) landGuard = false;
+
+          world.tick(dt);
+          world.springs.getChildren().forEach(function (s) { if (s.cool > 0) s.cool--; });
+          world.contraptionsInteract(player, { dt: dt, pc: pc });
+          // gust emitters mirror their phase clock (visual only)
+          (world.contraptions || []).forEach(function (cx) { if (cx.type === 'gust' && cx._em) cx._em.emitting = !!cx.state().active; });
+
+          var mv;
+          if (won) mv = { left: false, right: false, jump: false, down: false };
+          else if (auto) { var sn = VERT ? senseVertical(onGround) : senseRunner(onGround); mv = decide(sn); }
+          else mv = manual();
+
+          var ff = footFrictionUnder();
+          pc.update(player, mv, { onGround: onGround, footFriction: ff, dt: dt });
+
+          world.movers.forEach(function (m) {
+            var mb = m.spr.body;
+            var onTop = player.body.bottom <= mb.top + 9 && player.body.bottom >= mb.top - 12
+              && player.body.right > mb.left + 2 && player.body.left < mb.right - 2 && player.body.velocity.y >= -30;
+            if (onTop) { player.x += m.vx; player.y += m.vy; }
+            if (m._art) m._art.setPosition(m.spr.x, m.spr.y);
+          });
+
+          if (heroArt) {
+            heroArt.setPosition(player.x, player.y - 3); heroArt.setFlipX(player.flipX);
+            if (heroArt.play) {
+              var want = !onGround ? 'hero_jump' : (Math.abs(b.velocity.x) > 20 ? 'hero_run' : 'hero_idle');
+              var cur = heroArt.anims && heroArt.anims.currentAnim;
+              if (!cur || cur.key !== want) heroArt.play(want, true);
+            }
+          }
+          world.enemies.getChildren().forEach(function (e) {
+            if (!e.active) return; e.x += e.dir * 0.6; if (Math.abs(e.x - e.homeX) > e.patrol) e.dir *= -1;
+            if (e._art) { e._art.setPosition(e.x, e.y); e._art.setFlipX(e.dir > 0); }
+          });
+
+          // WIN: runner reaches goal x; climber reaches the gate at the top
+          var reached = VERT
+            ? (Math.abs(player.x - levelGoalX) < 56 && player.y < levelGoalY + 30)
+            : (player.x >= levelGoalX - 8);
+          if (!won && reached) {
+            if (levelIndex < LEVELS.length - 1) {
+              Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 140, 255, 150, 60);
+              loadLevel(levelIndex + 1); if (pc) pc.reset(); landGuard = false;
+            } else {
+              won = true; Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 220, 255, 170, 70);
+              toast(TH.toasts && TH.toasts.win || 'CLEARED');
+            }
+          }
+          if (player.y > ((LEVELS[levelIndex] || {}).height || scene.scale.height) + 120) die();
+        }
+      };
+      function manual() {
+        var c = scene.cursors, t = touchState || {};
+        return { left: (c && c.left.isDown) || t.left, right: (c && c.right.isDown) || t.right, jump: (c && (c.up.isDown || c.space.isDown)) || t.jump, down: (c && c.down.isDown) || t.down };
+      }
+
+      var config = {
+        type: Phaser.AUTO, backgroundColor: TH.cssBg || '#101018', seed: [cfg.seed || title],
+        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
+        render: { preserveDrawingBuffer: true, pixelArt: !!TH.pixelArt },
+        physics: { default: 'arcade', arcade: { gravity: { y: GRAV }, debug: false } },
+        scene: [Play]
+      };
+      var r = new URLSearchParams(location.search).get('r');
+      if (r === 'canvas') config.type = Phaser.CANVAS; else if (r === 'webgl') config.type = Phaser.WEBGL;
+      root.game = new Phaser.Game(config);
+      return root.game;
+    }
+  };
+
+  // ------------------------------------------------------------------ harness
+  // Wires window.__rec (deterministic stepper) + window.__game (observability)
+  // + window.__run / window.__gate, given game + hooks. This is the eval contract.
+  Studio.harness = {
+    install: function (game, hooks) {
+      root.__rec = {
+        on: false, t: 0, dt: 1000 / 60,
+        begin: function () { if (this.on) return; game.loop.sleep(); this.on = true; this.t = 1000; },
+        step: function (n) { n = n || 1; for (var i = 0; i < n; i++) { this.t += this.dt; game.step(this.t, this.dt); } },
+        tick: function (n) { n = n || 1; for (var i = 0; i < n; i++) { this.t += this.dt; game.headlessStep(this.t, this.dt); } }, // physics only (no render) — fast gate
+        end: function () { if (!this.on) return; this.on = false; game.loop.wake(); }
+      };
+      root.__game = {
+        ready: function () { return !!root.__ready; },
+        snapshot: hooks.snapshot,
+        setInput: hooks.setInput || function () {},
+        autopilot: hooks.autopilot || function () {},
+        reset: hooks.reset || function () {}
+      };
+      root.__run = function (n) { root.__game.reset(); root.__game.autopilot(true); root.__rec.begin(); root.__rec.step(n); return root.__game.snapshot(); };
+      root.__gate = function (maxF) {
+        root.__game.reset(); root.__game.autopilot(true); root.__rec.begin();
+        var s = root.__game.snapshot();
+        while (!s.won && !s.dead && s.frame < maxF) { root.__rec.tick(1); s = root.__game.snapshot(); } // headless physics — gate needs no pixels
+        return s;
+      };
+      root.__ready = true;
+      return root.__game;
+    }
+  };
+
+  // -------------------------------------------------------------------- Feel
+  // A PURE, DETERMINISTIC fun-score predictor — the Studio port of jazz's
+  // feelmodel.js. It predicts a per-window INTEREST curve straight from a
+  // level spec's element placement (no pixels, no Date.now, no Math.random),
+  // then runs the EXACT four-component math feel.mjs / the jazz model use:
+  //
+  //   FUN = 100 * (0.35*engagement + 0.15*dynamics + 0.25*arc + 0.25*flow)
+  //
+  // Inputs : ONE Studio Level spec ({ width, tile, groundY, ground:[[x1,x2,mat]],
+  //          walls, platforms, coins, enemies, springs, movers, ... }).
+  // Outputs: { fun, engagement, dynamics, arc, flow, peakPos, weakest, ... }.
+  //
+  // Adapted to the Studio DSL: positions are PIXELS (not tiles), and a GAP is a
+  // DEADLY ground segment (lava) or a genuine uncovered hole in the floor — both
+  // route to "jump it or die", exactly the jazz `gap` verb. Material changes
+  // (stone->mud->ice...) are scored as variety beats. Additive: touches nothing.
+  Studio.Feel = (function () {
+    // per-element interest weights (mirrors jazz INTEREST, mapped to Studio verbs)
+    var INTEREST = {
+      ground: 1, ledge: 4, gap: 5, spring: 8, mover: 8, walker: 6,
+      ice: 6, mud: 6, lava: 5, matchg: 4, coin: 2
+    };
+    var clamp = function (v, lo, hi) { lo = lo == null ? 0 : lo; hi = hi == null ? 1 : hi; return Math.max(lo, Math.min(hi, v)); };
+    var mean = function (a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : 0; };
+    function pearson(a, b) {
+      var n = a.length, ma = mean(a), mb = mean(b), nu = 0, da = 0, db = 0;
+      for (var i = 0; i < n; i++) { nu += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) * (a[i] - ma); db += (b[i] - mb) * (b[i] - mb); }
+      return da && db ? nu / Math.sqrt(da * db) : 0;
+    }
+    function slope(y) {
+      var n = y.length; if (n < 2) return 0;
+      var mx = (n - 1) / 2, my = mean(y), nu = 0, de = 0;
+      for (var i = 0; i < n; i++) { nu += (i - mx) * (y[i] - my); de += (i - mx) * (i - mx); }
+      return de ? nu / de : 0;
+    }
+    // the ideal interest envelope: gentle rise + a peak near ~84% of the level
+    var idealAt = function (t) { return 4 + 4 * t + 2.2 * Math.exp(-(((t - 0.84) / 0.11) * ((t - 0.84) / 0.11))); };
+
+    // every "beat" in the level -> { x (px), type, interest }
+    function collectBeats(spec) {
+      var b = [], W = spec.width || 960, T = spec.tile || 40;
+      // GAPS: deadly ground segments (lava) + genuine uncovered holes in the floor
+      var segs = (spec.ground || []).slice().sort(function (p, q) { return p[0] - q[0]; });
+      var prevMat = null, cursor = 0;
+      segs.forEach(function (seg) {
+        var x0 = seg[0], x1 = seg[1], mat = seg[2] || 'solid';
+        var m = (Studio.Materials && Studio.Materials.get) ? Studio.Materials.get(mat) : null;
+        var deadly = m ? !!m.deadly : (mat === 'lava');
+        if (x0 > cursor + 2) b.push({ x: (cursor + x0) / 2, type: 'gap', interest: INTEREST.gap }); // a true hole
+        if (deadly) b.push({ x: (x0 + x1) / 2, type: 'gap', interest: INTEREST.gap });             // lava-as-gap
+        else if (mat === 'ice') b.push({ x: (x0 + x1) / 2, type: 'ice', interest: INTEREST.ice });
+        else if (mat === 'mud') b.push({ x: (x0 + x1) / 2, type: 'mud', interest: INTEREST.mud });
+        // MATERIAL CHANGE between adjacent walkable segments = a small variety beat
+        if (prevMat != null && mat !== prevMat && !deadly) b.push({ x: x0, type: 'matchg', interest: INTEREST.matchg });
+        prevMat = deadly ? prevMat : mat;
+        cursor = Math.max(cursor, x1);
+      });
+      (spec.walls || []).forEach(function (w) { b.push({ x: w.x + T / 2, type: 'ledge', interest: INTEREST.ledge }); });
+      (spec.platforms || []).forEach(function (p) { b.push({ x: p.x + (p.w || T) / 2, type: 'ledge', interest: INTEREST.ledge }); });
+      (spec.enemies || []).forEach(function (e) { b.push({ x: e.x, type: 'walker', interest: INTEREST.walker }); });
+      (spec.springs || []).forEach(function (s) { b.push({ x: s.x, type: 'spring', interest: INTEREST.spring }); });
+      (spec.movers || []).forEach(function (m) { b.push({ x: m.x, type: 'mover', interest: INTEREST.mover }); });
+      // CONTRAPTIONS — each registers a beat tagged by its TYPE (so novelty/fatigue
+      // + the dominant-verb feeling tag treat it as a first-class verb), weighted by
+      // its registry weight (Studio.Contraptions[type].weight). A contraption sitting
+      // near the ~84% arc peak therefore lifts that window's interest -> a better arc.
+      (spec.contraptions || []).forEach(function (c) {
+        var meta = (Studio.Contraptions && Studio.Contraptions.meta) ? Studio.Contraptions.meta(c.type) : null;
+        var wgt = meta ? meta.weight : (INTEREST[c.type] || 7);
+        b.push({ x: c.x, type: c.type, interest: wgt, feeling: meta ? meta.feeling : null, lens: meta ? meta.lens : null });
+      });
+      return b;
+    }
+
+    // VERTICAL beats: the climb axis replaces x. Every beat's position is its
+    // climb progress in px (H - y: 0 at the bottom, H at the top), so the same
+    // window/novelty/fatigue/arc math scores a tower exactly like a runner.
+    function collectBeatsVertical(spec) {
+      var H = spec.height || 2200, b = [];
+      var pos = function (y) { return Math.max(0, Math.min(H, H - y)); };
+      var cw = function (t, fb) { var m = (Studio.Contraptions && Studio.Contraptions.meta) ? Studio.Contraptions.meta(t) : null; return m ? m.weight : fb; };
+      var prevMat = null;
+      (spec.platforms || []).slice().sort(function (p, q) { return q.y - p.y; }).forEach(function (p) {
+        var mat = p.mat || 'cloud';
+        var m = (Studio.Materials && Studio.Materials.get) ? Studio.Materials.get(mat) : null;
+        if (m && m.deadly) { b.push({ x: pos(p.y), type: 'gap', interest: INTEREST.gap }); return; } // storm shelf = the deadly beat
+        b.push({ x: pos(p.y), type: 'ledge', interest: INTEREST.ledge });
+        if (prevMat != null && mat !== prevMat) b.push({ x: pos(p.y), type: 'matchg', interest: INTEREST.matchg });
+        prevMat = mat;
+      });
+      (spec.updrafts || []).forEach(function (u) { b.push({ x: pos((u.y0 + u.y1) / 2), type: 'updraft', interest: cw('updraft', 8) }); });
+      (spec.gusts || []).forEach(function (g) { b.push({ x: pos(g.y), type: 'gust', interest: cw('gust', 7) }); });
+      (spec.springs || []).forEach(function (s) { b.push({ x: pos(s.y != null ? s.y : H), type: 'spring', interest: INTEREST.spring }); });
+      (spec.movers || []).forEach(function (m) { b.push({ x: pos(m.y), type: 'mover', interest: INTEREST.mover }); });
+      (spec.enemies || []).forEach(function (e) { b.push({ x: pos(e.y != null ? e.y : H), type: 'walker', interest: INTEREST.walker }); });
+      (spec.contraptions || []).forEach(function (c) { b.push({ x: pos(c.y || c.top || H), type: c.type, interest: cw(c.type, 7) }); });
+      return b;
+    }
+
+    // predict the interest curve from placement alone (jazz novelty/fatigue/combo)
+    function predict(spec, opt) {
+      opt = opt || {};
+      var vertical = !!spec.vertical;
+      var W = vertical ? (spec.height || 2200) : (spec.width || 960), T = spec.tile || 40;
+      // ~6-tile windows, clamped to a sane count so short/long levels both behave
+      var n = opt.nWin || Math.max(8, Math.min(40, Math.round(W / (6 * T))));
+      var beats = vertical ? collectBeatsVertical(spec) : collectBeats(spec);
+      var win = [], i;
+      for (i = 0; i < n; i++) win.push({ peak: 0, dom: null, count: 0, coins: 0 });
+      var wi = function (x) { return Math.max(0, Math.min(n - 1, Math.floor((x / W) * n))); };
+      beats.forEach(function (bt) { var w = win[wi(bt.x)]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
+      (spec.coins || []).forEach(function (c) { win[wi(vertical ? ((spec.height || 2200) - c.y) : c.x)].coins++; });
+      var seen = {}, prevDom = null;
+      var curve = win.map(function (w) {
+        var v = 2.4;                                              // bare ground is a touch dull
+        if (w.peak > 0) v = 2.0 + w.peak * 0.72;                  // dominant beat sets the height
+        if (w.count > 1) v += Math.min(1.2, (w.count - 1) * 0.4); // combos add interest
+        v += w.coins >= 3 ? 0.8 : w.coins > 0 ? 0.3 : 0;          // a collectible beat
+        if (w.dom && !seen[w.dom]) { seen[w.dom] = 1; v += 1.1; } // NOVELTY — first time we meet a verb
+        else if (w.dom && w.dom === prevDom) v *= 0.84;           // FATIGUE — same verb twice running
+        prevDom = w.dom || prevDom;
+        return Math.max(0, Math.min(10, +v.toFixed(2)));
+      });
+      return { curve: curve, n: n, W: W };
+    }
+
+    // the EXACT feel.mjs / jazz component math, over a predicted curve
+    function scoreCurve(curve, W, n) {
+      var ideal = curve.map(function (_, i) { return idealAt(n > 1 ? i / (n - 1) : 0); });
+      var engagement = clamp(mean(curve) / 8);
+      var meanAbsDiff = curve.length > 1 ? mean(curve.slice(1).map(function (v, i) { return Math.abs(v - curve[i]); })) : 0;
+      var dynamics = clamp(meanAbsDiff / 2.5);
+      var arcCorr = (pearson(curve, ideal) + 1) / 2;
+      var peakPos = curve.indexOf(Math.max.apply(Math, curve)) / Math.max(1, n - 1);
+      var lateBonus = clamp(1 - Math.abs(peakPos - 0.84) / 0.45);
+      var trend = clamp((slope(curve) + 0.1) / 0.4);
+      var arc = 0.5 * arcCorr + 0.3 * lateBonus + 0.2 * trend;
+      var longestFlat = 0, run = 0;
+      for (var i = 1; i < curve.length; i++) { if (Math.abs(curve[i] - curve[i - 1]) <= 1 && curve[i] <= 5) { run++; longestFlat = Math.max(longestFlat, run); } else run = 0; }
+      var deadIdx = []; for (i = 0; i < curve.length; i++) if (curve[i] < 3.4) deadIdx.push(i);
+      var flow = clamp(1 - (deadIdx.length / n) * 1.5 - (longestFlat / n) * 1.0);
+      var comps = { engagement: engagement, dynamics: dynamics, arc: arc, flow: flow };
+      // weighted FUN
+      var fun = +(100 * (0.35 * engagement + 0.15 * dynamics + 0.25 * arc + 0.25 * flow)).toFixed(1);
+      // weakest component name (drives the feel-guided next step)
+      var weakest = Object.keys(comps).reduce(function (lo, k) { return comps[k] < comps[lo] ? k : lo; }, 'engagement');
+      var deadAir = deadIdx.map(function (i) { return Math.round(i * W / n) + '-' + Math.round((i + 1) * W / n); });
+      return {
+        fun: fun,
+        engagement: +engagement.toFixed(2), dynamics: +dynamics.toFixed(2),
+        arc: +arc.toFixed(2), flow: +flow.toFixed(2),
+        peakPos: +peakPos.toFixed(2), weakest: weakest,
+        deadAir: deadAir, curve: curve
+      };
+    }
+
+    return {
+      INTEREST: INTEREST,
+      idealAt: idealAt,
+      collectBeats: collectBeats,
+      predict: predict,
+      // PUBLIC: score ONE level spec -> { fun, engagement, dynamics, arc, flow, peakPos, weakest, ... }
+      score: function (spec) {
+        if (!spec) return { fun: 0, engagement: 0, dynamics: 0, arc: 0, flow: 0, peakPos: 0, weakest: 'engagement', curve: [] };
+        var p = predict(spec);
+        var s = scoreCurve(p.curve, p.W, p.n);
+        s.name = spec.name || null;
+        return s;
+      },
+      // PUBLIC: the contraption beats of a level, each tagged with its position
+      // (px + normalized arc 0..1) and {feeling,lens,weight} — so docs/tools can
+      // report "what feeling sits where" and whether a contraption hits the arc peak.
+      contraptionBeats: function (spec) {
+        if (!spec || !spec.contraptions) return [];
+        var W = spec.width || 960;
+        return spec.contraptions.map(function (c) {
+          var meta = (Studio.Contraptions && Studio.Contraptions.meta) ? Studio.Contraptions.meta(c.type) : null;
+          return {
+            type: c.type, x: c.x, arcPos: +(c.x / W).toFixed(2),
+            feeling: meta ? meta.feeling : null, lens: meta ? meta.lens : null,
+            weight: meta ? meta.weight : null,
+            nearPeak: Math.abs((c.x / W) - 0.84) <= 0.12     // does it lift the ~84% arc peak?
+          };
+        });
+      }
+    };
+  })();
+
+  root.Studio = Studio;
+  if (typeof module !== 'undefined' && module.exports) module.exports = Studio;
+})(typeof window !== 'undefined' ? window : globalThis);
