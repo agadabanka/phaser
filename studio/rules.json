@@ -1,0 +1,40 @@
+{
+  "_comment": "RFC-001 §3: the studio's RULES as first-class data. The geometry contract that keeps levels AI-completable-by-construction (per archetype), the judge thresholds, and the movement envelope the contracts assume. Read by tools/level-lint (the cheap static gate that runs before the expensive browser gate) and quotable by docs/agents. Pixels unless noted.",
+  "movement": {
+    "_": "what the Studio.Platformer tune actually delivers — the envelope every geometry rule is derived from",
+    "fullHop": { "dx": 200, "dyUp": 120 },
+    "tile": 40
+  },
+  "archetypes": {
+    "runner": {
+      "_": "left-to-right floor games (Ember). Floor is a ground[] of material slabs; lava/deadly is a GAP in walkable ground.",
+      "gapMaxPx": 120,
+      "wallMaxTiles": 2,
+      "wallGapClearancePx": 160,
+      "iceExitSolid": true,
+      "noGapLandingOnIce": true,
+      "springSlabMinPx": 200,
+      "moverMaxGapPx": 120,
+      "goalOnWalkable": true
+    },
+    "vertical": {
+      "_": "climb-to-the-top games (clouds). World is platforms + a waypoint chain; the void/storm below is deadly. Every consecutive chain hop must be inside the movement envelope OR powered by a declared mechanic (updraft/spring/mover).",
+      "hopDxMaxPx": 190,
+      "hopDyUpMaxPx": 110,
+      "updraftDyMaxPx": 420,
+      "springDyMaxPx": 260,
+      "platformMinWPx": 80,
+      "chainRequired": true,
+      "goalNearTopPx": 280,
+      "spawnOnPlatform": true
+    }
+  },
+  "thresholds": {
+    "gateDeaths": 0,
+    "funMin": 85,
+    "artCohesionMin": 60,
+    "distinctnessMin": 50,
+    "musicBedMinRms": 0.004,
+    "musicBedMinSeconds": 8
+  }
+}

@@ -10,6 +10,7 @@
  *   Studio.Audio     procedural WebAudio SFX + music hook
  *   Studio.Cam       follow camera w/ deadzone + bounds
  *   Studio.Materials look + footing + grounding (AI-safe surfaces)
+ *   Studio.Shell     playtest shell (pause / notes->/api/notes / restart / mute)
  *
  * Load order in a game:  <script src="phaser.min.js"></script>
  *                        <script src="studio.js"></script>
@@ -27,7 +28,12 @@
       stone: { color: 0x6b705c, top: 0x8a8d7a, friction: 1, deadly: false, ground: true },
       ice: { color: 0x9fd3e0, top: 0xd6f1f7, friction: 0.05, deadly: false, ground: true },
       lava: { color: 0xd00000, top: 0xff5400, friction: 1, deadly: true, ground: false },
-      mud: { color: 0x6f4518, top: 0x8a5a2b, friction: 2.2, deadly: false, ground: true }
+      mud: { color: 0x6f4518, top: 0x8a5a2b, friction: 2.2, deadly: false, ground: true },
+      // sky materials (vertical archetype): cloud = walkable cumulus, mist = soft
+      // low-grip vapor, storm = the deadly charged thunderhead (lava-of-the-sky).
+      cloud: { color: 0xdfe9f5, top: 0xfafdff, friction: 1, deadly: false, ground: true },
+      mist: { color: 0xb8c9e6, top: 0xe6f0fb, friction: 0.55, deadly: false, ground: true },
+      storm: { color: 0x2c3550, top: 0x46527a, friction: 1, deadly: true, ground: false }
     },
     get: function (name) { return this.table[name] || this.table.solid; }
   };
@@ -506,6 +512,87 @@
       }
     };
 
+    // ---------------------------------------------------------------- updraft
+    // A vertical WIND COLUMN (the sky game's signature verb). While the player is
+    // inside the column they accelerate upward toward a capped rise speed — a
+    // float, not a fling, so steering stays in the player's hands the whole ride.
+    // DETERMINISM: the field is CONSTANT (no clock in the force math); the only
+    // motion change is a pure function of position + the caller's fixed dt.
+    // AUTOPILOT-SAFE: the vertical driver just steers to the column's center and
+    // rides; the column always tops out beside/above a walkable platform.
+    REGISTRY.updraft = {
+      feeling: 'lift / wonder / weightlessness',
+      lens: 'Sensation',
+      weight: 8,
+      build: function (scene, spec) {
+        var x = spec.x, w = spec.w || 120, y0 = spec.y0, y1 = spec.y1;   // column top/bottom (y0 < y1)
+        var lift = spec.lift != null ? spec.lift : 2600;                  // upward accel px/s^2 (beats fallGravity)
+        var maxRise = spec.maxRise != null ? spec.maxRise : 250;          // capped float speed
+        var active = false;
+        var spr = scene.add.rectangle(x, (y0 + y1) / 2, w, y1 - y0, 0xffffff, 0).setDepth(0); // invisible anchor (decor/teardown path)
+        spr.setVisible(false);
+        function contains(p) { return p.x > x - w / 2 && p.x < x + w / 2 && p.y > y0 && p.y < y1; }
+        return {
+          type: 'updraft', spr: spr, x: x, y: (y0 + y1) / 2, w: w, y0: y0, y1: y1,
+          contains: function (p) { return contains(p); },
+          state: function () { return { active: active }; },
+          tick: function () {},
+          interact: function (player, ctx) {
+            var inside = contains(player);
+            if (inside) {
+              var b = player.body, dt = (ctx && ctx.dt != null) ? ctx.dt : (1 / 60);
+              b.velocity.y -= lift * dt;
+              if (b.velocity.y < -maxRise) b.velocity.y = -maxRise;
+              if (!active && spr._onEnter) spr._onEnter(spr);
+            }
+            active = inside;
+          },
+          reset: function () { active = false; }
+        };
+      }
+    };
+
+    // ------------------------------------------------------------------- gust
+    // A horizontal WIND GUST zone that blows on a deterministic phase clock
+    // (period/duty, like the movers' triangle wave): timing/tension — cross when
+    // it rests, or fight it with the stick. Push is capped so it can shove but
+    // never pin a runner at full speed.
+    REGISTRY.gust = {
+      feeling: 'timing / tension / lean-into-it',
+      lens: 'Challenge',
+      weight: 7,
+      build: function (scene, spec) {
+        var x = spec.x, y = spec.y, w = spec.w || 240, h = spec.h || 140;
+        var dir = spec.dir === -1 ? -1 : 1;
+        var period = spec.period || 3.2, duty = spec.duty != null ? spec.duty : 0.45;
+        var push = spec.push != null ? spec.push : 900;                   // px/s^2 while blowing
+        var vxCap = spec.vxCap != null ? spec.vxCap : 300;
+        var clock = spec.phase ? spec.phase * period : 0, active = false;
+        var spr = scene.add.rectangle(x, y, w, h, 0xffffff, 0).setDepth(0);
+        spr.setVisible(false);
+        function contains(p) { return p.x > x - w / 2 && p.x < x + w / 2 && p.y > y - h / 2 && p.y < y + h / 2; }
+        return {
+          type: 'gust', spr: spr, x: x, y: y, w: w, h: h, dir: dir,
+          contains: function (p) { return contains(p); },
+          state: function () { return { active: active, clock: +clock.toFixed(3) }; },
+          tick: function (dt) {
+            clock += (dt != null ? dt : 1 / 60);
+            var was = active;
+            active = ((clock / period) % 1) < duty;
+            if (active && !was && spr._onBlow) spr._onBlow(spr);
+          },
+          interact: function (player, ctx) {
+            if (!active || !contains(player)) return;
+            var b = player.body, dt = (ctx && ctx.dt != null) ? ctx.dt : (1 / 60);
+            b.velocity.x += dir * push * dt;
+            if (b.velocity.x > vxCap) b.velocity.x = vxCap;
+            if (b.velocity.x < -vxCap) b.velocity.x = -vxCap;
+          },
+          reset: function () { clock = spec.phase ? spec.phase * period : 0; active = false; }
+        };
+      }
+    };
+
     // PUBLIC: the dictionary is iterable + queryable by Studio.Feel / docs.
     // Studio.Contraptions.types  -> ['seesaw','launcher','crumble', …]
     // Studio.Contraptions.get(t) -> the registry entry (with build())
@@ -558,7 +645,8 @@
       (spec.coins || []).forEach(function (c) { coins.create(c.x, c.y, 'coin'); });
       var enemies = scene.physics.add.group({ allowGravity: false, immovable: true });
       (spec.enemies || []).forEach(function (e) {
-        var s = enemies.create(e.x, spec.groundY - 14, 'enemy'); s.patrol = e.patrol || 60; s.homeX = e.x; s.dir = 1;
+        // vertical levels give enemies an explicit y (patrolling a platform line)
+        var s = enemies.create(e.x, e.y != null ? e.y : spec.groundY - 14, 'enemy'); s.patrol = e.patrol || 60; s.homeX = e.x; s.dir = 1;
       });
 
       // SPRINGS — bounce pads sitting on the ground line. A static body the game
@@ -566,7 +654,7 @@
       // speed, so no pixel-perfect landing is needed and it is NOT a step to hop.
       var springs = scene.physics.add.staticGroup();
       (spec.springs || []).forEach(function (s) {
-        var img = springs.create(s.x, spec.groundY - 9, 'spring'); img.refreshBody();
+        var img = springs.create(s.x, s.y != null ? s.y : spec.groundY - 9, 'spring'); img.refreshBody();
         img.vel = s.vel || null;        // optional per-spring launch override (else controller default)
         img.cool = 0;                   // launch cooldown (frames), driven by world.tick
       });
@@ -596,6 +684,16 @@
       var contraptions = [];
       (spec.contraptions || []).forEach(function (cs) {
         var rec = Studio.Contraptions.build(scene, cs, { platforms: platforms, hazards: hazards }, spec);
+        if (rec) contraptions.push(rec);
+      });
+      // sugar: spec.updrafts / spec.gusts are contraption shorthands (the vertical
+      // archetype's signature verbs) — routed through the same registry/clock.
+      (spec.updrafts || []).forEach(function (u) {
+        var rec = Studio.Contraptions.build(scene, Object.assign({ type: 'updraft' }, u), { platforms: platforms, hazards: hazards }, spec);
+        if (rec) contraptions.push(rec);
+      });
+      (spec.gusts || []).forEach(function (g) {
+        var rec = Studio.Contraptions.build(scene, Object.assign({ type: 'gust' }, g), { platforms: platforms, hazards: hazards }, spec);
         if (rec) contraptions.push(rec);
       });
 
@@ -638,7 +736,10 @@
         resetContraptions: function () {
           for (var i = 0; i < contraptions.length; i++) { if (contraptions[i].reset) contraptions[i].reset(); }
         },
-        spawn: spec.spawn || { x: 60, y: spec.groundY - 80 }, goalX: spec.goal != null ? spec.goal : (spec.width - 60)
+        spawn: spec.spawn || { x: 60, y: spec.groundY - 80 },
+        goalX: spec.goal != null ? spec.goal : (spec.width - 60),
+        // vertical levels climb to a goal near the top instead of running right
+        goalY: spec.goalY != null ? spec.goalY : null
       };
     }
   };
@@ -660,6 +761,22 @@
       var need = sense.onGround && (!sense.groundAhead || sense.blockedRight || sense.enemyAhead);
       if (need) out.jump = true;                                  // launch from the ground
       else if (!sense.onGround && (sense.vy != null) && sense.vy < -10) out.jump = true; // keep holding while rising -> full height
+      return out;
+    },
+    // VERTICAL policy (climb games): chase an ordered waypoint chain upward.
+    // sense = { x, y, onGround, vy, target:{x,y}, inUpdraft }
+    // - steer toward the target's x;
+    // - inside an updraft: just ride (steer only — the column does the lifting);
+    // - on the ground, roughly under a target that sits above: full hop
+    //   (held through the ascent, same variable-jump-aware hold as the runner).
+    vertical: function (sense) {
+      var out = { left: false, right: false, jump: false };
+      var dx = sense.target.x - sense.x;
+      if (dx < -8) out.left = true; else if (dx > 8) out.right = true;
+      if (sense.inUpdraft) return out;
+      var above = sense.target.y < sense.y - 12;
+      if (sense.onGround && above && Math.abs(dx) < 90) out.jump = true;
+      else if (!sense.onGround && sense.vy != null && sense.vy < -10) out.jump = true;
       return out;
     },
     // convenience: probe a static group for ground under a point
@@ -725,7 +842,65 @@
       stomp: function () { tone(160, 0.12, 'sawtooth'); }, hurt: function () { tone(120, 0.25, 'sawtooth', 0.12); },
       win: function () { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { tone(f, 0.16, 'triangle'); }, i * 110); }); }
     };
-    return { sfx: function (n) { try { (SFX[n] || function () {})(); } catch (e) {} }, music: function (url, vol) { try { var au = new Audio(url); au.loop = true; au.volume = vol || 0.4; au.play(); return au; } catch (e) {} } };
+    // PROCEDURAL music bed — Studio.Audio.music('proc:<mood>') synthesizes a quiet
+    // looping ambience (two slow detuned drones through a lowpass, breathing via an
+    // LFO, plus a sparse seeded pentatonic pluck) instead of streaming a file.
+    // Call it from a USER-GESTURE handler (autoplay policy); it never touches game
+    // state, so the deterministic gate is unaffected. Returns { stop() }.
+    var MOODS = { cave: { root: 55, fifth: 82.41, cutoff: 420, pluck: [220, 261.63, 293.66, 329.63, 392] } };
+    function bed(mood, vol) {
+      var a = ac(); if (!a) return null;
+      var m = MOODS[mood] || MOODS.cave, master = a.createGain(), lp = a.createBiquadFilter();
+      master.gain.value = (vol || 0.3) * 0.5; lp.type = 'lowpass'; lp.frequency.value = m.cutoff;
+      lp.connect(master); master.connect(a.destination);
+      var stops = [];
+      [m.root, m.root * 1.005, m.fifth].forEach(function (f, i) {
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = i === 2 ? 'triangle' : 'sine'; o.frequency.value = f; g.gain.value = i === 2 ? 0.18 : 0.3;
+        var lfo = a.createOscillator(), lg = a.createGain();
+        lfo.frequency.value = 0.06 + i * 0.021; lg.gain.value = 0.12;     // slow breathing
+        lfo.connect(lg); lg.connect(g.gain);
+        o.connect(g); g.connect(lp); o.start(); lfo.start();
+        stops.push(o, lfo);
+      });
+      var step = 0, timer = setInterval(function () {                      // sparse seeded pluck
+        step++; if ((step * 2654435761 >>> 0) % 7 > 1) return;
+        var n = m.pluck[(step * 40503 >>> 0) % m.pluck.length];
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = 'sine'; o.frequency.value = n; g.gain.value = 0.05;
+        o.connect(g); g.connect(lp);
+        var t = a.currentTime; o.start(t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4); o.stop(t + 1.4);
+      }, 1800);
+      var baseGain = master.gain.value;
+      return {
+        stop: function () { try { clearInterval(timer); stops.forEach(function (o) { o.stop(); }); master.disconnect(); } catch (e) {} },
+        mute: function (m) { try { master.gain.value = m ? 0 : baseGain; } catch (e) {} }
+      };
+    }
+    // mute plumbing: every bed (proc handle or <audio>) registers here so the
+    // Shell's mute / pause controls reach playback without owning the handles.
+    var muted = false, beds = [];
+    function applyMute(h, m) {
+      try {
+        if (!h) return;
+        if (h.mute) h.mute(m);                      // proc bed handle
+        else if ('muted' in h) h.muted = m;         // HTMLAudioElement
+      } catch (e) {}
+    }
+    return {
+      sfx: function (n) { if (muted) return; try { (SFX[n] || function () {})(); } catch (e) {} },
+      music: function (url, vol) {
+        try {
+          var h;
+          if (typeof url === 'string' && url.indexOf('proc:') === 0) h = bed(url.slice(5), vol);
+          else { h = new Audio(url); h.loop = true; h.volume = vol || 0.4; h.play(); }
+          if (h) { beds.push(h); applyMute(h, muted); }
+          return h;
+        } catch (e) {}
+      },
+      setMuted: function (m) { muted = !!m; beds.forEach(function (h) { applyMute(h, muted); }); },
+      isMuted: function () { return muted; }
+    };
   })();
 
   // ---------------------------------------------------------------------- Cam
@@ -752,12 +927,22 @@
       var st = { left: false, right: false, down: false, _up: false, _btn: false };
       Object.defineProperty(st, 'jump', { get: function () { return st._up || st._btn; } });
       Object.defineProperty(st, 'up', { get: function () { return st._up; } });
+      // opt.theme lets a game match the touch UI to its art direction (additive;
+      // defaults are the original neutral palette).
+      var th = Object.assign({
+        base: 0x0f1528, baseA: 0.4, baseStroke: 0xffffff,
+        thumb: 0x2a3556, thumbStroke: 0xffd34d,
+        btn: 0x3a1420, btnA: 0.5, btnStroke: 0xffae6b, label: '#ffce9e'
+      }, opt.theme || {});
       var bx = 120, by = H - 86, R = 68;
-      scene.add.circle(bx, by, R, 0x0f1528, 0.4).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffffff, 0.22);
-      var thumb = scene.add.circle(bx, by, 30, 0x2a3556, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, 0xffd34d, 0.85);
+      var ring = scene.add.circle(bx, by, R, th.base, th.baseA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.baseStroke, 0.22);
+      var thumb = scene.add.circle(bx, by, 30, th.thumb, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, th.thumbStroke, 0.85);
       var jx = W - 96, jy = H - 84;
-      var jbtn = scene.add.circle(jx, jy, 54, 0x3a1420, 0.5).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffae6b, 0.7).setInteractive();
-      scene.add.text(jx, jy, 'JUMP', { fontFamily: 'monospace', fontSize: '13px', color: '#ffce9e' }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      var jbtn = scene.add.circle(jx, jy, 54, th.btn, th.btnA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.btnStroke, 0.7).setInteractive();
+      var jlbl = scene.add.text(jx, jy, 'JUMP', { fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', color: th.label }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      // touch UI only ON TOUCH DEVICES (opt.always forces it): a desktop/keyboard
+      // player should never stare at a joystick they can't use.
+      if (!isTouch && !opt.always) [ring, thumb, jbtn, jlbl].forEach(function (e) { e.setVisible(false); });
       jbtn.on('pointerdown', function () { st._btn = true; }); jbtn.on('pointerup', function () { st._btn = false; }); jbtn.on('pointerout', function () { st._btn = false; });
       var pid = null;
       function setFrom(px, py) { var dx = px - bx, dy = py - by, m = Math.hypot(dx, dy) || 1; if (m > R) { dx = dx / m * R; dy = dy / m * R; } thumb.setPosition(bx + dx, by + dy); var nx = dx / R, ny = dy / R; st.left = nx < -0.35; st.right = nx > 0.35; st._up = ny < -0.45; st.down = ny > 0.45; }
@@ -766,6 +951,574 @@
       scene.input.on('pointermove', function (p) { if (p.id === pid) setFrom(p.x, p.y); });
       scene.input.on('pointerup', function (p) { if (p.id === pid) release(); });
       return st;
+    }
+  };
+
+  // ------------------------------------------------------------------- Shell
+  // The PLAYTEST SHELL — the hub-convention front end every Studio game host
+  // already serves an API for (server.js: /api/notes, /api/meta). A DOM overlay
+  // (not canvas) so it works while the scene is paused and never touches the
+  // render pipeline:
+  //   ⏸ pause/resume the scene (music auto-ducks)   ↻ restart (game callback)
+  //   📝 note-taking: pauses, opens a panel, POSTs {text + game context} to
+  //      /api/notes and lists the latest notes back        🔊 mute toggle
+  // Everything is INERT until clicked — the eval harness never clicks, so the
+  // deterministic gate is unaffected.
+  Studio.Shell = {
+    create: function (scene, opt) {
+      opt = opt || {};
+      if (typeof document === 'undefined') return null;
+      var th = Object.assign({ bg: 'rgba(20,13,8,0.82)', border: '#ffb24a', text: '#ffd9a0', accent: '#ff9a3c' }, opt.theme || {});
+      var FONT = 'Georgia, "Times New Roman", serif';
+      var key = scene.scene.key, mgr = scene.sys.game.scene;
+      var paused = false, userMuted = false, panelOpen = false, pausedByPanel = false;
+
+      var root_ = document.createElement('div');
+      root_.id = 'studio-shell';
+      root_.style.cssText = 'position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:1000;display:flex;gap:8px;font-family:' + FONT + ';';
+      document.body.appendChild(root_);
+
+      function btn(label, title) {
+        var b = document.createElement('button');
+        b.textContent = label; b.title = title;
+        b.style.cssText = 'width:40px;height:40px;border-radius:10px;border:1px solid ' + th.border + ';background:' + th.bg + ';color:' + th.text + ';font-size:18px;line-height:1;cursor:pointer;padding:0;touch-action:manipulation;';
+        root_.appendChild(b); return b;
+      }
+      var bPause = btn('⏸', 'pause / resume');
+      var bNotes = btn('📝', 'playtest notes');
+      var bRestart = btn('↻', 'restart');
+      var bMute = btn('🔊', 'mute / unmute');
+
+      var veil = document.createElement('div');   // PAUSED veil
+      veil.textContent = 'PAUSED';
+      veil.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:998;background:rgba(10,5,3,0.45);color:' + th.text + ';font-family:' + FONT + ';font-size:42px;letter-spacing:6px;text-shadow:0 2px 8px #000;pointer-events:none;';
+      document.body.appendChild(veil);
+
+      function setPaused(p) {
+        if (p === paused) return;
+        paused = p;
+        try { p ? mgr.pause(key) : mgr.resume(key); } catch (e) {}
+        try { Studio.Audio.setMuted(p || userMuted); } catch (e) {}
+        bPause.textContent = p ? '▶' : '⏸';
+        veil.style.display = (p && !panelOpen) ? 'flex' : 'none';
+        if (opt.onPause) try { opt.onPause(p); } catch (e) {}
+      }
+      bPause.onclick = function () { setPaused(!paused); };
+      bRestart.onclick = function () { setPaused(false); closePanel(); if (opt.onRestart) try { opt.onRestart(); } catch (e) {} };
+      bMute.onclick = function () { userMuted = !userMuted; try { Studio.Audio.setMuted(userMuted || paused); } catch (e) {} bMute.textContent = userMuted ? '🔇' : '🔊'; };
+
+      // ---- notes panel (open = auto-pause + keyboard released to the textarea) ----
+      var panel = document.createElement('div');
+      panel.style.cssText = 'position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:999;width:min(320px,calc(100vw - 24px));background:' + th.bg + ';border:1px solid ' + th.border + ';border-radius:12px;padding:10px;display:none;color:' + th.text + ';font-family:' + FONT + ';backdrop-filter:blur(3px);';
+      panel.innerHTML =
+        '<div style="font-size:14px;margin-bottom:6px;">📝 Playtest notes <span data-ctx style="opacity:.7;font-size:12px;"></span></div>' +
+        '<textarea data-text rows="3" placeholder="what did you feel / find?" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid ' + th.border + ';border-radius:8px;color:' + th.text + ';font-family:' + FONT + ';font-size:14px;padding:6px;"></textarea>' +
+        '<div style="display:flex;gap:8px;margin-top:6px;align-items:center;">' +
+        '<button data-save style="flex:0 0 auto;border:1px solid ' + th.border + ';background:' + th.accent + ';color:#221007;border-radius:8px;padding:6px 14px;font-family:' + FONT + ';font-size:14px;cursor:pointer;">Save note</button>' +
+        '<span data-status style="font-size:12px;opacity:.8;"></span></div>' +
+        '<div data-list style="margin-top:8px;font-size:12px;line-height:1.5;max-height:130px;overflow:auto;"></div>';
+      document.body.appendChild(panel);
+      var ta = panel.querySelector('[data-text]'), status = panel.querySelector('[data-status]'),
+          list = panel.querySelector('[data-list]'), ctxEl = panel.querySelector('[data-ctx]');
+
+      function refreshList() {
+        fetch('/api/notes').then(function (r) { return r.json(); }).then(function (ns) {
+          var last = (ns || []).slice(-4).reverse();
+          list.innerHTML = last.length
+            ? last.map(function (n) { return '<div style="border-top:1px dashed rgba(255,178,74,.3);padding-top:4px;margin-top:4px;">' + String(n.text || '').replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) + ' <span style="opacity:.55">— ' + (n.where || '') + '</span></div>'; }).join('')
+            : '<em style="opacity:.6">no notes yet — first one sets the bar</em>';
+        }).catch(function () { list.innerHTML = '<em style="opacity:.6">notes API offline (static host)</em>'; });
+      }
+      function openPanel() {
+        panelOpen = true; pausedByPanel = !paused; setPaused(true);
+        veil.style.display = 'none';
+        var c = opt.context ? opt.context() : {};
+        ctxEl.textContent = c.where ? '· ' + c.where : '';
+        panel.style.display = 'block'; refreshList();
+        try { scene.input.keyboard.enabled = false; } catch (e) {}   // type freely
+        setTimeout(function () { ta.focus(); }, 0);
+      }
+      function closePanel() {
+        if (!panelOpen) return;
+        panelOpen = false; panel.style.display = 'none';
+        try { scene.input.keyboard.enabled = true; } catch (e) {}
+        if (pausedByPanel) setPaused(false); else veil.style.display = paused ? 'flex' : 'none';
+      }
+      bNotes.onclick = function () { panelOpen ? closePanel() : openPanel(); };
+      panel.querySelector('[data-save]').onclick = function () {
+        var text = (ta.value || '').trim();
+        if (!text) { status.textContent = 'write something first'; return; }
+        var c = opt.context ? opt.context() : {};
+        status.textContent = 'saving…';
+        fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ text: text, ts: new Date().toISOString() }, c)) })
+          .then(function (r) { if (!r.ok) throw 0; status.textContent = 'saved ✓'; ta.value = ''; refreshList(); })
+          .catch(function () { status.textContent = 'save failed — notes API offline?'; });
+      };
+
+      var api = { setPaused: setPaused, isPaused: function () { return paused; }, openNotes: openPanel, closeNotes: closePanel,
+        destroy: function () { [root_, panel, veil].forEach(function (e) { try { e.remove(); } catch (x) {} }); } };
+      return api;
+    }
+  };
+
+  // -------------------------------------------------------------------- Game
+  // RFC-001 §1 — the DECLARATIVE GAME RUNTIME. Everything that used to be ~500
+  // lines of per-game glue (world build + theming overlays + follower art + HUD +
+  // toasts + shell/music/touch wiring + autopilot sense/snapshot + harness install
+  // + win/death rules) lives HERE once, parameterized by a theme. A game is now:
+  //
+  //   Studio.Game.boot({ title, archetype: 'runner'|'vertical', levels: window.LEVELS,
+  //                      theme: {...tokens...}, hooks: {...the truly game-specific 10%...} });
+  //
+  // The eval contract (window.__game/__sense/__cx, harness, 0-death autopilot) has
+  // exactly ONE implementation now — it can never drift per game again.
+  Studio.Game = {
+    boot: function (cfg) {
+      cfg = cfg || {};
+      var TH = cfg.theme || {};
+      var HOOKS = cfg.hooks || {};
+      var VERT = cfg.archetype === 'vertical';
+      var GRAV = cfg.gravity != null ? cfg.gravity : 1300;
+      var LEVELS = cfg.levels || root.LEVELS || [];
+      var title = cfg.title || 'Studio Game';
+
+      var scene, player, world, spawn, pc = null, heroArt = null, bgImg = null;
+      var levelGoalX = 0, levelGoalY = 0, levelIndex = 0, wpIndex = 0;
+      var input = { left: false, right: false, jump: false, down: false };
+      var auto = false, deaths = 0, won = false, frame = 0, coins = 0, lastDeathX = 0, maxX = 0;
+      var colliders = [], decor = [], landGuard = false, touchState = null, bedOn = false;
+
+      function tex(key, fb) { return key && scene.textures.exists(key) ? key : fb; }
+      var MATTEX = TH.matTex || null;            // per-material overlay map (null => bare gradients, template look)
+      var TILE_SCALE = TH.tileScale != null ? TH.tileScale : 0.35;
+      var PART = (TH.particle && TH.particle.key) || 'spark';
+
+      // ---------------------------------------------------------------- sense
+      function senseRunner(onGround) {
+        var probeX = player.x + 26, footY = player.y + 22, T = (LEVELS[levelIndex] || {}).tile || 40;
+        var groundAhead = Studio.Autopilot.groundAt(world.platforms, probeX, footY, T)
+          || Studio.Autopilot.groundAt(world.moverGroup, probeX, footY, T);
+        var blockedRight = player.body.blocked.right;
+        var enemyAhead = false;
+        world.enemies.getChildren().forEach(function (e) {
+          if (e.active && e.x > player.x && e.x - player.x < 64 && Math.abs(e.y - player.y) < 52) enemyAhead = true;
+        });
+        return { onGround: onGround, groundAhead: groundAhead, blockedRight: blockedRight, enemyAhead: enemyAhead, x: player.x, goalX: levelGoalX, vy: player.body.velocity.y };
+      }
+      function senseVertical(onGround) {
+        var L = LEVELS[levelIndex] || {}, chain = L.chain || [];
+        while (wpIndex < chain.length - 1) {
+          var t = chain[wpIndex];
+          if (Math.abs(player.x - t.x) < 46 && player.y <= t.y + 14) wpIndex++; else break;
+        }
+        var target = chain[Math.min(wpIndex, Math.max(0, chain.length - 1))] || { x: player.x, y: player.y };
+        var inUp = false;
+        (world.contraptions || []).forEach(function (c) { if (c.type === 'updraft' && c.contains && c.contains(player)) inUp = true; });
+        return { x: player.x, y: player.y, onGround: onGround, vy: player.body.velocity.y, target: target, inUpdraft: inUp, goalX: levelGoalX, wp: wpIndex };
+      }
+      function decide(sn) { return VERT ? Studio.Autopilot.vertical(sn) : Studio.Autopilot.platformer(sn); }
+
+      function footFrictionUnder() {
+        var px = player.x, py = player.body.bottom + 4, best = 1;
+        var groups = [world.platforms, world.moverGroup];
+        for (var gi = 0; gi < groups.length; gi++) {
+          var kids = groups[gi].getChildren();
+          for (var i = 0; i < kids.length; i++) {
+            var s = kids[i], bdy = s && s.body; if (!bdy) continue;
+            if (px >= bdy.left - 2 && px <= bdy.right + 2 && py >= bdy.top - 8 && py <= bdy.top + 14) {
+              return Studio.Materials.get(s.mat || 'solid').friction;
+            }
+          }
+        }
+        return best;
+      }
+
+      function snapshot() {
+        return {
+          x: Math.round(player.x), y: Math.round(player.y),
+          vx: Math.round(player.body.velocity.x), vy: Math.round(player.body.velocity.y),
+          onGround: !!(player.body.blocked.down || player.body.touching.down),
+          deaths: deaths, dead: deaths > 0, won: won, frame: frame, coins: coins,
+          goalX: levelGoalX, goalY: VERT ? levelGoalY : undefined,
+          level: levelIndex, lastDeathX: lastDeathX, maxX: Math.round(maxX), wp: VERT ? wpIndex : undefined
+        };
+      }
+
+      function toast(txt) {
+        if (!txt) return;
+        var t = scene.add.text(480, 208, txt, {
+          fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '30px', color: TH.hud && TH.hud.color || '#ffd9a0',
+          stroke: TH.hud && TH.hud.stroke || '#1a1a22', strokeThickness: 6, align: 'center'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(120).setAlpha(0);
+        scene.tweens.add({ targets: t, alpha: 1, y: 196, duration: 420, ease: 'Sine.easeOut', yoyo: true, hold: 1100, onComplete: function () { try { t.destroy(); } catch (e) {} } });
+        decor.push(t);
+      }
+      function fmt(s, i, name) { return String(s || '').replace('{i}', i + 1).replace('{n}', LEVELS.length).replace('{name}', name || ''); }
+
+      // ------------------------------------------------------------ loadLevel
+      function loadLevel(i) {
+        var spec = LEVELS[i];
+        levelIndex = i; wpIndex = 0;
+        colliders.forEach(function (c) { try { c.destroy(); } catch (e) {} }); colliders = [];
+        decor.forEach(function (d) { try { d.destroy(); } catch (e) {} }); decor = [];
+        if (world) {
+          ['platforms', 'hazards', 'coins', 'enemies', 'springs'].forEach(function (k) {
+            try { world[k].clear(true, true); } catch (e) {}
+            try { world[k].destroy(true); } catch (e) {}
+          });
+          try { world.moverGroup.clear(true, true); world.moverGroup.destroy(true); } catch (e) {}
+        }
+
+        scene.cameras.main.setBackgroundColor(spec.sky || TH.sky || 0x101018);
+        if (bgImg) bgImg.setTint(spec.bgTint || 0xffffff);
+        world = Studio.Level.build(scene, spec);
+        spawn = world.spawn; levelGoalX = world.goalX;
+        var chain = spec.chain || [];
+        var top = chain.length ? chain[chain.length - 1] : null;
+        levelGoalY = world.goalY != null ? world.goalY : (top ? top.y : 0);
+        if (VERT && top) levelGoalX = top.x;
+
+        // themed overlays (only when the theme declares a material map)
+        if (MATTEX) {
+          world.platforms.getChildren().forEach(function (s) {
+            s.setVisible(false);
+            var key = tex(MATTEX[s.mat] || MATTEX._default, null);
+            var hsh = ((s.x * 2654435761) >>> 0);
+            if (key) {
+              var ts = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, key).setDepth(1);
+              ts.setTileScale(TILE_SCALE); ts.setTilePosition(hsh % 512, (hsh >> 9) % 512);
+              ts.setTint([0xffffff, 0xf6ece2, 0xefe0d2][hsh % 3]); decor.push(ts);
+            } else s.setVisible(true);
+            var lipDef = (TH.lip && TH.lip.perMat && TH.lip.perMat[s.mat]) || TH.lip;
+            if (lipDef && key) {
+              var lip = scene.add.rectangle(s.x, s.y - s.displayHeight / 2 + 2, s.displayWidth, 3, lipDef.color != null ? lipDef.color : 0xffffff, lipDef.alpha != null ? lipDef.alpha : 0.4).setDepth(2);
+              try { lip.setBlendMode(Phaser.BlendModes.ADD); } catch (e) {}
+              decor.push(lip);
+            }
+          });
+          world.hazards.getChildren().forEach(function (s) {
+            s.setVisible(false);
+            var key = tex(TH.hazardTex, null);
+            if (key) { var ts = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, key).setDepth(1); ts.setTileScale(TILE_SCALE); decor.push(ts); }
+            else s.setVisible(true);
+          });
+        }
+        // enemy follower art
+        if (TH.enemy && TH.enemy.img) {
+          world.enemies.getChildren().forEach(function (e) {
+            e.setVisible(false);
+            var art = scene.add.image(e.x, e.y, 'enemy_art').setDepth(5); art.setScale((TH.enemy.h || 50) / art.height);
+            e._art = art; decor.push(art);
+          });
+        }
+        // themed coins (bob is art-only)
+        var coinKey = tex(TH.coinArt && TH.coinArt.key, null);
+        if (coinKey) {
+          world.coins.getChildren().forEach(function (c) {
+            c.setVisible(false);
+            var art = scene.add.image(c.x, c.y, coinKey).setDepth(4); art.setScale((TH.coinArt.h || 26) / art.height);
+            scene.tweens.add({ targets: art, y: c.y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            c._art = art; decor.push(art);
+          });
+        }
+        // goal gate
+        var goalKey = tex(TH.goalArt && TH.goalArt.key, 'goal');
+        var gy = VERT ? levelGoalY : (spec.groundY - 42);
+        var goalImg = scene.add.image(levelGoalX, gy, goalKey).setDepth(4);
+        if (goalKey !== 'goal') { goalImg.setScale((TH.goalArt.h || 96) / goalImg.height); goalImg.setY(gy + (VERT ? -goalImg.displayHeight / 2 + 6 : (spec.groundY - goalImg.displayHeight / 2) - gy)); }
+        Studio.Juice.glow(goalImg, TH.accent || 0xffd27a, 3); decor.push(goalImg);
+
+        Studio.Cam.follow(scene, player, { bounds: [0, 0, spec.width, spec.height], deadzone: VERT ? [220, 130] : [260, 200] });
+        scene.cameras.main.centerOn(spawn.x, spawn.y);
+
+        // ambient drift + theme hook
+        var motes = Studio.Juice.ambient(scene, spec.width, { texture: PART, y: -8, scale: TH.particle && TH.particle.ambientScale || 0.7 });
+        if (motes) decor.push(motes);
+        if (HOOKS.onLevelLoaded) try { HOOKS.onLevelLoaded(scene, world, spec, { decor: decor, particle: PART }); } catch (e) {}
+
+        // collisions + interactions (identical contracts to the proven Ember build)
+        colliders.push(scene.physics.add.collider(player, world.platforms));
+        colliders.push(scene.physics.add.overlap(player, world.coins, function (p, c) {
+          c.disableBody(true, true); if (c._art) c._art.setVisible(false); coins++; Studio.Audio.sfx('coin');
+          Studio.Juice.burst(scene, c.x, c.y, { texture: PART, n: 10, tint: TH.accent || 0xffcc33, life: 380, spMax: 160 });
+          hud();
+          if (HOOKS.onCoin) try { HOOKS.onCoin(scene, c); } catch (e) {}
+        }));
+        colliders.push(scene.physics.add.overlap(player, world.hazards, function () { die(); }));
+        colliders.push(scene.physics.add.overlap(player, world.enemies, function (p, e) {
+          if (!e.active) return;
+          if (p.body.velocity.y > 40 && p.y < e.y - 6) {
+            e.disableBody(true, true); if (e._art) e._art.setVisible(false); pc.launch(p, 380); Studio.Audio.sfx('stomp');
+            Studio.Juice.squash(scene, p); Studio.Juice.shake(scene, 90, 0.006);
+            Studio.Juice.burst(scene, e.x, e.y, { texture: PART, n: 12, tint: TH.enemyBurst || 0xff5a3c, life: 420 });
+            if (HOOKS.onStomp) try { HOOKS.onStomp(scene, p, e); } catch (e2) {}
+          }
+        }));
+        var springKey = tex(TH.springArt && TH.springArt.key, 'spring');
+        world.springs.getChildren().forEach(function (s) {
+          s.setDepth(3);
+          var art = scene.add.image(s.x, s.y, springKey).setDepth(8);
+          if (springKey !== 'spring') { art.setScale((TH.springArt.h || 46) / art.height); art.setY(s.body ? s.body.bottom - art.displayHeight / 2 : s.y); }
+          decor.push(art); s._art = art;
+        });
+        colliders.push(scene.physics.add.overlap(player, world.springs, function (p, s) {
+          if (p.body.velocity.y < -120 || s.cool > 0) return;
+          s.cool = 12; pc.launch(p, s.vel);
+          Studio.Audio.sfx('jump'); Studio.Juice.squash(scene, p, 0.8, 1.2);
+          Studio.Juice.burst(scene, p.x, p.body.bottom, { texture: PART, n: 8, tint: TH.accent || 0xffd166, life: 320 });
+        }));
+        if (world.moverGroup) colliders.push(scene.physics.add.collider(player, world.moverGroup));
+        world.movers.forEach(function (m) {
+          var mKey = tex(MATTEX && (MATTEX[m.spr.mat] || MATTEX._default), null);
+          if (mKey) {
+            var art = scene.add.tileSprite(m.spr.x, m.spr.y, m.spr.displayWidth, m.spr.displayHeight, mKey).setDepth(2);
+            art.setTileScale(TILE_SCALE); decor.push(art); m._art = art; m.spr.setVisible(false);
+          }
+        });
+
+        // contraptions: themed FX defaults + per-type hooks; updraft/gust get zone visuals
+        world.contraptions.forEach(function (cx) {
+          var s = cx.spr;
+          decor.push(s); (cx._extra || []).forEach(function (e) { decor.push(e); });
+          if (cx.type === 'crumble') {
+            colliders.push(scene.physics.add.collider(player, s));
+            s.setVisible(false);
+            var ct = scene.add.tileSprite(s.x, s.y, s.displayWidth, s.displayHeight, tex(MATTEX && (MATTEX._fragile || MATTEX._default), 'cx_crumble')).setDepth(3);
+            ct.setTileScale(0.3); ct.setTint(TH.fragileTint || 0xc8a888);
+            cx._tile = ct; decor.push(ct);
+            s._onArm = function () { ct.setTint(TH.fragileArmTint || 0x8a5a3c); Studio.Juice.shake(scene, 80, 0.005); };
+            s._onFall = function (sp) {
+              ct.setVisible(false); Studio.Audio.sfx('hurt'); Studio.Juice.shake(scene, 120, 0.008);
+              Studio.Juice.burst(scene, sp.x, sp.y, { texture: PART, n: 16, tint: TH.fragileBurst || 0x8a5a2b, life: 520, spMax: 180 });
+            };
+          } else if (cx.type === 'launcher') {
+            s._onFire = function (sp) {
+              Studio.Audio.sfx('jump'); Studio.Juice.squash(scene, player, 0.8, 1.25);
+              Studio.Juice.burst(scene, sp.x, sp.y - 8, { texture: PART, n: 14, tint: TH.accent || 0xffd166, life: 460, spMax: 220 });
+            };
+          } else if (cx.type === 'updraft') {
+            // the visible wind: a faint column + a steady stream of rising motes
+            var col = scene.add.rectangle(cx.x, (cx.y0 + cx.y1) / 2, cx.w, cx.y1 - cx.y0, TH.updraftTint || 0xbfe8ff, 0.07).setDepth(1);
+            try { col.setBlendMode(Phaser.BlendModes.ADD); } catch (e) {}
+            decor.push(col);
+            try {
+              var em = scene.add.particles(cx.x, cx.y1, PART, {
+                x: { min: -cx.w / 2 + 8, max: cx.w / 2 - 8 },
+                lifespan: Math.min(2400, (cx.y1 - cx.y0) * 6), speedY: { min: -200, max: -120 }, speedX: { min: -8, max: 8 },
+                scale: { start: 0.7, end: 0 }, alpha: { start: 0.5, end: 0 }, quantity: 1, frequency: 70, blendMode: 'ADD'
+              });
+              em.setDepth(2); decor.push(em);
+            } catch (e) {}
+          } else if (cx.type === 'gust') {
+            try {
+              var gem = scene.add.particles(cx.x - cx.dir * cx.w / 2, cx.y, PART, {
+                y: { min: -cx.h / 2 + 10, max: cx.h / 2 - 10 },
+                lifespan: 600, speedX: { min: cx.dir * 260, max: cx.dir * 380 }, speedY: { min: -6, max: 6 },
+                scale: { start: 0.5, end: 0 }, alpha: { start: 0.45, end: 0 }, quantity: 1, frequency: 50, blendMode: 'ADD'
+              });
+              gem.setDepth(2); decor.push(gem); cx._em = gem; gem.emitting = false;
+            } catch (e) {}
+          }
+          if (HOOKS.contraptionFX && HOOKS.contraptionFX[cx.type]) try { HOOKS.contraptionFX[cx.type](cx, scene, { decor: decor, particle: PART }); } catch (e) {}
+          if (cx.type !== 'updraft' && cx.type !== 'gust') Studio.Juice.glow(s, TH.accent || 0xffb24a, 2);
+        });
+
+        player.setVelocity(0, 0);
+        player.setPosition(spawn.x, spawn.y);
+        toast(fmt(TH.toasts && TH.toasts.level || 'STAGE {i} · {name}', i, spec.name));
+      }
+
+      function hud() { if (scene._hud) scene._hud.setText('coins ' + coins + '   ' + (TH.stageWord || 'stage') + ' ' + (levelIndex + 1) + '/' + LEVELS.length); }
+      function reset() {
+        deaths = 0; won = false; frame = 0; coins = 0; auto = false; landGuard = false;
+        if (pc) pc.reset();
+        loadLevel(0); hud();
+      }
+      function respawn() {
+        player.setVelocity(0, 0); player.setPosition(spawn.x, spawn.y);
+        wpIndex = 0;
+        if (pc) pc.reset();
+        if (world && world.resetContraptions) world.resetContraptions();
+        (world && world.contraptions || []).forEach(function (cx) { if (cx._tile) { cx._tile.setVisible(true); cx._tile.setTint(TH.fragileTint || 0xc8a888); } });
+      }
+      function die() { deaths++; lastDeathX = Math.round(player.x); respawn(); }
+
+      // ----------------------------------------------------------------- scene
+      var Play = {
+        key: 'Play',
+        preload: function () {
+          if (TH.bgImage) this.load.image('bg_main', TH.bgImage);
+          if (TH.hero && TH.hero.fallback) this.load.image('hero_art', TH.hero.fallback);
+          if (TH.hero && TH.hero.sheet) this.load.spritesheet('hero_sheet', TH.hero.sheet, { frameWidth: TH.hero.fw, frameHeight: TH.hero.fh });
+          if (TH.enemy && TH.enemy.img) this.load.image('enemy_art', TH.enemy.img);
+          var kit = TH.kitFiles || {};
+          for (var k in kit) this.load.image(k, kit[k]);
+        },
+        create: function () {
+          scene = this;
+          Studio.Textures.kit(this, Object.assign({ tile: (LEVELS[0] || {}).tile || 40 }, TH.bakeKit || {}));
+          var pdef = TH.particle || {};
+          Studio.Textures.bake(this, PART, 10, 10, pdef.draw || function (g) {
+            g.fillStyle(pdef.halo != null ? pdef.halo : 0xff7a18, 1).fillCircle(5, 5, 5);
+            g.fillStyle(pdef.core != null ? pdef.core : 0xffd27a, 1).fillCircle(5, 5, 2.4);
+          });
+          if (TH.bgImage) bgImg = this.add.image(480, 270, 'bg_main').setScrollFactor(0).setDepth(-100).setDisplaySize(960, 540);
+
+          player = this.physics.add.sprite(60, 360, 'hero');
+          player.setVisible(false);
+          pc = Studio.Platformer.create({ tune: TH.tune || null });
+          player.setMaxVelocity(pc.tune.maxRun + (TH.vxHeadroom || 90), pc.tune.maxFall);
+
+          var sheetOK = TH.hero && TH.hero.sheet && this.textures.exists('hero_sheet') && this.textures.get('hero_sheet').frameTotal > ((TH.hero.anims && TH.hero.anims.total) || 8);
+          if (sheetOK) {
+            var A = this.anims, an = TH.hero.anims;
+            if (!A.exists('hero_run')) A.create({ key: 'hero_run', frames: A.generateFrameNumbers('hero_sheet', { start: an.run[0], end: an.run[1] }), frameRate: an.run[2] || 14, repeat: -1 });
+            if (!A.exists('hero_idle')) A.create({ key: 'hero_idle', frames: [{ key: 'hero_sheet', frame: an.idle }], frameRate: 1, repeat: -1 });
+            if (!A.exists('hero_jump')) A.create({ key: 'hero_jump', frames: [{ key: 'hero_sheet', frame: an.jump }], frameRate: 1, repeat: -1 });
+            heroArt = this.add.sprite(player.x, player.y, 'hero_sheet', an.idle).setDepth(6);
+            heroArt.play('hero_idle');
+          } else if (TH.hero && TH.hero.fallback) {
+            heroArt = this.add.image(player.x, player.y, 'hero_art').setDepth(6);
+          } else {
+            player.setVisible(true);                     // bare template look
+          }
+          if (heroArt) heroArt.setScale((TH.hero.scale || 64) / heroArt.height);
+
+          if (TH.grade) Studio.Juice.grade(this, function (cm) {
+            try { cm.brightness(TH.grade.brightness != null ? TH.grade.brightness : 1); cm.saturate(TH.grade.saturate || 0); cm.hue(TH.grade.hue || 0); } catch (e) {}
+          });
+          if (TH.vignette) Studio.Juice.vignette(this, TH.vignette);
+          if (heroArt && TH.hero.glow) Studio.Juice.glow(heroArt, TH.hero.glow, 5);
+
+          loadLevel(0);
+
+          scene._hud = this.add.text(16, 12, '', {
+            fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '18px', color: TH.hud && TH.hud.color || '#ffd9a0',
+            stroke: TH.hud && TH.hud.stroke || '#1a1a22', strokeThickness: 5
+          }).setScrollFactor(0).setDepth(100);
+          hud();
+          this.cursors = this.input.keyboard.createCursorKeys();
+          touchState = Studio.Touch.create(this, { theme: TH.touch || null });
+
+          var startBed = function () {
+            if (bedOn || !TH.music) return; bedOn = true;
+            var au = Studio.Audio.music(TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55);
+            if (au && au.addEventListener && TH.music.fallback) au.addEventListener('error', function () { Studio.Audio.music(TH.music.fallback, 0.3); });
+            else if (!au && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3);
+          };
+          this.input.once('pointerdown', startBed);
+          if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
+
+          Studio.Shell.create(this, {
+            theme: TH.shell || null,
+            context: function () {
+              var L = LEVELS[levelIndex] || {};
+              var base = {
+                where: (TH.stagePrefix || 'S') + (levelIndex + 1) + ' ' + (L.name || '') + ' @' + Math.round(player.x) + (VERT ? ',' + Math.round(player.y) : ''),
+                level: levelIndex + 1, levelName: L.name || '', x: Math.round(player.x), y: Math.round(player.y),
+                coins: coins, deaths: deaths, won: won, game: cfg.slug || title.toLowerCase().replace(/\s+/g, '-')
+              };
+              if (HOOKS.context) try { Object.assign(base, HOOKS.context()); } catch (e) {}
+              return base;
+            },
+            onRestart: function () { reset(); }
+          });
+
+          Studio.harness.install(root.game, {
+            snapshot: snapshot,
+            setInput: function (o) { input = Object.assign({ left: false, right: false, jump: false, down: false }, o || {}); },
+            autopilot: function (on) { auto = !!on; input = { left: false, right: false, jump: false, down: false }; },
+            reset: reset
+          });
+          root.__sense = function () {
+            var og = player.body.blocked.down || player.body.touching.down;
+            var s = VERT ? senseVertical(og) : senseRunner(og);
+            s.decision = decide(s);
+            return s;
+          };
+          root.__cx = function () {
+            return (world.contraptions || []).map(function (c) {
+              return { type: c.type, lens: c.lens, x: Math.round(c.spr ? c.spr.x : c.x), active: !!(c.spr ? c.spr.active : true), state: c.state ? c.state() : null };
+            });
+          };
+        },
+        update: function (time, delta) {
+          if (!player) return; frame++;
+          var climb = VERT ? ((LEVELS[levelIndex] || {}).height || 0) - player.y : player.x;
+          if (climb > maxX) maxX = climb;
+          var b = player.body, onGround = b.blocked.down || b.touching.down;
+          var dt = Math.min((delta || (1000 / 60)) / 1000, 1 / 30);
+
+          if (onGround && !landGuard) { landGuard = true; Studio.Juice.shake(scene, 60, 0.004); }
+          if (!onGround) landGuard = false;
+
+          world.tick(dt);
+          world.springs.getChildren().forEach(function (s) { if (s.cool > 0) s.cool--; });
+          world.contraptionsInteract(player, { dt: dt, pc: pc });
+          // gust emitters mirror their phase clock (visual only)
+          (world.contraptions || []).forEach(function (cx) { if (cx.type === 'gust' && cx._em) cx._em.emitting = !!cx.state().active; });
+
+          var mv;
+          if (won) mv = { left: false, right: false, jump: false, down: false };
+          else if (auto) { var sn = VERT ? senseVertical(onGround) : senseRunner(onGround); mv = decide(sn); }
+          else mv = manual();
+
+          var ff = footFrictionUnder();
+          pc.update(player, mv, { onGround: onGround, footFriction: ff, dt: dt });
+
+          world.movers.forEach(function (m) {
+            var mb = m.spr.body;
+            var onTop = player.body.bottom <= mb.top + 9 && player.body.bottom >= mb.top - 12
+              && player.body.right > mb.left + 2 && player.body.left < mb.right - 2 && player.body.velocity.y >= -30;
+            if (onTop) { player.x += m.vx; player.y += m.vy; }
+            if (m._art) m._art.setPosition(m.spr.x, m.spr.y);
+          });
+
+          if (heroArt) {
+            heroArt.setPosition(player.x, player.y - 3); heroArt.setFlipX(player.flipX);
+            if (heroArt.play) {
+              var want = !onGround ? 'hero_jump' : (Math.abs(b.velocity.x) > 20 ? 'hero_run' : 'hero_idle');
+              var cur = heroArt.anims && heroArt.anims.currentAnim;
+              if (!cur || cur.key !== want) heroArt.play(want, true);
+            }
+          }
+          world.enemies.getChildren().forEach(function (e) {
+            if (!e.active) return; e.x += e.dir * 0.6; if (Math.abs(e.x - e.homeX) > e.patrol) e.dir *= -1;
+            if (e._art) { e._art.setPosition(e.x, e.y); e._art.setFlipX(e.dir > 0); }
+          });
+
+          // WIN: runner reaches goal x; climber reaches the gate at the top
+          var reached = VERT
+            ? (Math.abs(player.x - levelGoalX) < 56 && player.y < levelGoalY + 30)
+            : (player.x >= levelGoalX - 8);
+          if (!won && reached) {
+            if (levelIndex < LEVELS.length - 1) {
+              Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 140, 255, 150, 60);
+              loadLevel(levelIndex + 1); if (pc) pc.reset(); landGuard = false;
+            } else {
+              won = true; Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 220, 255, 170, 70);
+              toast(TH.toasts && TH.toasts.win || 'CLEARED');
+            }
+          }
+          if (player.y > ((LEVELS[levelIndex] || {}).height || scene.scale.height) + 120) die();
+        }
+      };
+      function manual() {
+        var c = scene.cursors, t = touchState || {};
+        return { left: (c && c.left.isDown) || t.left, right: (c && c.right.isDown) || t.right, jump: (c && (c.up.isDown || c.space.isDown)) || t.jump, down: (c && c.down.isDown) || t.down };
+      }
+
+      var config = {
+        type: Phaser.AUTO, backgroundColor: TH.cssBg || '#101018', seed: [cfg.seed || title],
+        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
+        render: { preserveDrawingBuffer: true, pixelArt: !!TH.pixelArt },
+        physics: { default: 'arcade', arcade: { gravity: { y: GRAV }, debug: false } },
+        scene: [Play]
+      };
+      var r = new URLSearchParams(location.search).get('r');
+      if (r === 'canvas') config.type = Phaser.CANVAS; else if (r === 'webgl') config.type = Phaser.WEBGL;
+      root.game = new Phaser.Game(config);
+      return root.game;
     }
   };
 
@@ -874,18 +1627,44 @@
       return b;
     }
 
+    // VERTICAL beats: the climb axis replaces x. Every beat's position is its
+    // climb progress in px (H - y: 0 at the bottom, H at the top), so the same
+    // window/novelty/fatigue/arc math scores a tower exactly like a runner.
+    function collectBeatsVertical(spec) {
+      var H = spec.height || 2200, b = [];
+      var pos = function (y) { return Math.max(0, Math.min(H, H - y)); };
+      var cw = function (t, fb) { var m = (Studio.Contraptions && Studio.Contraptions.meta) ? Studio.Contraptions.meta(t) : null; return m ? m.weight : fb; };
+      var prevMat = null;
+      (spec.platforms || []).slice().sort(function (p, q) { return q.y - p.y; }).forEach(function (p) {
+        var mat = p.mat || 'cloud';
+        var m = (Studio.Materials && Studio.Materials.get) ? Studio.Materials.get(mat) : null;
+        if (m && m.deadly) { b.push({ x: pos(p.y), type: 'gap', interest: INTEREST.gap }); return; } // storm shelf = the deadly beat
+        b.push({ x: pos(p.y), type: 'ledge', interest: INTEREST.ledge });
+        if (prevMat != null && mat !== prevMat) b.push({ x: pos(p.y), type: 'matchg', interest: INTEREST.matchg });
+        prevMat = mat;
+      });
+      (spec.updrafts || []).forEach(function (u) { b.push({ x: pos((u.y0 + u.y1) / 2), type: 'updraft', interest: cw('updraft', 8) }); });
+      (spec.gusts || []).forEach(function (g) { b.push({ x: pos(g.y), type: 'gust', interest: cw('gust', 7) }); });
+      (spec.springs || []).forEach(function (s) { b.push({ x: pos(s.y != null ? s.y : H), type: 'spring', interest: INTEREST.spring }); });
+      (spec.movers || []).forEach(function (m) { b.push({ x: pos(m.y), type: 'mover', interest: INTEREST.mover }); });
+      (spec.enemies || []).forEach(function (e) { b.push({ x: pos(e.y != null ? e.y : H), type: 'walker', interest: INTEREST.walker }); });
+      (spec.contraptions || []).forEach(function (c) { b.push({ x: pos(c.y || c.top || H), type: c.type, interest: cw(c.type, 7) }); });
+      return b;
+    }
+
     // predict the interest curve from placement alone (jazz novelty/fatigue/combo)
     function predict(spec, opt) {
       opt = opt || {};
-      var W = spec.width || 960, T = spec.tile || 40;
+      var vertical = !!spec.vertical;
+      var W = vertical ? (spec.height || 2200) : (spec.width || 960), T = spec.tile || 40;
       // ~6-tile windows, clamped to a sane count so short/long levels both behave
       var n = opt.nWin || Math.max(8, Math.min(40, Math.round(W / (6 * T))));
-      var beats = collectBeats(spec);
+      var beats = vertical ? collectBeatsVertical(spec) : collectBeats(spec);
       var win = [], i;
       for (i = 0; i < n; i++) win.push({ peak: 0, dom: null, count: 0, coins: 0 });
       var wi = function (x) { return Math.max(0, Math.min(n - 1, Math.floor((x / W) * n))); };
       beats.forEach(function (bt) { var w = win[wi(bt.x)]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
-      (spec.coins || []).forEach(function (c) { win[wi(c.x)].coins++; });
+      (spec.coins || []).forEach(function (c) { win[wi(vertical ? ((spec.height || 2200) - c.y) : c.x)].coins++; });
       var seen = {}, prevDom = null;
       var curve = win.map(function (w) {
         var v = 2.4;                                              // bare ground is a touch dull

@@ -124,6 +124,21 @@
       "deterministic": false,
       "hasValidator": true,
       "perGame": true
+    },
+    {
+      "capability": "rules",
+      "name": "level-lint",
+      "dir": "tools/level-lint",
+      "run": "node tool.mjs",
+      "validator": "node validate.mjs",
+      "inputs": "a game dir (--game): statically lints levels.js against studio/rules.json per GAME_META.archetype (runner|vertical) — the cheap pre-gate",
+      "outputs": [
+        "out/result.json"
+      ],
+      "deps": [],
+      "deterministic": true,
+      "hasValidator": true,
+      "perGame": true
     }
   ]
 }
