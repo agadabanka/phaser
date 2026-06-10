@@ -574,6 +574,29 @@
         "https://ember-depths-production.up.railway.app"
       ],
       "commit": null
+    },
+    {
+      "id": "e25",
+      "date": "2026-06-10",
+      "phase": "Polish",
+      "title": "Sysmap: per-game lens + Flows (the order systems are called)",
+      "what": "The full map had become a 52-node hairball with no notion of sequence. Added (1) a LENS picker that filters the graph to one game's reachable subgraph (BFS over its depends-on/validated-by/feeds edges — \"what does Ember actually use?\"), and (2) FLOWS: a new optional diary.json section of curated, ordered walkthroughs the visualizer renders as numbered badges + an animated arrowed path with ◀ ▶ stepping and a per-step caption. Three flows shipped: the runtime frame loop (real update() order), the assembly-line vertical order, and the validate-all dispatch order. SCHEMA.md documents flows; gen-diary.mjs validates step refs and renders a Flows section into DIARY.md.",
+      "why": "A static edge set can answer \"what connects to what\" but never \"in what order\" — and per-game questions drowned in the all-systems view.",
+      "systems": [
+        "sysmap",
+        "diary",
+        "conductor",
+        "dispatcher",
+        "ember"
+      ],
+      "validator": "sysmap check.mjs extended: lensOk (ember subgraph strictly smaller, restores clean) + flowOk (badges == steps, stepping moves idx) — PASS; phone 390x844 verified no-overflow",
+      "status": "shipped",
+      "artifacts": [
+        "tools/sysmap/",
+        "diary/SCHEMA.md (flows)",
+        "https://studio-sysmap-production.up.railway.app"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -1496,5 +1519,178 @@
         "rel": "feeds"
       }
     ]
-  }
+  },
+  "flows": [
+    {
+      "id": "frame-loop",
+      "title": "Runtime: one Ember frame",
+      "desc": "What actually runs, in order, every 1/60s step of Ember Depths (game.js update()).",
+      "steps": [
+        {
+          "node": "harness",
+          "label": "step",
+          "note": "game.step(t, dt) — the deterministic stepper drives update(); same dt every frame, so runs replay bit-identically."
+        },
+        {
+          "node": "contraptions",
+          "label": "world tick",
+          "note": "movers + contraptions advance on the deterministic phase clock; the interaction pass may launch (geyser) or arm a collapse (crumble)."
+        },
+        {
+          "node": "touch",
+          "label": "input",
+          "note": "read the player: keyboard + the on-screen joystick/JUMP (touch devices)."
+        },
+        {
+          "node": "autopilot",
+          "label": "or autopilot",
+          "note": "in eval runs the autopilot senses ground/walls/enemies ahead and emits the decision instead."
+        },
+        {
+          "node": "materials",
+          "label": "footing",
+          "note": "probe the slab under the feet — ice is slick, mud is sticky; friction feeds the controller."
+        },
+        {
+          "node": "platformer",
+          "label": "movement",
+          "note": "Studio.Platformer applies coyote time, jump buffer, variable jump, asymmetric gravity, skid."
+        },
+        {
+          "node": "juice",
+          "label": "feel & FX",
+          "note": "state-driven hero anims, landing shake, ember bursts, glow/grade — visual only, never touches physics."
+        },
+        {
+          "node": "cam",
+          "label": "camera",
+          "note": "deadzone follow pans the cave after movement settles."
+        },
+        {
+          "node": "audio",
+          "label": "sound",
+          "note": "event SFX (jump/coin/stomp/win) + the Lyria cave loop under it all."
+        },
+        {
+          "node": "shell",
+          "label": "shell",
+          "note": "outside the loop: the playtest shell can pause the whole scene or pin a note to this exact frame."
+        }
+      ]
+    },
+    {
+      "id": "build-pipeline",
+      "title": "Assembly line: how a game gets built",
+      "desc": "The conductor drives the verticals in this order; each stage is gated before the next.",
+      "steps": [
+        {
+          "node": "conductor",
+          "label": "conductor",
+          "note": "reads GAME_META.stages and prints the next vertical's brief — the studio's showrunner."
+        },
+        {
+          "node": "verticals",
+          "label": "story/concept",
+          "note": "Writers' Room + Showrunner briefs set the fiction and the verbs."
+        },
+        {
+          "node": "backdrop",
+          "label": "art theme",
+          "note": "the painterly backdrop locks the palette every later asset must match."
+        },
+        {
+          "node": "art-pipeline",
+          "label": "characters",
+          "note": "Gemini hero/enemy sheets, chroma-keyed + sliced on-model."
+        },
+        {
+          "node": "levels",
+          "label": "level design",
+          "note": "the campaign in the Level DSL — geometry rules keep every level AI-completable."
+        },
+        {
+          "node": "feel",
+          "label": "gameplay",
+          "note": "Studio.Feel scores FUN per level; beats are tuned to the interest curve."
+        },
+        {
+          "node": "sprite-studio",
+          "label": "animation",
+          "note": "animate the hero and run the sheet through the sprite gate."
+        },
+        {
+          "node": "texture-kit",
+          "label": "texturing",
+          "note": "style-matched seamless tile kit generated from the backdrop itself."
+        },
+        {
+          "node": "lyria",
+          "label": "sound",
+          "note": "Lyria 2 composes the loop; SFX wired to every key event."
+        },
+        {
+          "node": "game-gate-tool",
+          "label": "QA gate",
+          "note": "the 0-death deterministic autopilot run, webgl + canvas."
+        },
+        {
+          "node": "railway",
+          "label": "ship",
+          "note": "railway up — the game gets a live URL."
+        }
+      ]
+    },
+    {
+      "id": "validate-all",
+      "title": "Quality gate: conductor --validate-all",
+      "desc": "One command answers \"is this game good?\" — every registered validator runs through the dispatcher into a scorecard (Ember: 6/6 ACCEPT).",
+      "steps": [
+        {
+          "node": "conductor",
+          "label": "collect",
+          "note": "gathers every game-applicable capability from the registry."
+        },
+        {
+          "node": "registry",
+          "label": "registry",
+          "note": "the Lego index — register() refuses any brick without a validator."
+        },
+        {
+          "node": "dispatcher",
+          "label": "dispatch",
+          "note": "runs each brick's validator, captures the JSON verdicts."
+        },
+        {
+          "node": "game-gate-tool",
+          "label": "gate",
+          "note": "0-death deterministic run on both renderers."
+        },
+        {
+          "node": "eval-feel",
+          "label": "feel",
+          "note": "FUN model on the level specs (Ember 90.5)."
+        },
+        {
+          "node": "studio-sound",
+          "label": "music",
+          "note": "SFX wiring + the bed must be provably non-silent (Lyria sidecar)."
+        },
+        {
+          "node": "studio-art",
+          "label": "art-cohesion",
+          "note": "Gemini vision, 9 dimensions, threshold 60 (Ember 73.9–77.8)."
+        },
+        {
+          "node": "studio-distinct",
+          "label": "distinctness",
+          "note": "uniqueness vs the stock-platformer baseline (Ember 86.7)."
+        },
+        {
+          "node": "texture-kit",
+          "label": "texturing",
+          "note": "seams, texture energy, palette affinity vs the backdrop (19/19) → scorecard verdict back at the conductor."
+        }
+      ]
+    }
+  ]
 }

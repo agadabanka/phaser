@@ -35,6 +35,30 @@
   .seg button + button { border-left: 1px solid var(--line); }
   .btn { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
   .btn:hover { border-color: var(--accent); }
+  .sel { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; max-width: 170px; }
+
+  /* flow bar — the ◀ ▶ stepper for ordered walkthroughs */
+  #flowbar { display: none; position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px;
+    z-index: 15; width: min(620px, calc(100% - 20px)); background: rgba(13,18,28,.96);
+    border: 1px solid var(--accent); border-radius: 12px; padding: 8px 10px; box-shadow: 0 10px 30px #000a; backdrop-filter: blur(4px); }
+  #flowbar.on { display: block; }
+  .fb-row { display: flex; align-items: center; gap: 10px; }
+  .fb-nav { flex: none; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--accent); font-size: 15px; cursor: pointer; }
+  .fb-nav:hover { border-color: var(--accent); }
+  .fb-mid { flex: 1; min-width: 0; }
+  .fb-title { font-size: 12.5px; display: flex; align-items: baseline; gap: 6px; }
+  .fb-title b { color: var(--accent); white-space: nowrap; }
+  .fb-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #flowClose { margin-left: auto; flex: none; background: none; border: 0; color: var(--muted); font-size: 13px; cursor: pointer; padding: 2px 4px; }
+  #flowClose:hover { color: var(--ink); }
+  .fb-note { color: var(--muted); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+  /* flow path + numbered badges in the SVG */
+  .flowpath { fill: none; stroke: var(--accent); stroke-width: 2.6; opacity: .85; stroke-dasharray: 7 6; animation: flowdash 1.2s linear infinite; }
+  @keyframes flowdash { to { stroke-dashoffset: -13; } }
+  .flowbadge circle { fill: #1a1206; stroke: var(--accent); stroke-width: 1.6; }
+  .flowbadge.cur circle { fill: var(--accent); }
+  .flowbadge text { fill: var(--accent); font-size: 10px; font-weight: 700; text-anchor: middle; stroke: none; }
+  .flowbadge.cur text { fill: #1a1206; }
 
   main { position: relative; overflow: hidden; }
   svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
@@ -125,6 +149,11 @@
     footer { padding-top: 6px; }
     .tl { -webkit-overflow-scrolling: touch; }
     .tl .ph { min-width: 150px; padding: 8px 10px; }
+
+    /* lens/flow pickers + flow bar on a phone */
+    .sel { max-width: 124px; padding: 8px 6px; }
+    #flowbar { bottom: calc(10px + var(--safe-b)); }
+    .fb-nav { width: 44px; height: 44px; }
   }
 </style>
 </head>
@@ -135,6 +164,10 @@
     <span class="sub" id="counts">loading…</span>
     <span class="grow"></span>
     <div class="ctrl">
+      <span class="sub">lens</span>
+      <select class="sel" id="lensSel" title="filter the map to one game's systems"></select>
+      <span class="sub">flow</span>
+      <select class="sel" id="flowSel" title="step through the ORDER systems are called"></select>
       <span class="sub">layout</span>
       <div class="seg" id="layoutSeg">
         <button data-layout="tier" class="on">tier-stack</button>
@@ -148,6 +181,16 @@
     <button id="legendToggle" aria-label="Toggle legend" aria-expanded="false">&#9432; Legend</button>
     <div id="legendScrim"></div>
     <div class="legend" id="legend"></div>
+    <div id="flowbar">
+      <div class="fb-row">
+        <button class="fb-nav" id="flowPrev" aria-label="previous step">&#9664;</button>
+        <div class="fb-mid">
+          <div class="fb-title"><b id="fbStep"></b> <span id="fbTitle"></span> <button id="flowClose" aria-label="close flow">&#10005;</button></div>
+          <div class="fb-note" id="fbNote"></div>
+        </div>
+        <button class="fb-nav" id="flowNext" aria-label="next step">&#9654;</button>
+      </div>
+    </div>
     <div id="tip"></div>
     <div id="err"></div>
   </main>

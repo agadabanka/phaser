@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**24 entries** across 13 phases · **52 systems** · **100 edges** in the graph.
+**25 entries** across 13 phases · **52 systems** · **100 edges** in the graph.
 
 ---
 
@@ -249,6 +249,64 @@
 - **Systems:** Playtest Shell, Studio SDK, Studio.Audio, Ember Depths, Game Template
 - **Validator:** browser proof: pause froze frame counter, note round-tripped through /api/notes with context, mute/restart verified; 0-death gate still GREEN (webgl+canvas)
 - **Artifacts:** `sdk/studio.js (Studio.Shell)`, `https://ember-depths-production.up.railway.app`
+
+### Sysmap: per-game lens + Flows (the order systems are called)
+`2026-06-10` · 🚀 shipped
+
+- **What:** The full map had become a 52-node hairball with no notion of sequence. Added (1) a LENS picker that filters the graph to one game's reachable subgraph (BFS over its depends-on/validated-by/feeds edges — "what does Ember actually use?"), and (2) FLOWS: a new optional diary.json section of curated, ordered walkthroughs the visualizer renders as numbered badges + an animated arrowed path with ◀ ▶ stepping and a per-step caption. Three flows shipped: the runtime frame loop (real update() order), the assembly-line vertical order, and the validate-all dispatch order. SCHEMA.md documents flows; gen-diary.mjs validates step refs and renders a Flows section into DIARY.md.
+- **Why:** A static edge set can answer "what connects to what" but never "in what order" — and per-game questions drowned in the all-systems view.
+- **Systems:** Sysmap (interactive visualizer), Studio Diary (diary.json), Conductor, Lego dispatcher, Ember Depths
+- **Validator:** sysmap check.mjs extended: lensOk (ember subgraph strictly smaller, restores clean) + flowOk (badges == steps, stepping moves idx) — PASS; phone 390x844 verified no-overflow
+- **Artifacts:** `tools/sysmap/`, `diary/SCHEMA.md (flows)`, `https://studio-sysmap-production.up.railway.app`
+
+---
+
+## Flows — the order systems are called
+
+### Runtime: one Ember frame
+
+What actually runs, in order, every 1/60s step of Ember Depths (game.js update()).
+
+1. **Studio.harness** (step) — game.step(t, dt) — the deterministic stepper drives update(); same dt every frame, so runs replay bit-identically.
+2. **Studio.Contraptions** (world tick) — movers + contraptions advance on the deterministic phase clock; the interaction pass may launch (geyser) or arm a collapse (crumble).
+3. **Studio.Touch** (input) — read the player: keyboard + the on-screen joystick/JUMP (touch devices).
+4. **Studio.Autopilot** (or autopilot) — in eval runs the autopilot senses ground/walls/enemies ahead and emits the decision instead.
+5. **Studio.Materials** (footing) — probe the slab under the feet — ice is slick, mud is sticky; friction feeds the controller.
+6. **Studio.Platformer** (movement) — Studio.Platformer applies coyote time, jump buffer, variable jump, asymmetric gravity, skid.
+7. **Studio.Juice** (feel & FX) — state-driven hero anims, landing shake, ember bursts, glow/grade — visual only, never touches physics.
+8. **Studio.Cam** (camera) — deadzone follow pans the cave after movement settles.
+9. **Studio.Audio** (sound) — event SFX (jump/coin/stomp/win) + the Lyria cave loop under it all.
+10. **Playtest Shell** (shell) — outside the loop: the playtest shell can pause the whole scene or pin a note to this exact frame.
+
+### Assembly line: how a game gets built
+
+The conductor drives the verticals in this order; each stage is gated before the next.
+
+1. **Conductor** (conductor) — reads GAME_META.stages and prints the next vertical's brief — the studio's showrunner.
+2. **Vertical registry** (story/concept) — Writers' Room + Showrunner briefs set the fiction and the verbs.
+3. **Studio.Backdrop** (art theme) — the painterly backdrop locks the palette every later asset must match.
+4. **Art pipeline (Gemini)** (characters) — Gemini hero/enemy sheets, chroma-keyed + sliced on-model.
+5. **Ember campaign (levels.js)** (level design) — the campaign in the Level DSL — geometry rules keep every level AI-completable.
+6. **Studio.Feel** (gameplay) — Studio.Feel scores FUN per level; beats are tuned to the interest curve.
+7. **Sprite Studio** (animation) — animate the hero and run the sheet through the sprite gate.
+8. **Texture Kit (style-matched tiles)** (texturing) — style-matched seamless tile kit generated from the backdrop itself.
+9. **Lyria Music (Vertex)** (sound) — Lyria 2 composes the loop; SFX wired to every key event.
+10. **game-gate (eval.mjs)** (QA gate) — the 0-death deterministic autopilot run, webgl + canvas.
+11. **Railway deploy** (ship) — railway up — the game gets a live URL.
+
+### Quality gate: conductor --validate-all
+
+One command answers "is this game good?" — every registered validator runs through the dispatcher into a scorecard (Ember: 6/6 ACCEPT).
+
+1. **Conductor** (collect) — gathers every game-applicable capability from the registry.
+2. **Lego registry** (registry) — the Lego index — register() refuses any brick without a validator.
+3. **Lego dispatcher** (dispatch) — runs each brick's validator, captures the JSON verdicts.
+4. **game-gate (eval.mjs)** (gate) — 0-death deterministic run on both renderers.
+5. **eval-feel (feel.mjs)** (feel) — FUN model on the level specs (Ember 90.5).
+6. **Studio Sound** (music) — SFX wiring + the bed must be provably non-silent (Lyria sidecar).
+7. **Studio Art (cohesion judge)** (art-cohesion) — Gemini vision, 9 dimensions, threshold 60 (Ember 73.9–77.8).
+8. **Studio Distinct (uniqueness judge)** (distinctness) — uniqueness vs the stock-platformer baseline (Ember 86.7).
+9. **Texture Kit (style-matched tiles)** (texturing) — seams, texture energy, palette affinity vs the backdrop (19/19) → scorecard verdict back at the conductor.
 
 ---
 

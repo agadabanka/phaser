@@ -43,6 +43,7 @@ const REL_LABEL = {
 const S = {
   diary: null, registry: null,
   nodes: [], edges: [], tiers: [],
+  allNodes: [], allEdges: [],   // unfiltered master lists (lens filters into nodes/edges)
   byId: new Map(),
   entriesByNode: new Map(),     // nodeId -> [entry,...]
   capStatus: new Map(),         // capability -> { known, pass, name }
@@ -51,6 +52,8 @@ const S = {
   activePhase: null,            // highlighted timeline phase
   kindOff: new Set(),           // hidden kinds (legend toggles)
   relOff: new Set(),            // hidden relations
+  lens: null,                   // game id the map is filtered to (null = all systems)
+  flow: null,                   // active flow { def, idx } (ordered walkthrough)
   // view transform (pan/zoom)
   tx: 0, ty: 0, scale: 1,
   W: 0, H: 0,
@@ -75,10 +78,11 @@ async function load() {
   }
 
   S.tiers = (S.diary.tiers || []).slice().sort((a, b) => a.order - b.order);
-  S.nodes = S.diary.graph.nodes.map((n) => ({ ...n, x: 0, y: 0, vx: 0, vy: 0 }));
+  S.allNodes = S.diary.graph.nodes.map((n) => ({ ...n, x: 0, y: 0, vx: 0, vy: 0 }));
   // edges: drop any whose endpoints are missing (defensive), keep rel
-  const ids = new Set(S.nodes.map((n) => n.id));
-  S.edges = (S.diary.graph.edges || []).filter((e) => ids.has(e.from) && ids.has(e.to));
+  const ids = new Set(S.allNodes.map((n) => n.id));
+  S.allEdges = (S.diary.graph.edges || []).filter((e) => ids.has(e.from) && ids.has(e.to));
+  S.nodes = S.allNodes; S.edges = S.allEdges;
   S.byId = new Map(S.nodes.map((n) => [n.id, n]));
 
   // entries-by-node (for the tooltip)
@@ -102,11 +106,18 @@ async function load() {
     edgeCount: () => S.edges.length,
     rendered: () => $('#svg').querySelectorAll('g.node').length,
     focus: (id) => focusNode(id),
-    setLayout
+    setLayout,
+    setLens,
+    lens: () => S.lens,
+    setFlow,
+    flowStep,
+    flowState: () => (S.flow ? { id: S.flow.def.id, idx: S.flow.idx, steps: S.flow.def.steps.length, badges: $('#svg').querySelectorAll('g.flowbadge').length } : null)
   };
 
   buildLegend();
   buildTimeline();
+  buildLensPicker();
+  buildFlowPicker();
   sizeSvg();
   // tier-stack is the desktop default; the wide stack doesn't suit a phone, so
   // start narrow viewports in the compact force layout (toggle still available).
@@ -273,6 +284,131 @@ function runForce() {
 }
 
 // ===========================================================================
+// LENS — filter the map to one game's reachable subgraph ("view it per game")
+// ===========================================================================
+// From the game node: follow its OUT edges (depends-on/validated-by/produces/
+// builds-on) and IN `feeds` edges, then expand transitively along depends-on/
+// builds-on/dispatched-by/validated-by OUT edges + IN `feeds` (depth-capped).
+// Other game nodes are excluded so shared validators don't pull them in.
+function lensNodeSet(gameId) {
+  const keep = new Set([gameId]);
+  let frontier = [gameId];
+  for (let depth = 0; depth < 4 && frontier.length; depth++) {
+    const next = [];
+    for (const id of frontier) {
+      for (const e of S.allEdges) {
+        let cand = null;
+        if (e.from === id && (depth === 0 || ['depends-on', 'builds-on', 'dispatched-by', 'validated-by'].includes(e.rel))) cand = e.to;
+        else if (e.to === id && e.rel === 'feeds') cand = e.from;
+        if (!cand || keep.has(cand)) continue;
+        const n = S.allNodes.find((x) => x.id === cand);
+        if (!n || (n.kind === 'game' && cand !== gameId)) continue;
+        keep.add(cand); next.push(cand);
+      }
+    }
+    frontier = next;
+  }
+  return keep;
+}
+
+function setLens(gameId) {
+  S.lens = gameId || null;
+  if (S.flow) setFlow(null, true);          // a lens change clears the flow path
+  if (!S.lens) { S.nodes = S.allNodes; S.edges = S.allEdges; }
+  else {
+    const keep = lensNodeSet(S.lens);
+    S.nodes = S.allNodes.filter((n) => keep.has(n.id));
+    S.edges = S.allEdges.filter((e) => keep.has(e.from) && keep.has(e.to));
+  }
+  S.byId = new Map(S.nodes.map((n) => [n.id, n]));
+  S.focusId = null; S.activePhase = null;
+  const sel = $('#lensSel'); if (sel && sel.value !== (S.lens || '')) sel.value = S.lens || '';
+  setLayout(S.layout, true);
+}
+
+function buildLensPicker() {
+  const sel = $('#lensSel'); if (!sel) return;
+  const games = S.allNodes.filter((n) => n.kind === 'game');
+  sel.innerHTML = '<option value="">all systems</option>' +
+    games.map((g) => `<option value="${esc(g.id)}">${esc(g.label)}</option>`).join('');
+  sel.addEventListener('change', () => setLens(sel.value || null));
+}
+
+// ===========================================================================
+// FLOWS — the ORDER systems are called (numbered, steppable walkthroughs)
+// ===========================================================================
+function buildFlowPicker() {
+  const sel = $('#flowSel'); if (!sel) return;
+  const flows = S.diary.flows || [];
+  sel.innerHTML = '<option value="">none</option>' +
+    flows.map((f) => `<option value="${esc(f.id)}">${esc(f.title)}</option>`).join('');
+  sel.addEventListener('change', () => setFlow(sel.value || null));
+  $('#flowPrev').addEventListener('click', () => flowStep(S.flow ? S.flow.idx - 1 : 0));
+  $('#flowNext').addEventListener('click', () => flowStep(S.flow ? S.flow.idx + 1 : 0));
+  $('#flowClose').addEventListener('click', () => setFlow(null));
+}
+
+function setFlow(flowId, silent) {
+  const def = (S.diary.flows || []).find((f) => f.id === flowId) || null;
+  // a flow walks the FULL graph; lift any lens so every step node exists
+  if (def && S.lens) { S.lens = null; S.nodes = S.allNodes; S.edges = S.allEdges; S.byId = new Map(S.nodes.map((n) => [n.id, n])); const ls = $('#lensSel'); if (ls) ls.value = ''; if (!silent) setLayout(S.layout, true); }
+  S.flow = def ? { def, idx: 0 } : null;
+  S.focusId = null; S.activePhase = null;
+  const sel = $('#flowSel'); if (sel && sel.value !== (def ? def.id : '')) sel.value = def ? def.id : '';
+  $('#flowbar').classList.toggle('on', !!def);
+  drawFlowOverlay();
+  if (def) flowStep(0); else if (!silent) applyHighlight();
+}
+
+function flowStep(i) {
+  if (!S.flow) return;
+  const n = S.flow.def.steps.length;
+  S.flow.idx = ((i % n) + n) % n;                       // wrap both directions
+  const st = S.flow.def.steps[S.flow.idx];
+  $('#fbStep').textContent = `${S.flow.idx + 1}/${n} · ${st.label}`;
+  $('#fbTitle').textContent = S.flow.def.title;
+  $('#fbNote').textContent = st.note || '';
+  // badge emphasis
+  document.querySelectorAll('g.flowbadge').forEach((b) => b.classList.toggle('cur', b.dataset.step === String(S.flow.idx)));
+  applyHighlight();
+}
+
+// the SVG overlay: an animated arrowed path through the steps + numbered badges.
+// Lives inside #vp so it pans/zooms with the graph; rebuilt by render().
+function drawFlowOverlay() {
+  const vp = $('#vp'); if (!vp) return;
+  const old = vp.querySelector('g.flowlayer'); if (old) old.remove();
+  if (!S.flow) return;
+  const layer = el('g', { class: 'flowlayer' });
+  const steps = S.flow.def.steps.map((s) => S.byId.get(s.node)).filter(Boolean);
+  // path through consecutive steps (slight bow, same idiom as edges)
+  let d = '';
+  for (let k = 0; k < steps.length - 1; k++) {
+    const a = steps[k], b = steps[k + 1];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(-dy, dx) || 1;
+    const cx = mx + (-dy / len) * 22, cy = my + (dx / len) * 22;
+    d += `M${a.x},${a.y} Q${cx},${cy} ${b.x},${b.y} `;
+  }
+  layer.appendChild(el('path', { class: 'flowpath', d }));
+  // numbered badges, offset above-left of each node; click a badge -> jump to step
+  S.flow.def.steps.forEach((s, i) => {
+    const n = S.byId.get(s.node); if (!n) return;
+    const g = el('g', { class: 'flowbadge', 'data-step': i, transform: `translate(${n.x - 14},${n.y - 16})` });
+    g.appendChild(el('circle', { r: 9 }));
+    const t = el('text', { y: 3.5 }); t.textContent = String(i + 1);
+    g.appendChild(t);
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', (ev) => { ev.stopPropagation(); flowStep(i); });
+    layer.appendChild(g);
+  });
+  vp.appendChild(layer);
+}
+
+// keep the overlay glued to nodes while the force sim / drags move them
+function syncFlowOverlay() { if (S.flow) drawFlowOverlay(); }
+
+// ===========================================================================
 // render
 // ===========================================================================
 const NODE_R = 9;
@@ -355,6 +491,7 @@ function render() {
   root.appendChild(ng);
 
   positionAll();
+  drawFlowOverlay();          // render() cleared the svg — rebuild the flow layer
   applyHighlight();
   updateCounts();
 }
@@ -376,6 +513,7 @@ function positionAll() {
     const cx = mx + (nx / len) * bow, cy = my + (ny / len) * bow;
     e._el.setAttribute('d', `M${a.x},${a.y} Q${cx},${cy} ${b.x},${b.y}`);
   }
+  syncFlowOverlay();          // keep the numbered path glued to moving nodes
 }
 
 // ===========================================================================
@@ -389,6 +527,10 @@ function neighborsOf(id) {
 
 function applyHighlight() {
   const hiddenKinds = S.kindOff, hiddenRels = S.relOff;
+  // flow set: when a flow is active the numbered path owns the stage — everything
+  // off-path dims, the current step gets the focus ring.
+  const flowSet = S.flow ? new Set(S.flow.def.steps.map((s) => s.node)) : null;
+  const flowCur = S.flow ? S.flow.def.steps[S.flow.idx].node : null;
   // phase set
   const phaseNodes = S.activePhase ? phaseNodeSet(S.activePhase) : null;
   // focus set
@@ -398,16 +540,18 @@ function applyHighlight() {
     if (!n._el) continue;
     let dim = false;
     if (hiddenKinds.has(n.kind)) dim = true;
+    if (flowSet && !flowSet.has(n.id)) dim = true;
     if (phaseNodes && !phaseNodes.has(n.id)) dim = true;
     if (focusSet && !focusSet.has(n.id)) dim = true;
     n._el.classList.toggle('dim', dim);
-    n._el.classList.toggle('focus', S.focusId === n.id || (phaseNodes && phaseNodes.has(n.id) && !focusSet));
+    n._el.classList.toggle('focus', S.focusId === n.id || n.id === flowCur || (phaseNodes && phaseNodes.has(n.id) && !focusSet));
   }
   for (const e of S.edges) {
     if (!e._el) continue;
     let hot = false, dim = false;
     if (hiddenRels.has(e.rel)) { dim = true; }
     if (hiddenKinds.has(S.byId.get(e.from).kind) || hiddenKinds.has(S.byId.get(e.to).kind)) dim = true;
+    if (flowSet) dim = true;   // graph edges recede; the animated flow path shows the ORDER
     if (focusSet) {
       if (e.from === S.focusId || e.to === S.focusId) hot = true; else dim = true;
     }
@@ -427,8 +571,8 @@ function phaseNodeSet(phase) {
 
 function focusNode(id) {
   S.focusId = id;
-  // focusing clears the phase highlight for clarity
-  if (id) setActivePhase(null, true);
+  // focusing clears the phase highlight (and any flow walkthrough) for clarity
+  if (id) { setActivePhase(null, true); if (S.flow) setFlow(null, true); }
   applyHighlight();
 }
 
@@ -549,7 +693,8 @@ function wireControls() {
     S.focusId = null; setActivePhase(null, true);
     S.kindOff.clear(); S.relOff.clear();
     document.querySelectorAll('.legend .row').forEach((r) => r.classList.remove('off'));
-    setLayout(S.layout, true);
+    setFlow(null, true);
+    setLens(null);              // restores the full graph + relayouts
   });
 
   // ---- mobile legend overlay toggle --------------------------------------
@@ -707,7 +852,8 @@ function toWorld(ev) {
 }
 
 function updateCounts() {
-  $('#counts').textContent = `${S.nodes.length} systems · ${S.edges.length} edges · ${(S.diary.entries || []).length} diary entries`;
+  const lensTag = S.lens ? `lens: ${(S.byId.get(S.lens) || { label: S.lens }).label} · ${S.nodes.length} of ${S.allNodes.length} systems` : `${S.nodes.length} systems`;
+  $('#counts').textContent = `${lensTag} · ${S.edges.length} edges · ${(S.diary.entries || []).length} diary entries`;
 }
 
 // ---- tiny helpers -----------------------------------------------------------

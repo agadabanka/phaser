@@ -80,6 +80,29 @@ try {
   await page.evaluate(() => window.__sysmap.focus('sdk'));
   await page.waitForTimeout(150);
   const focusOk = await page.evaluate(() => document.querySelectorAll('g.node.focus').length > 0);
+
+  // LENS: filter to a game's subgraph -> strictly smaller, non-trivial node set
+  const lensOk = await page.evaluate((full) => {
+    if (!window.__sysmap.setLens) return false;
+    window.__sysmap.setLens('ember');
+    const n = window.__sysmap.nodeCount();
+    const ok = n > 3 && n < full && window.__sysmap.lens() === 'ember';
+    window.__sysmap.setLens(null);
+    return ok && window.__sysmap.nodeCount() === full;
+  }, counts.nodes);
+
+  // FLOW: activate a walkthrough -> numbered badges for every step, stepping moves idx
+  const flowOk = await page.evaluate(() => {
+    if (!window.__sysmap.setFlow) return false;
+    window.__sysmap.setFlow('frame-loop');
+    const st = window.__sysmap.flowState();
+    if (!st || st.badges !== st.steps || st.steps < 3) return false;
+    window.__sysmap.flowStep(3);
+    const moved = window.__sysmap.flowState().idx === 3;
+    window.__sysmap.setFlow(null);
+    return moved && window.__sysmap.flowState() === null;
+  });
+
   // clear back to a clean full view for the screenshot
   await page.evaluate(() => { document.querySelector('#resetBtn').click(); });
   await page.waitForTimeout(500);
@@ -87,7 +110,7 @@ try {
   await page.screenshot({ path: path.join(OUT, 'sysmap.png') });
 
   await page.close();
-  result = { ok: errors.length === 0, counts, phaseClicked, focusOk };
+  result = { ok: errors.length === 0, counts, phaseClicked, focusOk, lensOk, flowOk };
 } catch (e) {
   result = { ok: false, fatal: String(e) };
 }
@@ -98,7 +121,7 @@ server.close();
 // ---- verdict ----
 const c = result.counts || {};
 const graphRendered = !!(c.nodes > 0 && c.rendered > 0);
-const pass = !!(result.ok && errors.length === 0 && c.ready && graphRendered && result.phaseClicked && result.focusOk && !result.fatal);
+const pass = !!(result.ok && errors.length === 0 && c.ready && graphRendered && result.phaseClicked && result.focusOk && result.lensOk && result.flowOk && !result.fatal);
 
 const report = {
   pass,
@@ -106,6 +129,8 @@ const report = {
   counts: result.counts,
   phaseClicked: result.phaseClicked,
   focusOk: result.focusOk,
+  lensOk: result.lensOk,
+  flowOk: result.flowOk,
   fatal: result.fatal,
   out: [path.join('out', 'sysmap.png')]
 };

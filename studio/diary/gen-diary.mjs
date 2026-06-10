@@ -46,6 +46,11 @@ for (const ed of edges || []) {
 for (const n of nodes || []) {
   if (n.tier && !tierIds.has(n.tier)) warnings.push(`node ${n.id}: unknown tier "${n.tier}"`);
 }
+for (const f of diary.flows || []) {
+  for (const s of f.steps || []) {
+    if (!nodeIds.has(s.node)) warnings.push(`flow ${f.id}: step references unknown node "${s.node}"`);
+  }
+}
 
 if (warnings.length) {
   console.error('⚠ diary.json integrity warnings:');
@@ -100,6 +105,21 @@ for (const ph of phases) {
     if (e.systems && e.systems.length) L.push(`- **Systems:** ${e.systems.map(sysLabel).join(', ')}`);
     L.push(`- **Validator:** ${e.validator || '—'}`);
     if (e.artifacts && e.artifacts.length) L.push(`- **Artifacts:** ${e.artifacts.map((a) => '`' + a + '`').join(', ')}`);
+    L.push('');
+  }
+}
+
+// flows appendix — the ORDER systems are called in (the graph can't express order)
+if ((diary.flows || []).length) {
+  L.push('---');
+  L.push('');
+  L.push('## Flows — the order systems are called');
+  L.push('');
+  for (const f of diary.flows) {
+    L.push(`### ${f.title}`);
+    L.push('');
+    if (f.desc) { L.push(f.desc); L.push(''); }
+    f.steps.forEach((s, i) => L.push(`${i + 1}. **${sysLabel(s.node)}** (${s.label}) — ${s.note || ''}`));
     L.push('');
   }
 }

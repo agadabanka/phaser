@@ -31,6 +31,9 @@ fixed vocabulary.
 }
 ```
 
+`flows` is an **optional** top-level array of ordered walkthroughs (see (c) below)
+that the visualizer renders as numbered, steppable paths over the graph.
+
 `tiers`, `entries`, `graph.nodes`, and `graph.edges` are all **required arrays**
 (may be empty, but the keys must be present). A conforming file MUST have
 `entries`, `graph.nodes`, and `graph.edges`.
@@ -155,6 +158,31 @@ The Studio's canonical tiers (the book's 7-tier stack, base → top):
 
 ---
 
+## (c) FLOWS — ordered walkthroughs (optional)
+
+A flow answers "in what ORDER are these systems called?" — something a static
+edge set cannot express. Each flow is a curated, truthful sequence over existing
+graph nodes (runtime frame order, pipeline order, dispatch order, …).
+
+```jsonc
+{
+  "id": "frame-loop",          // unique, kebab-case
+  "title": "Runtime: one Ember frame",
+  "desc": "one-line summary shown in the picker",
+  "steps": [                    // ORDERED — index = call order
+    { "node": "harness",        // a graph.nodes[].id (MUST exist)
+      "label": "step",          // 1-2 word stage name (badge caption)
+      "note": "what happens at this step (1 sentence)" }
+  ]
+}
+```
+
+The visualizer dims everything else, drops numbered badges on the step nodes,
+draws an arrowed path through them in order, and steps with ◀ ▶. A node may
+appear in many flows; steps within one flow should reference distinct nodes.
+
+---
+
 ## Referential integrity (what a validator should check)
 
 A conforming `diary.json`:
@@ -168,4 +196,6 @@ A conforming `diary.json`:
    resolvable in `../lego/registry.json` (the visualizer renders a ✓/✗ badge from it;
    a capability with no registry entry renders as "unknown").
 
-`gen-diary.mjs` performs checks 1–3 and warns on violations while rendering `DIARY.md`.
+7. every `flows[].steps[].node` exists in `graph.nodes`.
+
+`gen-diary.mjs` performs checks 1–3 and 7 and warns on violations while rendering `DIARY.md`.
