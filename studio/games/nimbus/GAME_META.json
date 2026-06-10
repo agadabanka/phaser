@@ -1,0 +1,42 @@
+{
+  "name": "Nimbus Climb",
+  "tagline": "Ride the updrafts, dodge the storms — climb the sky to the Sun Bell.",
+  "hero": "Nimbi",
+  "verb": "climb, float updrafts & time the gusts",
+  "worlds": 1,
+  "levelCount": 5,
+  "controls": "Arrows / WASD + Space (joystick on touch)",
+  "art": "ai backdrop + texture-kit (cloud mats) + animated hero",
+  "music": "Lyria 2 composed sky loop",
+  "engine": "studio-phaser4",
+  "renderer": "webgl-canvas",
+  "phaserVersion": "4.1.0",
+  "physics": "arcade",
+  "capabilities": [
+    "filters",
+    "particles",
+    "color-grade",
+    "tweens",
+    "camera-follow",
+    "deterministic-eval",
+    "updraft",
+    "gust"
+  ],
+  "builder": "/",
+  "designLens": "/",
+  "scaffolded_from": "agadabanka/phaser-private",
+  "url": null,
+  "gate": "pending",
+  "stages": {
+    "scaffold": true,
+    "identity": true,
+    "levels": false,
+    "gate": false,
+    "feel": false,
+    "hero": false,
+    "art": false,
+    "music": false,
+    "deploy": false
+  },
+  "archetype": "vertical"
+}

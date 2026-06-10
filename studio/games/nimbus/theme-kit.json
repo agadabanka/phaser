@@ -1,0 +1,14 @@
+{
+  "paletteWords": "soft dawn-pastel sky palette (peach, lavender, pale gold, cerulean)",
+  "mats": {
+    "cloud": "dense fluffy white-gold cumulus cloud tops, soft rounded billows catching warm dawn light",
+    "mist": "wispy translucent blue-lavender mist veils, soft feathery streaks",
+    "crystal": "pale sky-crystal, translucent aquamarine facets with soft inner glow",
+    "storm": "dark charged thunderhead, deep indigo-slate billows with crackling pale-gold lightning veins"
+  },
+  "sprites": {
+    "coin": "a small round glowing sun-drop pickup, warm golden orb with a soft radiant core",
+    "spring": "a springy little cloud bounce-puff seen from the side, a plump white cumulus tuft with a golden glow underneath",
+    "goal": "a small shining brass SUN BELL shrine with a soft halo of golden light, mounted on a tiny cloud pedestal"
+  }
+}
