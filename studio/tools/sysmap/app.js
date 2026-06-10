@@ -108,7 +108,9 @@ async function load() {
   buildLegend();
   buildTimeline();
   sizeSvg();
-  setLayout('tier', true);
+  // tier-stack is the desktop default; the wide stack doesn't suit a phone, so
+  // start narrow viewports in the compact force layout (toggle still available).
+  setLayout(isNarrow() ? 'force' : 'tier', true);
   wireControls();
   window.__ready = true;   // headless ready flag (mirrors the studio eval pattern)
 }
@@ -134,8 +136,46 @@ function validatorBadge(node) {
 // ===========================================================================
 function sizeSvg() {
   const m = $('main').getBoundingClientRect();
-  S.W = Math.max(640, m.width); S.H = Math.max(360, m.height);
+  // On phones use the real (narrow) width so the viewBox maps ~1:1 to CSS pixels
+  // (a 640 floor would shrink everything, including tap targets). Desktop keeps
+  // the original 640 minimum.
+  const floor = isNarrow() ? 320 : 640;
+  S.W = Math.max(floor, m.width); S.H = Math.max(300, m.height);
   $('#svg').setAttribute('viewBox', `0 0 ${S.W} ${S.H}`);
+}
+
+// True when the CSS mobile breakpoint (max-width:720px) is active. Uses
+// matchMedia (the real layout width) rather than window.innerWidth, which some
+// headless/mobile-emulation contexts report at device-pixel scale.
+function isNarrow() {
+  return window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+}
+
+// Fit every node into the current viewBox by adjusting the pan/zoom transform.
+// Independent of how wide the layout spread itself, so the graph always fills
+// the visible area without overflowing — essential on phones.
+function fitView() {
+  const real = S.nodes.filter((n) => n.kind !== 'tier');
+  const pool = real.length ? real : S.nodes;
+  if (!pool.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of pool) {
+    // include a rough label/radius margin so nothing clips at the edges
+    const r = (n.kind === 'tier' ? 60 : nodeRadius(n) + 60);
+    minX = Math.min(minX, n.x - r); maxX = Math.max(maxX, n.x + r);
+    minY = Math.min(minY, n.y - 22); maxY = Math.max(maxY, n.y + 22);
+  }
+  const pad = 16;
+  const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+  // keep a minimum scale on phones so node tap targets stay >= ~24px (the graph
+  // may then exceed the viewport — that's fine, it pans).
+  const minSc = isNarrow() ? 0.78 : 0.3;
+  const sc = Math.max(minSc, Math.min(2.2, Math.min((S.W - 2 * pad) / bw, (S.H - 2 * pad) / bh)));
+  S.scale = sc;
+  const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+  S.tx = S.W / (2 * sc) - midX;
+  S.ty = S.H / (2 * sc) - midY;
+  applyTransform();
 }
 
 function setLayout(which, force) {
@@ -148,6 +188,9 @@ function setLayout(which, force) {
   if (which === 'tier') layoutTier(); else layoutForce();
   render();
   if (which === 'force') runForce();
+  // On phones, fit the graph into view so it never overflows. Desktop keeps the
+  // original framing (tx=ty=0, scale=1) so its layout is unchanged.
+  if (isNarrow()) fitView();
 }
 
 // TIER-STACK: a vertical band per tier (base at the BOTTOM, like the book's stack),
@@ -220,8 +263,11 @@ function runForce() {
       a.x = Math.max(60, Math.min(S.W - 30, a.x)); a.y = Math.max(40, Math.min(S.H - 30, a.y));
     }
     positionAll();
-    if (++ticks < MAX) S.sim = requestAnimationFrame(step);
-    else S.sim = null;
+    // on phones, keep the moving graph framed (cheap; every few ticks + at the end)
+    if (isNarrow() && ++ticks % 24 === 0) fitView();
+    else ticks++;
+    if (ticks < MAX) S.sim = requestAnimationFrame(step);
+    else { S.sim = null; if (isNarrow()) fitView(); }
   };
   S.sim = requestAnimationFrame(step);
 }
@@ -280,6 +326,9 @@ function render() {
       g.appendChild(t);
     } else {
       const r = nodeRadius(n);
+      // invisible enlarged hit target (>= 24px) so taps/clicks near the node
+      // register reliably on touch + mouse, without changing the visuals
+      g.appendChild(el('circle', { class: 'hit', r: Math.max(18, r + 8), fill: 'transparent', stroke: 'none' }));
       g.appendChild(el('circle', { r, fill: color }));
       // validator badge ring
       const vb = validatorBadge(n);
@@ -296,7 +345,11 @@ function render() {
     g.addEventListener('mouseenter', (ev) => showTip(n, ev));
     g.addEventListener('mousemove', moveTip);
     g.addEventListener('mouseleave', hideTip);
-    g.addEventListener('click', (ev) => { ev.stopPropagation(); focusNode(S.focusId === n.id ? null : n.id); });
+    g.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (S._suppressClick) { S._suppressClick = false; return; }  // pointer path already handled this tap
+      focusNode(S.focusId === n.id ? null : n.id);
+    });
     ng.appendChild(g);
   }
   root.appendChild(ng);
@@ -499,41 +552,148 @@ function wireControls() {
     setLayout(S.layout, true);
   });
 
+  // ---- mobile legend overlay toggle --------------------------------------
+  const app = $('#app'), toggle = $('#legendToggle'), scrim = $('#legendScrim');
+  if (toggle) {
+    const openL = () => { app.classList.add('legend-open'); toggle.setAttribute('aria-expanded', 'true'); };
+    const closeL = () => { app.classList.remove('legend-open'); toggle.setAttribute('aria-expanded', 'false'); };
+    toggle.addEventListener('click', () => app.classList.contains('legend-open') ? closeL() : openL());
+    if (scrim) scrim.addEventListener('click', closeL);
+    // tapping a legend row (kind/rel toggle) shouldn't also dismiss the panel
+  }
+
   const svg = $('#svg');
-  svg.addEventListener('click', (e) => { if (e.target === svg || e.target.id === 'vp') { focusNode(null); setActivePhase(null); } });
-
-  // pan
-  let dragging = false, sx = 0, sy = 0, otx = 0, oty = 0;
-  svg.addEventListener('mousedown', (e) => {
-    if (e.target.closest('g.node')) return;     // node drag handled below
-    dragging = true; svg.classList.add('dragging'); sx = e.clientX; sy = e.clientY; otx = S.tx; oty = S.ty;
+  // clear focus/phase when clicking empty space. `_suppressClick` guards the
+  // synthesized click that follows a real pan/pinch/drag (so it doesn't clear).
+  svg.addEventListener('click', (e) => {
+    if (S._suppressClick) { S._suppressClick = false; return; }
+    if (e.target === svg || e.target.id === 'vp' || (e.target.closest && !e.target.closest('g.node'))) {
+      focusNode(null); setActivePhase(null);
+    }
   });
-  window.addEventListener('mousemove', (e) => {
-    if (!dragging) return; S.tx = otx + (e.clientX - sx) / S.scale; S.ty = oty + (e.clientY - sy) / S.scale; applyTransform();
-  });
-  window.addEventListener('mouseup', () => { dragging = false; svg.classList.remove('dragging'); S._dragNode = null; });
 
-  // zoom
+  // wheel zoom (desktop) ----------------------------------------------------
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     const f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    S.scale = Math.max(0.35, Math.min(3, S.scale * f));
-    applyTransform();
+    zoomAround(e.clientX, e.clientY, f);
   }, { passive: false });
 
-  // node drag (force layout): grab a node and move it
-  svg.addEventListener('mousedown', (e) => {
-    const g = e.target.closest('g.node'); if (!g) return;
-    const n = S.byId.get(g.dataset.id); if (!n || n.kind === 'tier') return;
-    S._dragNode = n; e.stopPropagation();
-    const move = (ev) => {
-      const pt = toWorld(ev); n.x = pt.x; n.y = pt.y; n.vx = 0; n.vy = 0; positionAll();
+  // ---- unified pointer path: pan / pinch-zoom / node-drag / tap ----------
+  // One code path covers mouse + touch via Pointer Events. Falls back to the
+  // legacy mouse handlers only if PointerEvent is unavailable.
+  if (window.PointerEvent) {
+    const pts = new Map();           // pointerId -> { x, y }
+    let mode = null;                 // 'pan' | 'drag' | 'pinch'
+    let sx = 0, sy = 0, otx = 0, oty = 0, moved = false, downX = 0, downY = 0;
+    let pinch = null;                // { dist, scale }
+    let downNodeId = null;           // node id under the initial press (for tap)
+    const SLOP = 8;
+
+    svg.addEventListener('pointerdown', (e) => {
+      S._suppressClick = false;             // fresh gesture; clear any stale guard
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pts.size === 2) {                 // start pinch
+        const [a, b] = [...pts.values()];
+        pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), scale: S.scale };
+        mode = 'pinch'; S._dragNode = null; moved = true; downNodeId = null;
+        return;
+      }
+      moved = false; downX = e.clientX; downY = e.clientY;
+      const g = e.target.closest && e.target.closest('g.node');
+      const n = g && S.byId.get(g.dataset.id);
+      downNodeId = n && n.kind !== 'tier' ? n.id : null;
+      if (n && n.kind !== 'tier') {         // grab a node
+        mode = 'drag'; S._dragNode = n;
+      } else {                              // pan the canvas
+        mode = 'pan'; svg.classList.add('dragging');
+        sx = e.clientX; sy = e.clientY; otx = S.tx; oty = S.ty;
+      }
+    });
+
+    svg.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (mode === 'pinch' && pts.size >= 2 && pinch) {
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        const ns = Math.max(0.35, Math.min(3, pinch.scale * (d / (pinch.dist || 1))));
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        zoomAround(mid.x, mid.y, ns / S.scale);
+        return;
+      }
+      if (!moved && Math.hypot(e.clientX - downX, e.clientY - downY) > SLOP) moved = true;
+
+      if (mode === 'drag' && S._dragNode) {
+        const pt = toWorld(e); S._dragNode.x = pt.x; S._dragNode.y = pt.y; S._dragNode.vx = 0; S._dragNode.vy = 0; positionAll();
+      } else if (mode === 'pan') {
+        S.tx = otx + (e.clientX - sx) / S.scale; S.ty = oty + (e.clientY - sy) / S.scale; applyTransform();
+      }
+    });
+
+    const endPointer = (e, cancelled) => {
+      const wasTap = !moved && mode !== 'pinch' && pts.size === 1 && !cancelled;
+      const tapNode = downNodeId;
+      pts.delete(e.pointerId);
+      try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+
+      // The pointer path owns tap-to-focus so it works regardless of pointer
+      // capture / synthesized-click quirks; suppress the trailing click either way.
+      S._suppressClick = true;
+      if (wasTap) {
+        if (tapNode) focusNode(S.focusId === tapNode ? null : tapNode);  // tap node -> toggle focus
+        else { focusNode(null); setActivePhase(null); }                  // tap empty -> clear
+      }
+
+      if (pts.size === 1) {            // dropped from pinch back to one finger -> pan
+        const only = [...pts.values()][0];
+        mode = 'pan'; sx = only.x; sy = only.y; otx = S.tx; oty = S.ty; pinch = null; S._dragNode = null; moved = true;
+      } else if (pts.size === 0) {
+        mode = null; S._dragNode = null; pinch = null; downNodeId = null; svg.classList.remove('dragging');
+      }
     };
-    const up = () => { S._dragNode = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
-  });
+    svg.addEventListener('pointerup', (e) => endPointer(e, false));
+    svg.addEventListener('pointercancel', (e) => endPointer(e, true));
+  } else {
+    // ---- legacy mouse fallback (unchanged behavior) ----
+    let dragging = false, sx = 0, sy = 0, otx = 0, oty = 0;
+    svg.addEventListener('mousedown', (e) => {
+      if (e.target.closest('g.node')) return;
+      dragging = true; svg.classList.add('dragging'); sx = e.clientX; sy = e.clientY; otx = S.tx; oty = S.ty;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return; S.tx = otx + (e.clientX - sx) / S.scale; S.ty = oty + (e.clientY - sy) / S.scale; applyTransform();
+    });
+    window.addEventListener('mouseup', () => { dragging = false; svg.classList.remove('dragging'); S._dragNode = null; });
+    svg.addEventListener('mousedown', (e) => {
+      const g = e.target.closest('g.node'); if (!g) return;
+      const n = S.byId.get(g.dataset.id); if (!n || n.kind === 'tier') return;
+      S._dragNode = n; e.stopPropagation();
+      const move = (ev) => { const pt = toWorld(ev); n.x = pt.x; n.y = pt.y; n.vx = 0; n.vy = 0; positionAll(); };
+      const up = () => { S._dragNode = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+      window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
+  }
 
   window.addEventListener('resize', () => { sizeSvg(); setLayout(S.layout, true); });
+}
+
+// Zoom keeping the point under (clientX,clientY) stationary. Uses the original
+// transform model: translate(tx*scale, ty*scale) scale(scale); world = v/scale - t.
+function zoomAround(clientX, clientY, factor) {
+  const ns = Math.max(0.35, Math.min(3, S.scale * factor));
+  if (ns === S.scale) return;
+  const svg = $('#svg'); const r = svg.getBoundingClientRect();
+  const vx = (clientX - r.left) / r.width * S.W, vy = (clientY - r.top) / r.height * S.H;
+  // world point under the cursor before zoom
+  const wx = vx / S.scale - S.tx, wy = vy / S.scale - S.ty;
+  S.scale = ns;
+  // solve tx so the same world point maps back under the cursor
+  S.tx = vx / S.scale - wx; S.ty = vy / S.scale - wy;
+  applyTransform();
 }
 
 function applyTransform(rootEl) {

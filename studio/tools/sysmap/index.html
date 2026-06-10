@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Studio Sysmap — how the systems interact</title>
 <style>
   :root {
@@ -11,11 +11,17 @@
     /* kind palette */
     --k-tier: #5a6b7a; --k-sdk: #4aa3c8; --k-tool: #b07ad6; --k-game: #e0703a;
     --k-validator: #e0b341; --k-orchestrator: #5fd08a; --k-concept: #8893a6;
+    --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);
   }
   * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
   html, body { margin: 0; height: 100%; }
-  body { background: var(--bg); color: var(--ink); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
-  #app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+  body { background: var(--bg); color: var(--ink); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  /* grid-template-columns:minmax(0,1fr) + min-width:0 on the rows stop wide
+     content (the timeline strip) from ballooning the layout past the viewport */
+  #app { display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr); width: 100%; max-width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; }
+  #app > header, #app > main, #app > footer { min-width: 0; max-width: 100%; }
 
   header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background: linear-gradient(180deg, #131a28, #0e131e); border-bottom: 1px solid var(--line); }
   header h1 { font-size: 15px; margin: 0; letter-spacing: .2px; }
@@ -31,7 +37,7 @@
   .btn:hover { border-color: var(--accent); }
 
   main { position: relative; overflow: hidden; }
-  svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
   svg.dragging { cursor: grabbing; }
 
   /* graph styling */
@@ -39,6 +45,7 @@
   .edge.dim { opacity: .06; }
   .edge.hot { opacity: .95; stroke-width: 2.4; }
   .node circle, .node rect { cursor: pointer; stroke: #0a0e16; stroke-width: 1.5; transition: opacity .12s; }
+  .node circle.hit { fill: transparent; stroke: none; }   /* invisible enlarged tap target */
   .node.tier rect { rx: 7; }
   .node text { fill: var(--ink); font-size: 11px; pointer-events: none; paint-order: stroke; stroke: #0a0e16; stroke-width: 3px; stroke-linejoin: round; }
   .node.dim { opacity: .14; }
@@ -68,10 +75,11 @@
   #tip li { font-size: 11.5px; }
 
   /* timeline */
-  footer { background: linear-gradient(0deg, #131a28, #0e131e); border-top: 1px solid var(--line); padding: 8px 14px 10px; }
-  footer .tl-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  footer { background: linear-gradient(0deg, #131a28, #0e131e); border-top: 1px solid var(--line); padding: 8px 14px 10px; min-width: 0; overflow: hidden; }
+  footer .tl-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; min-width: 0; }
+  footer .tl-head .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   footer .tl-head b { font-size: 12px; } footer .tl-head .muted { color: var(--muted); font-size: 11px; }
-  .tl { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .tl { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; width: 100%; max-width: 100%; }
   .tl .ph { flex: none; min-width: 120px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; cursor: pointer; transition: border-color .12s, background .12s; }
   .tl .ph:hover { border-color: var(--accent); }
   .tl .ph.on { border-color: var(--accent); background: #20283a; }
@@ -80,6 +88,44 @@
   .tl .ph .d { font-size: 10px; color: var(--muted); margin-top: 3px; }
   .tl .ph .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
   #err { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); color: #ff6b6b; font-size: 14px; display: none; }
+
+  /* safe-area insets (notch / home indicator) */
+  header { padding-left: calc(16px + var(--safe-l)); padding-right: calc(16px + var(--safe-r)); padding-top: calc(10px + var(--safe-t)); }
+  footer { padding-left: calc(14px + var(--safe-l)); padding-right: calc(14px + var(--safe-r)); padding-bottom: calc(10px + var(--safe-b)); }
+
+  /* mobile legend toggle + scrim (hidden on desktop) */
+  #legendToggle { display: none; position: absolute; z-index: 18; left: calc(12px + var(--safe-l)); top: 12px;
+    align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 20px;
+    border: 1px solid var(--line); background: rgba(16,22,34,.92); color: var(--ink); font: inherit; font-size: 13px;
+    cursor: pointer; backdrop-filter: blur(6px); }
+  #legendToggle:active { transform: scale(.96); }
+  #legendScrim { display: none; position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 16; }
+
+  /* ============================ MOBILE ============================ */
+  @media (max-width: 720px) {
+    body { font-size: 14px; }
+    header { gap: 8px; flex-wrap: wrap; padding-top: calc(8px + var(--safe-t)); }
+    header h1 { font-size: 14px; }
+    header .sub { font-size: 11px; }
+    header .ctrl { gap: 6px; }
+    .seg button { padding: 8px 12px; }      /* bigger tap targets */
+    .btn { padding: 8px 12px; }
+
+    /* legend -> slide-in overlay panel, collapsed by default */
+    #legendToggle { display: inline-flex; }
+    .legend { position: absolute; z-index: 17; top: 0; left: 0; bottom: 0; max-width: none;
+      width: min(82vw, 320px); border-radius: 0; border: 0; border-right: 1px solid var(--line);
+      padding: calc(58px + var(--safe-t)) calc(14px + var(--safe-l)) calc(14px + var(--safe-b)) calc(14px + var(--safe-l));
+      overflow: auto; transform: translateX(-104%); transition: transform .22s ease; }
+    .legend .row { margin: 6px 0; font-size: 13px; min-height: 26px; }   /* legible + tappable */
+    #app.legend-open .legend { transform: translateX(0); box-shadow: 0 0 40px #000a; }
+    #app.legend-open #legendScrim { display: block; }
+
+    /* timeline: roomier cells, momentum scroll, never overflow the viewport */
+    footer { padding-top: 6px; }
+    .tl { -webkit-overflow-scrolling: touch; }
+    .tl .ph { min-width: 150px; padding: 8px 10px; }
+  }
 </style>
 </head>
 <body>
@@ -99,6 +145,8 @@
   </header>
   <main>
     <svg id="svg"></svg>
+    <button id="legendToggle" aria-label="Toggle legend" aria-expanded="false">&#9432; Legend</button>
+    <div id="legendScrim"></div>
     <div class="legend" id="legend"></div>
     <div id="tip"></div>
     <div id="err"></div>
