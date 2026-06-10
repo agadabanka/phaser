@@ -724,6 +724,32 @@
         "game-engine hub/games.json@6b952fa"
       ],
       "commit": null
+    },
+    {
+      "id": "e31",
+      "date": "2026-06-10",
+      "phase": "Archetype",
+      "title": "New archetype: vertical space shooter (Studio.Shooter) + Starlance, shipped",
+      "what": "Added a third archetype to the engine — a vertical space shooter — and built Starlance with it in one pass. Studio.Shooter is a distinct game loop (no gravity/platforms) that reuses the shared chrome (Shell/Save/Audio/Touch/harness/Menu-local). The deterministic 0-death problem for a shmup is solved by the SWEEPING-GAP BULLET CURTAIN: bullets rain in columns except a safe gap weaving on a fixed-dt clock; constants satisfy sweepSpeed·fallTime < gapW/2−shipHalf so the live gap is always a safe column the autopilot rides while auto-firing; formations are non-deadly score targets; the boss dies to sustained fire while the ship dodges. rules.json + level-lint encode the survivability bound as a checkable contract. Full Gemini art (ship, 3 enemies, mothership boss, powerup, 5 veil backdrops) + Lyria synthwave drive. Repo agadabanka/starlance (private), notes→issues server, registered in the hub (6 games), deployed.",
+      "why": "A genuinely different genre is the proof the engine is an engine, not a platformer — and the curtain shows the \"AI-completable by construction\" discipline generalises beyond running and climbing.",
+      "systems": [
+        "shooter",
+        "starlance",
+        "rules",
+        "lyria",
+        "hub",
+        "shell",
+        "feel",
+        "game-runtime"
+      ],
+      "validator": "gate GREEN webgl+canvas, double-gate frame-identical (7875, score 3900, 0 deaths, boss destroyed); level-lint 100/100 (every veil provably survivable)",
+      "status": "shipped",
+      "artifacts": [
+        "games/starlance/",
+        "https://github.com/agadabanka/starlance",
+        "https://starlance-production.up.railway.app"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -1235,6 +1261,21 @@
         "label": "the-platformer",
         "tier": "games",
         "desc": "agadabanka/the-platformer — the base game + rig the whole family was built from."
+      },
+      {
+        "id": "shooter",
+        "kind": "sdk",
+        "label": "Studio.Shooter",
+        "tier": "engine",
+        "desc": "the vertical space-shooter archetype: a separate game loop reusing Shell/Save/Audio/Touch/harness; the sweeping-gap bullet curtain is 0-death-by-construction (sweepSpeed·fallTime < gapW/2 − shipHalf)."
+      },
+      {
+        "id": "starlance",
+        "kind": "game",
+        "label": "Starlance",
+        "tier": "games",
+        "validator": "gate",
+        "desc": "agadabanka/starlance — a vertical space shooter: 5 nebula veils to the Hollow Star mothership boss. Full Gemini art + Lyria drive. Built as a ~30-line shooter boot() config; gate GREEN 0-death deterministic."
       }
     ],
     "edges": [
@@ -1898,6 +1939,46 @@
         "from": "notes-loop",
         "to": "hub",
         "rel": "feeds"
+      },
+      {
+        "from": "starlance",
+        "to": "shooter",
+        "rel": "depends-on"
+      },
+      {
+        "from": "shooter",
+        "to": "sdk",
+        "rel": "builds-on"
+      },
+      {
+        "from": "starlance",
+        "to": "gate",
+        "rel": "validated-by"
+      },
+      {
+        "from": "starlance",
+        "to": "rules",
+        "rel": "validated-by"
+      },
+      {
+        "from": "starlance",
+        "to": "lyria",
+        "rel": "feeds"
+      },
+      {
+        "from": "starlance",
+        "to": "hub",
+        "rel": "feeds"
+      },
+      {
+        "from": "starlance",
+        "to": "railway",
+        "rel": "produces"
+      },
+      {
+        "from": "shooter",
+        "to": "shell",
+        "rel": "depends-on"
       }
     ]
   },

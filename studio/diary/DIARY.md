@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**30 entries** across 16 phases · **65 systems** · **132 edges** in the graph.
+**31 entries** across 17 phases · **67 systems** · **140 edges** in the graph.
 
 ---
 
@@ -309,6 +309,17 @@
 - **Validator:** live POST /api/notes → nimbus-climb#6 created automatically; hub games.json lists 5 games; gates GREEN
 - **Artifacts:** `https://github.com/agadabanka/ember-depths`, `https://github.com/agadabanka/nimbus-climb`, `game-engine hub/games.json@6b952fa`
 
+## Archetype
+
+### New archetype: vertical space shooter (Studio.Shooter) + Starlance, shipped
+`2026-06-10` · 🚀 shipped
+
+- **What:** Added a third archetype to the engine — a vertical space shooter — and built Starlance with it in one pass. Studio.Shooter is a distinct game loop (no gravity/platforms) that reuses the shared chrome (Shell/Save/Audio/Touch/harness/Menu-local). The deterministic 0-death problem for a shmup is solved by the SWEEPING-GAP BULLET CURTAIN: bullets rain in columns except a safe gap weaving on a fixed-dt clock; constants satisfy sweepSpeed·fallTime < gapW/2−shipHalf so the live gap is always a safe column the autopilot rides while auto-firing; formations are non-deadly score targets; the boss dies to sustained fire while the ship dodges. rules.json + level-lint encode the survivability bound as a checkable contract. Full Gemini art (ship, 3 enemies, mothership boss, powerup, 5 veil backdrops) + Lyria synthwave drive. Repo agadabanka/starlance (private), notes→issues server, registered in the hub (6 games), deployed.
+- **Why:** A genuinely different genre is the proof the engine is an engine, not a platformer — and the curtain shows the "AI-completable by construction" discipline generalises beyond running and climbing.
+- **Systems:** Studio.Shooter, Starlance, rules.json + level-lint, Lyria Music (Vertex), game-engine hub, Playtest Shell, Studio.Feel, Studio.Game.boot
+- **Validator:** gate GREEN webgl+canvas, double-gate frame-identical (7875, score 3900, 0 deaths, boss destroyed); level-lint 100/100 (every veil provably survivable)
+- **Artifacts:** `games/starlance/`, `https://github.com/agadabanka/starlance`, `https://starlance-production.up.railway.app`
+
 ---
 
 ## Flows — the order systems are called
@@ -398,6 +409,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.Touch** | sdk | — | On-screen multi-touch analog joystick + jump button for mobile. |
 | **Studio.Game.boot** | sdk | — | the declarative game runtime: a game is data + theme tokens + hooks; all per-game glue (world/theme/HUD/shell/autopilot/harness/win-death) is one SDK impl. runner + vertical archetypes. |
 | **Studio.Menu + Save** | sdk | — | deepfin-bar menu inside boot(): full-bleed backdrop, breathing hero, generated wordmark lockup, zone rail of per-level thumbnail cards (lock/best), level-complete card, win screen; Studio.Save persists unlocked+best. Eval-safe: harness reset() bypasses. |
+| **Studio.Shooter** | sdk | — | the vertical space-shooter archetype: a separate game loop reusing Shell/Save/Audio/Touch/harness; the sweeping-gap bullet curtain is 0-death-by-construction (sweepSpeed·fallTime < gapW/2 − shipHalf). |
 
 ### 4. Content
 
