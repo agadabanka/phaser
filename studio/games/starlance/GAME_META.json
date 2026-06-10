@@ -22,20 +22,23 @@
   "builder": "/",
   "designLens": "/",
   "scaffolded_from": "agadabanka/phaser-private",
-  "url": null,
-  "gate": "pending",
+  "url": "https://starlance-production.up.railway.app",
+  "gate": "0-death pass (webgl+canvas)",
   "stages": {
     "scaffold": true,
     "identity": true,
-    "levels": false,
-    "gate": false,
-    "feel": false,
-    "hero": false,
-    "art": false,
-    "music": false,
-    "deploy": false
+    "levels": true,
+    "gate": true,
+    "feel": true,
+    "hero": true,
+    "art": true,
+    "music": true,
+    "deploy": true
   },
   "slug": "starlance",
   "repo": "agadabanka/starlance",
-  "archetype": "shooter"
+  "archetype": "shooter",
+  "menu": {
+    "logo": "assets/menu/logo.png"
+  }
 }

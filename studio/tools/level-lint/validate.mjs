@@ -132,7 +132,19 @@ function lintVertical(L, i) {
   }
 }
 
-LEVELS.forEach((L, i) => (archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
+function lintShooter(L, i) {
+  const tag = `V${i + 1} ${L.name || ''}`.trim();
+  const c = L.curtain || {};
+  const fallTime = 470 / (c.bulletSpeed || 520);
+  const sweep = (c.amp || 170) * 2 * Math.PI / (c.period || 13);
+  const margin = (c.gapW || 200) / 2 - (R.shipHalf || 16) - 6;
+  check(sweep * fallTime < margin, `${tag}: curtain survivable (sweep·fall ${(sweep*fallTime).toFixed(0)} < gap-margin ${margin.toFixed(0)})`, `${tag}: curtain NOT survivable — sweep·fall ${(sweep*fallTime).toFixed(0)} ≥ gap-margin ${margin.toFixed(0)} (widen gapW / slow period / faster bullets)`);
+  check((c.gapW || 200) >= (R.shipHalf||16)*2 + 60, null, `${tag}: gapW ${c.gapW} too narrow for the ship`);
+  const waves = L.waves || [];
+  check(waves.length >= 1, null, `${tag}: no waves`);
+  if (i === LEVELS.length - 1) check(waves.some(w => w.boss), null, `${tag}: final veil has no boss wave`);
+}
+LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
 
 const pass = ok === checks;
 const score = +(100 * (checks ? ok / checks : 0)).toFixed(1);

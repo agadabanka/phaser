@@ -32,6 +32,13 @@
       "spawnOnPlatform": true,
       "chainPlatformMinWPx": 120,
       "goalNearTopFrac": 0.3
+    },
+    "shooter": {
+      "_": "vertical space shooter (Starlance). The deadly thing is the sweeping-gap bullet curtain; survivability is GUARANTEED when the live gap is always a safe column the autopilot can sit in.",
+      "shipSpeed": 360,
+      "shipHalf": 16,
+      "curtainBound": "sweepSpeed*fallTime < gapW/2 - shipHalf - 6 ; sweepSpeed = amp*2PI/period ; fallTime = shipY(470)/bulletSpeed",
+      "formationsNonDeadly": true
     }
   },
   "thresholds": {

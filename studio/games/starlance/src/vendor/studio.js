@@ -2249,9 +2249,28 @@
     }
 
     // predict the interest curve from placement alone (jazz novelty/fatigue/combo)
+    // SHOOTER beats: waves placed along the TIME axis. Each wave's interest =
+    // its enemy load (count × type weight) + a big peak for the boss wave, so the
+    // arc naturally climaxes at the boss near the end.
+    function collectBeatsShooter(spec) {
+      var waves = spec.waves || [], total = waves.reduce(function (a, w) { return a + (w.dur || 6); }, 0) || 1, t = 0, b = [];
+      var TW = { enemy_drone: 4, enemy_dart: 6, enemy_turret: 6 };
+      waves.forEach(function (w) {
+        var load = (w.formations || []).reduce(function (a, f) { return a + (f.count || 0) * (TW[f.tex] || 4) * 0.25; }, 0);
+        b.push({ x: t, type: w.boss ? 'boss' : 'wave', interest: w.boss ? 9 : Math.max(3, Math.min(8, load)) });
+        t += (w.dur || 6);
+      });
+      return { beats: b, span: total };
+    }
     function predict(spec, opt) {
       opt = opt || {};
-      var vertical = !!spec.vertical;
+      var vertical = !!spec.vertical, shooter = !!spec.waves;
+      if (shooter) {
+        var sh = collectBeatsShooter(spec); var W2 = sh.span; var n2 = Math.max(6, Math.min(20, (spec.waves || []).length * 2));
+        var win2 = []; for (var k = 0; k < n2; k++) win2.push({ peak: 0, dom: null, count: 0, coins: 0 });
+        sh.beats.forEach(function (bt) { var wi2 = Math.max(0, Math.min(n2 - 1, Math.floor((bt.x / W2) * n2))); var w = win2[wi2]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
+        return finishPredict(win2, W2, n2);
+      }
       var W = vertical ? (spec.height || 2200) : (spec.width || 960), T = spec.tile || 40;
       // ~6-tile windows, clamped to a sane count so short/long levels both behave
       var n = opt.nWin || Math.max(8, Math.min(40, Math.round(W / (6 * T))));
@@ -2261,6 +2280,10 @@
       var wi = function (x) { return Math.max(0, Math.min(n - 1, Math.floor((x / W) * n))); };
       beats.forEach(function (bt) { var w = win[wi(bt.x)]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
       (spec.coins || []).forEach(function (c) { win[wi(vertical ? ((spec.height || 2200) - c.y) : c.x)].coins++; });
+      return finishPredict(win, W, n);
+    }
+    // shared: windows -> interest curve (novelty/fatigue/combo), used by all archetypes
+    function finishPredict(win, W, n) {
       var seen = {}, prevDom = null;
       var curve = win.map(function (w) {
         var v = 2.4;                                              // bare ground is a touch dull
