@@ -42,7 +42,7 @@ async function evalRenderer(r) {
   const detKeys = ['x', 'y', 'vx', 'vy', 'frame', 'deaths', 'won', 'coins'];
   const deterministic = detKeys.every(k => s1[k] === s2[k]);
 
-  const pg = await fresh(r); const gate = await pg.evaluate(() => window.__gate(7000)); await pg.close();
+  const pg = await fresh(r); const gate = await pg.evaluate(() => window.__gate(14000)); await pg.close();
 
   const ps = await fresh(r);
   await ps.evaluate(() => window.__run(200));

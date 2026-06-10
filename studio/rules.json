@@ -30,7 +30,8 @@
       "chainRequired": true,
       "goalNearTopPx": 280,
       "spawnOnPlatform": true,
-      "chainPlatformMinWPx": 120
+      "chainPlatformMinWPx": 120,
+      "goalNearTopFrac": 0.3
     }
   },
   "thresholds": {

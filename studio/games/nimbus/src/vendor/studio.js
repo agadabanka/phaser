@@ -774,12 +774,26 @@
     //   (held through the ascent, same variable-jump-aware hold as the runner).
     vertical: function (sense) {
       var out = { left: false, right: false, jump: false };
+      if (sense.inUpdraft) {
+        // RIDE the column: hold its center (keep the lift) until risen to within
+        // ~80px of the exit's height, THEN steer out onto the (wide) exit ledge.
+        // The column extends above the exit so there's lift in reserve while the
+        // player drifts the offset.
+        var holdX = (sense.updraftX != null && sense.y > sense.target.y + 80) ? sense.updraftX : sense.target.x;
+        var dh = holdX - sense.x;
+        if (dh < -6) out.left = true; else if (dh > 6) out.right = true;
+        return out;
+      }
       var dx = sense.target.x - sense.x;
       if (dx < -8) out.left = true; else if (dx > 8) out.right = true;
-      if (sense.inUpdraft) return out;
       var above = sense.target.y < sense.y - 12;
       if (sense.onGround && above && Math.abs(dx) < 150) out.jump = true;
       else if (!sense.onGround && sense.vy != null && sense.vy < -10) out.jump = true;
+      // GUST TIMING: don't launch INTO an active crosswind — wait on the ground
+      // for the lull (the gust's duty cycle), then hop cleanly. This is the verb's
+      // intended feel AND keeps the deterministic gate progressing (it would
+      // otherwise retry at the same blowing phase forever).
+      if (out.jump && sense.onGround && sense.gustActive) out.jump = false;
       return out;
     },
     // convenience: probe a static group for ground under a point
@@ -1115,9 +1129,12 @@
           if (Math.abs(player.x - t.x) < 46 && player.y <= t.y + 14) wpIndex++; else break;
         }
         var target = chain[Math.min(wpIndex, Math.max(0, chain.length - 1))] || { x: player.x, y: player.y };
-        var inUp = false;
-        (world.contraptions || []).forEach(function (c) { if (c.type === 'updraft' && c.contains && c.contains(player)) inUp = true; });
-        return { x: player.x, y: player.y, onGround: onGround, vy: player.body.velocity.y, target: target, inUpdraft: inUp, goalX: levelGoalX, wp: wpIndex };
+        var inUp = false, upX = null, gustOn = false;
+        (world.contraptions || []).forEach(function (c) {
+          if (c.type === 'updraft' && c.contains && c.contains(player)) { inUp = true; upX = c.x; }
+          if (c.type === 'gust' && c.contains && c.contains(player) && c.state && c.state().active) gustOn = true;
+        });
+        return { x: player.x, y: player.y, onGround: onGround, vy: player.body.velocity.y, target: target, inUpdraft: inUp, updraftX: upX, gustActive: gustOn, goalX: levelGoalX, wp: wpIndex };
       }
       function decide(sn) { return VERT ? Studio.Autopilot.vertical(sn) : Studio.Autopilot.platformer(sn); }
 

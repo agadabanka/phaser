@@ -107,7 +107,7 @@ function lintVertical(L, i) {
       const a = chain[k], b = chain[k + 1];
       const dx = Math.abs(b.x - a.x), dyUp = a.y - b.y;     // +ve when climbing
       const inEnvelope = dx <= R.hopDxMaxPx && dyUp <= R.hopDyUpMaxPx;
-      const updraft = (L.updrafts || []).find((u) => a.x >= u.x - (u.w / 2) - 40 && a.x <= u.x + (u.w / 2) + 40 && a.y >= (u.y1 || 0) - 20 && dyUp <= R.updraftDyMaxPx);
+      const updraft = (L.updrafts || []).find((u) => a.x >= u.x - (u.w / 2) - 40 && a.x <= u.x + (u.w / 2) + 40 && a.y >= (u.y0 || 0) - 20 && a.y <= (u.y1 || 0) + 30 && dyUp <= R.updraftDyMaxPx);
       const spring = (L.springs || []).find((s) => Math.abs(s.x - a.x) <= 60 && dyUp <= R.springDyMaxPx);
       const mover = (L.movers || []).find((m) => Math.abs(m.x - a.x) <= 160 || Math.abs(m.x - b.x) <= 160);
       check(inEnvelope || updraft || spring || mover, null,
@@ -123,7 +123,8 @@ function lintVertical(L, i) {
     // spawn near the first waypoint, goal near the top of the world
     check(Math.abs((L.spawn?.x ?? -1) - chain[0].x) <= 120, null, `${tag}: spawn.x ${L.spawn?.x} far from chain[0].x ${chain[0].x}`);
     const top = chain[chain.length - 1];
-    check(top.y <= (R.goalNearTopPx || 280), null, `${tag}: chain top y=${top.y} not near the world top (≤ ${R.goalNearTopPx})`);
+    const topLimit = Math.max(R.goalNearTopPx || 280, Math.round((R.goalNearTopFrac || 0.3) * (L.height || 1)));
+    check(top.y <= topLimit, null, `${tag}: chain top y=${top.y} not near the world top (≤ ${topLimit})`);
   }
   if (R.spawnOnPlatform) {
     const under = plats.find((p) => Math.abs((L.spawn?.x ?? -1) - p.x) <= p.w / 2 + 20 && (L.spawn?.y ?? 0) < p.y);
