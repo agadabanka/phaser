@@ -670,6 +670,33 @@
         "https://nimbus-climb-production.up.railway.app"
       ],
       "commit": null
+    },
+    {
+      "id": "e29",
+      "date": "2026-06-10",
+      "phase": "Parity",
+      "title": "Shell parity: deepfin-bar menus, save/progression, notes-SPACE fix, decorative vertical enemies",
+      "what": "Parity audit vs the reference games (deepfin screenshot as the quality bar) then filled engine-side: Studio.Menu (full-bleed backdrop, breathing hero art, generated WORDMARK lockup + tagline, zone rail of per-level thumbnail cards with locks + best coins/time, level-complete card, win screen, sound toggle — touch + keyboard) and Studio.Save (localStorage progression). New bricks: logo.mjs (Gemini wordmark per game) and menu-shots (auto-screenshots every level into its zone card via the additive __game.gotoLevel hook). Fixed the notes textarea swallowing SPACE (Phaser key CAPTURES preventDefault at the manager level — Shell now clears/restores captures). Nimbus regains visible storm-imps as decorative patrollers; interactive vertical enemies stay backlog after bisecting a sub-pixel landing race that diverged the gate.",
+      "why": "Every engine game should boot like a finished product — deepfin set the bar; the engine way is to pay that cost ONCE in the SDK + tools.",
+      "systems": [
+        "menu",
+        "menu-tools",
+        "shell",
+        "game-runtime",
+        "nimbus",
+        "ember",
+        "sdk"
+      ],
+      "validator": "gates GREEN both games (nimbus double-gate 2426/2426 deterministic WITH enemies); menus verified live on both deploys",
+      "status": "shipped",
+      "artifacts": [
+        "sdk/studio.js (Studio.Menu/Save)",
+        "tools/art/logo.mjs",
+        "tools/menu-shots/",
+        "https://nimbus-climb-production.up.railway.app",
+        "https://ember-depths-production.up.railway.app"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -1139,6 +1166,20 @@
         "tier": "games",
         "validator": "gate",
         "desc": "the cloud sky-climber (vertical archetype): updraft riding, storm walls, 5 towers. Built as a ~60-line boot() config. 7/7 validators ACCEPT."
+      },
+      {
+        "id": "menu",
+        "kind": "sdk",
+        "label": "Studio.Menu + Save",
+        "tier": "engine",
+        "desc": "deepfin-bar menu inside boot(): full-bleed backdrop, breathing hero, generated wordmark lockup, zone rail of per-level thumbnail cards (lock/best), level-complete card, win screen; Studio.Save persists unlocked+best. Eval-safe: harness reset() bypasses."
+      },
+      {
+        "id": "menu-tools",
+        "kind": "tool",
+        "label": "logo + menu-shots",
+        "tier": "content",
+        "desc": "tools/art/logo.mjs (Gemini wordmark per game, keyed) + tools/menu-shots (screenshots every level via __game.gotoLevel into zone cards that can never drift)."
       }
     ],
     "edges": [
@@ -1737,6 +1778,31 @@
         "from": "lyria",
         "to": "nimbus",
         "rel": "feeds"
+      },
+      {
+        "from": "menu",
+        "to": "game-runtime",
+        "rel": "builds-on"
+      },
+      {
+        "from": "menu-tools",
+        "to": "menu",
+        "rel": "feeds"
+      },
+      {
+        "from": "nimbus",
+        "to": "menu",
+        "rel": "depends-on"
+      },
+      {
+        "from": "ember",
+        "to": "menu",
+        "rel": "depends-on"
+      },
+      {
+        "from": "menu-tools",
+        "to": "art-pipeline",
+        "rel": "depends-on"
       }
     ]
   },

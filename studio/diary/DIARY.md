@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**28 entries** across 15 phases · **59 systems** · **119 edges** in the graph.
+**29 entries** across 16 phases · **61 systems** · **124 edges** in the graph.
 
 ---
 
@@ -289,6 +289,17 @@
 - **Validator:** gate GREEN webgl+canvas, deterministic; --validate-all 7/7 ACCEPT (feel, gate, music 1.0, art 64.4, distinct 91.7, texturing 100, rules 100)
 - **Artifacts:** `games/nimbus/`, `https://nimbus-climb-production.up.railway.app`
 
+## Parity
+
+### Shell parity: deepfin-bar menus, save/progression, notes-SPACE fix, decorative vertical enemies
+`2026-06-10` · 🚀 shipped
+
+- **What:** Parity audit vs the reference games (deepfin screenshot as the quality bar) then filled engine-side: Studio.Menu (full-bleed backdrop, breathing hero art, generated WORDMARK lockup + tagline, zone rail of per-level thumbnail cards with locks + best coins/time, level-complete card, win screen, sound toggle — touch + keyboard) and Studio.Save (localStorage progression). New bricks: logo.mjs (Gemini wordmark per game) and menu-shots (auto-screenshots every level into its zone card via the additive __game.gotoLevel hook). Fixed the notes textarea swallowing SPACE (Phaser key CAPTURES preventDefault at the manager level — Shell now clears/restores captures). Nimbus regains visible storm-imps as decorative patrollers; interactive vertical enemies stay backlog after bisecting a sub-pixel landing race that diverged the gate.
+- **Why:** Every engine game should boot like a finished product — deepfin set the bar; the engine way is to pay that cost ONCE in the SDK + tools.
+- **Systems:** Studio.Menu + Save, logo + menu-shots, Playtest Shell, Studio.Game.boot, Nimbus Climb, Ember Depths, Studio SDK
+- **Validator:** gates GREEN both games (nimbus double-gate 2426/2426 deterministic WITH enemies); menus verified live on both deploys
+- **Artifacts:** `sdk/studio.js (Studio.Menu/Save)`, `tools/art/logo.mjs`, `tools/menu-shots/`, `https://nimbus-climb-production.up.railway.app`, `https://ember-depths-production.up.railway.app`
+
 ---
 
 ## Flows — the order systems are called
@@ -377,6 +388,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.Cam** | sdk | — | Follow camera with deadzone + bounds. |
 | **Studio.Touch** | sdk | — | On-screen multi-touch analog joystick + jump button for mobile. |
 | **Studio.Game.boot** | sdk | — | the declarative game runtime: a game is data + theme tokens + hooks; all per-game glue (world/theme/HUD/shell/autopilot/harness/win-death) is one SDK impl. runner + vertical archetypes. |
+| **Studio.Menu + Save** | sdk | — | deepfin-bar menu inside boot(): full-bleed backdrop, breathing hero, generated wordmark lockup, zone rail of per-level thumbnail cards (lock/best), level-complete card, win screen; Studio.Save persists unlocked+best. Eval-safe: harness reset() bypasses. |
 
 ### 4. Content
 
@@ -393,6 +405,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Texture Kit (style-matched tiles)** | tool | texturing | tools/texture-kit/ — generates a SEAMLESS material tile kit + themed sprites from the game's own backdrop as Gemini style-ref (2×2 mirror quilt); deterministic validator: seam/energy/palette-affinity/alpha. |
 | **Lyria Music (Vertex)** | tool | music | tools/art/lyria.mjs — generates a real instrumental loop with Google Lyria 2 (Vertex AI), downmixes + crossfade-loops + MP3-encodes, writes a measured sidecar so the music validator can prove it is non-silent. |
 | **sky level-gen** | tool | — | tools/level-gen/sky.mjs — generates vertical towers reachable-by-construction (staggered lanes, centre-column updrafts, storm framing). |
+| **logo + menu-shots** | tool | — | tools/art/logo.mjs (Gemini wordmark per game, keyed) + tools/menu-shots (screenshots every level via __game.gotoLevel into zone cards that can never drift). |
 
 ### 5. Evaluation
 
