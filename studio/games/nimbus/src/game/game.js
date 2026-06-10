@@ -28,7 +28,7 @@
       lip: { color: 0xfff4d8, alpha: 0.5, perMat: { crystal: { color: 0xcce6ff, alpha: 0.45 }, mist: { color: 0xd8e6ff, alpha: 0.3 } } },
       coinArt: { key: 'kit_coin', h: 26 }, springArt: { key: 'kit_spring', h: 48 }, goalArt: { key: 'kit_goal', h: 104 },
       hero: {
-        sheet: 'assets/hero_sheet.png', fw: 524, fh: 362,
+        sheet: 'assets/hero_sheet.png', fw: 354, fh: 354,
         anims: { run: [0, 5, 14], idle: 6, jump: 7, total: 8 },
         fallback: 'assets/hero.png', scale: 66, glow: 0xfff0c8
       },
