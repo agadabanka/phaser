@@ -1,0 +1,11 @@
+{
+  "url": "assets/ember-hero.png",
+  "frameWidth": 288,
+  "frameHeight": 338,
+  "frameCount": 8,
+  "anims": {
+    "run":  { "start": 0, "end": 5, "frameRate": 14, "repeat": -1 },
+    "idle": { "start": 6, "end": 6, "frameRate": 1,  "repeat": -1 },
+    "jump": { "start": 7, "end": 7, "frameRate": 1,  "repeat": -1 }
+  }
+}

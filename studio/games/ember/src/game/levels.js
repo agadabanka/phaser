@@ -40,7 +40,7 @@ window.LEVELS = [
     // L1 — INTRODUCE. Gentle teach of the core verbs. A low platform + wall ledge,
     // a mud trudge, an ice glide (entered off stone, ends on mud), a stomp, then the
     // single lava hop as the climax (~84%) landing on continuous mud to the goal.
-    name: 'Molten Shallows', tile: 40, width: 1680, height: 540, groundY: 470, sky: 0x140a08,
+    name: 'Molten Shallows', tile: 40, width: 1680, height: 540, groundY: 470, sky: 0x140a08, bgTint: 0xffffff,
     spawn: { x: 60, y: 360 }, goal: 1620,
     ground: [
       [0, 420, 'stone'],
@@ -54,7 +54,9 @@ window.LEVELS = [
     ],
     walls: [{ x: 295, tiles: 1, mat: 'stone' }],
     platforms: [{ x: 140, y: 350, w: 90, mat: 'stone' }],
-    enemies: [{ x: 1285, patrol: 18 }],
+    // second walker just past the lava landing: compounds the late climax (the
+    // hop + a stomp in one breath) — lifts dynamics AND keeps the arc peak ~84%.
+    enemies: [{ x: 1285, patrol: 18 }, { x: 1475, patrol: 24 }],
     // CRUMBLE — a fragile riser on the continuous stone slab (630-840). The run
     // crosses it and it collapses a few frames later, dropping the player onto the
     // solid stone below: urgency/dread FLAIR over a safe path (never blocks the gate).
@@ -71,7 +73,7 @@ window.LEVELS = [
   {
     // L2 — DEVELOP. Two lava hops + a taller (2-tile) wall + an ice finale. Both gaps
     // land on grippy mud; the second hop is the climax (~84%). Ends on mud to the goal.
-    name: 'The Caldera', tile: 40, width: 1920, height: 540, groundY: 470, sky: 0x141008,
+    name: 'The Caldera', tile: 40, width: 1920, height: 540, groundY: 470, sky: 0x141008, bgTint: 0xffe2cc,
     spawn: { x: 60, y: 360 }, goal: 1860,
     ground: [
       [0, 480, 'stone'],
@@ -99,7 +101,7 @@ window.LEVELS = [
     // L3 — TWIST 1: the SPRING. The signature bounce pad sits on a long stone slab at
     // ~84% and is the interest peak: run into it, float up through a coin column, land
     // back on continuous ground. Plus one lava hop, a mud trudge and an ice glide.
-    name: 'Ember Vents', tile: 40, width: 2160, height: 540, groundY: 470, sky: 0x120806,
+    name: 'Ember Vents', tile: 40, width: 2160, height: 540, groundY: 470, sky: 0x120806, bgTint: 0xffc9a8,
     spawn: { x: 60, y: 360 }, goal: 2100,
     ground: [
       [0, 480, 'stone'],
@@ -133,7 +135,7 @@ window.LEVELS = [
     // L4 — TWIST 2: the MOVING PLATFORM. An early spring warms up, then the signature
     // climax (~84%) is a mover bridging a lava gap — ride it across (it reads as ground)
     // or hop the 120px gap; either lands on mud. One earlier lava hop with a wide runway.
-    name: 'Magma Run', tile: 40, width: 2160, height: 540, groundY: 470, sky: 0x16060a,
+    name: 'Magma Run', tile: 40, width: 2160, height: 540, groundY: 470, sky: 0x16060a, bgTint: 0xffb09a,
     spawn: { x: 60, y: 360 }, goal: 2100,
     ground: [
       [0, 480, 'stone'],
@@ -148,7 +150,9 @@ window.LEVELS = [
     ],
     walls: [{ x: 340, tiles: 1, mat: 'stone' }],
     platforms: [{ x: 140, y: 350, w: 90, mat: 'stone' }],
-    enemies: [{ x: 1080, patrol: 40 }],
+    // second walker past the mover landing: compounds the climax (ride/hop the
+    // lava, then a stomp) — the same late-peak shape that fixed L1's curve.
+    enemies: [{ x: 1080, patrol: 40 }, { x: 1965, patrol: 24 }],
     springs: [{ x: 1320 }],        // on the stone slab (lands on stone/mud)
     movers: [{ x: 1800, y: 452, w: 120, axis: 'x', range: 20, speed: 50, mat: 'stone' }],
     // LAUNCHER — a geyser/bounce pad on the wide stone slab (960-1440), placed in
@@ -169,7 +173,7 @@ window.LEVELS = [
     // L5 — MASTER. A medley recombining every verb: walls, a stomp, mud trudges, an ice
     // glide, a spring, three lava hops, and the MOVER as the grand climax (~84%). All
     // gaps land on mud/stone; the mover lands on mud; the ice ends on stone.
-    name: 'The Core', tile: 40, width: 2400, height: 540, groundY: 470, sky: 0x1e0c16,
+    name: 'The Core', tile: 40, width: 2400, height: 540, groundY: 470, sky: 0x1e0c16, bgTint: 0xe6b8d8,
     spawn: { x: 60, y: 360 }, goal: 2340,
     ground: [
       [0, 300, 'stone'],

@@ -6,17 +6,47 @@
   "worlds": 1,
   "levelCount": 5,
   "controls": "Arrows / WASD + Space",
-  "art": "procedural",
-  "music": "procedural SFX",
+  "art": "ai backdrop + texture-kit (style-matched seamless tiles, themed pickups)",
+  "music": "procedural SFX + proc:cave ambience bed",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",
   "physics": "arcade",
-  "capabilities": ["filters", "particles", "color-grade", "tweens", "camera-follow", "deterministic-eval"],
+  "capabilities": [
+    "filters",
+    "particles",
+    "color-grade",
+    "tweens",
+    "camera-follow",
+    "deterministic-eval"
+  ],
   "builder": "/",
   "designLens": "/",
   "scaffolded_from": "agadabanka/phaser-private",
   "url": "https://ember-depths-production.up.railway.app",
   "gate": "0-death pass (webgl + canvas)",
-  "stages": { "scaffold": true, "identity": true, "levels": true, "gate": true, "feel": true, "hero": true, "art": true, "music": false, "deploy": true, "videos": false, "book": false, "loop": false }
+  "stages": {
+    "scaffold": true,
+    "identity": true,
+    "levels": true,
+    "gate": true,
+    "feel": true,
+    "hero": true,
+    "art": true,
+    "music": true,
+    "deploy": true,
+    "videos": false,
+    "book": false,
+    "loop": false
+  },
+  "scorecard": {
+    "date": "2026-06-10",
+    "verdict": "6/6 ACCEPT",
+    "gate": "0-death webgl+canvas",
+    "fun": 90.5,
+    "music": 1,
+    "artCohesion": 77.8,
+    "distinctness": 75,
+    "texturing": 100
+  }
 }

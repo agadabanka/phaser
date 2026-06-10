@@ -2,7 +2,7 @@ node_modules/
 games/
 spike-matter/
 **/out/
-**/*.min.js
+tools/sprite-studio/phaser.min.js
 .railway/
 *.log
 live-shot.png

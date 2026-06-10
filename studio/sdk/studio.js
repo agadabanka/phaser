@@ -725,7 +725,46 @@
       stomp: function () { tone(160, 0.12, 'sawtooth'); }, hurt: function () { tone(120, 0.25, 'sawtooth', 0.12); },
       win: function () { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { tone(f, 0.16, 'triangle'); }, i * 110); }); }
     };
-    return { sfx: function (n) { try { (SFX[n] || function () {})(); } catch (e) {} }, music: function (url, vol) { try { var au = new Audio(url); au.loop = true; au.volume = vol || 0.4; au.play(); return au; } catch (e) {} } };
+    // PROCEDURAL music bed — Studio.Audio.music('proc:<mood>') synthesizes a quiet
+    // looping ambience (two slow detuned drones through a lowpass, breathing via an
+    // LFO, plus a sparse seeded pentatonic pluck) instead of streaming a file.
+    // Call it from a USER-GESTURE handler (autoplay policy); it never touches game
+    // state, so the deterministic gate is unaffected. Returns { stop() }.
+    var MOODS = { cave: { root: 55, fifth: 82.41, cutoff: 420, pluck: [220, 261.63, 293.66, 329.63, 392] } };
+    function bed(mood, vol) {
+      var a = ac(); if (!a) return null;
+      var m = MOODS[mood] || MOODS.cave, master = a.createGain(), lp = a.createBiquadFilter();
+      master.gain.value = (vol || 0.3) * 0.5; lp.type = 'lowpass'; lp.frequency.value = m.cutoff;
+      lp.connect(master); master.connect(a.destination);
+      var stops = [];
+      [m.root, m.root * 1.005, m.fifth].forEach(function (f, i) {
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = i === 2 ? 'triangle' : 'sine'; o.frequency.value = f; g.gain.value = i === 2 ? 0.18 : 0.3;
+        var lfo = a.createOscillator(), lg = a.createGain();
+        lfo.frequency.value = 0.06 + i * 0.021; lg.gain.value = 0.12;     // slow breathing
+        lfo.connect(lg); lg.connect(g.gain);
+        o.connect(g); g.connect(lp); o.start(); lfo.start();
+        stops.push(o, lfo);
+      });
+      var step = 0, timer = setInterval(function () {                      // sparse seeded pluck
+        step++; if ((step * 2654435761 >>> 0) % 7 > 1) return;
+        var n = m.pluck[(step * 40503 >>> 0) % m.pluck.length];
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = 'sine'; o.frequency.value = n; g.gain.value = 0.05;
+        o.connect(g); g.connect(lp);
+        var t = a.currentTime; o.start(t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4); o.stop(t + 1.4);
+      }, 1800);
+      return { stop: function () { try { clearInterval(timer); stops.forEach(function (o) { o.stop(); }); master.disconnect(); } catch (e) {} } };
+    }
+    return {
+      sfx: function (n) { try { (SFX[n] || function () {})(); } catch (e) {} },
+      music: function (url, vol) {
+        try {
+          if (typeof url === 'string' && url.indexOf('proc:') === 0) return bed(url.slice(5), vol);
+          var au = new Audio(url); au.loop = true; au.volume = vol || 0.4; au.play(); return au;
+        } catch (e) {}
+      }
+    };
   })();
 
   // ---------------------------------------------------------------------- Cam
@@ -752,12 +791,22 @@
       var st = { left: false, right: false, down: false, _up: false, _btn: false };
       Object.defineProperty(st, 'jump', { get: function () { return st._up || st._btn; } });
       Object.defineProperty(st, 'up', { get: function () { return st._up; } });
+      // opt.theme lets a game match the touch UI to its art direction (additive;
+      // defaults are the original neutral palette).
+      var th = Object.assign({
+        base: 0x0f1528, baseA: 0.4, baseStroke: 0xffffff,
+        thumb: 0x2a3556, thumbStroke: 0xffd34d,
+        btn: 0x3a1420, btnA: 0.5, btnStroke: 0xffae6b, label: '#ffce9e'
+      }, opt.theme || {});
       var bx = 120, by = H - 86, R = 68;
-      scene.add.circle(bx, by, R, 0x0f1528, 0.4).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffffff, 0.22);
-      var thumb = scene.add.circle(bx, by, 30, 0x2a3556, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, 0xffd34d, 0.85);
+      var ring = scene.add.circle(bx, by, R, th.base, th.baseA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.baseStroke, 0.22);
+      var thumb = scene.add.circle(bx, by, 30, th.thumb, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, th.thumbStroke, 0.85);
       var jx = W - 96, jy = H - 84;
-      var jbtn = scene.add.circle(jx, jy, 54, 0x3a1420, 0.5).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffae6b, 0.7).setInteractive();
-      scene.add.text(jx, jy, 'JUMP', { fontFamily: 'monospace', fontSize: '13px', color: '#ffce9e' }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      var jbtn = scene.add.circle(jx, jy, 54, th.btn, th.btnA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.btnStroke, 0.7).setInteractive();
+      var jlbl = scene.add.text(jx, jy, 'JUMP', { fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', color: th.label }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      // touch UI only ON TOUCH DEVICES (opt.always forces it): a desktop/keyboard
+      // player should never stare at a joystick they can't use.
+      if (!isTouch && !opt.always) [ring, thumb, jbtn, jlbl].forEach(function (e) { e.setVisible(false); });
       jbtn.on('pointerdown', function () { st._btn = true; }); jbtn.on('pointerup', function () { st._btn = false; }); jbtn.on('pointerout', function () { st._btn = false; });
       var pid = null;
       function setFrom(px, py) { var dx = px - bx, dy = py - by, m = Math.hypot(dx, dy) || 1; if (m > R) { dx = dx / m * R; dy = dy / m * R; } thumb.setPosition(bx + dx, by + dy); var nx = dx / R, ny = dy / R; st.left = nx < -0.35; st.right = nx > 0.35; st._up = ny < -0.45; st.down = ny > 0.45; }

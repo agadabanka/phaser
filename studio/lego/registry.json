@@ -105,6 +105,25 @@
       "deterministic": false,
       "hasValidator": true,
       "perGame": true
+    },
+    {
+      "capability": "texturing",
+      "name": "texture-kit",
+      "dir": "tools/texture-kit",
+      "run": "node tool.mjs",
+      "validator": "node validate.mjs",
+      "inputs": "a game dir (--game): generates a style-matched SEAMLESS material tile kit (stone/mud/ice/lava) + themed sprites (coin/spring/goal) from the game backdrop as Gemini style-ref, into <game>/src/assets/kit/",
+      "outputs": [
+        "out/result.json",
+        "out/contact.png",
+        "out/kit_*.png"
+      ],
+      "deps": [
+        "art-cohesion"
+      ],
+      "deterministic": false,
+      "hasValidator": true,
+      "perGame": true
     }
   ]
 }

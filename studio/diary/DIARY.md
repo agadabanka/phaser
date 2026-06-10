@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**18 entries** across 12 phases · **45 systems** · **76 edges** in the graph.
+**22 entries** across 13 phases · **50 systems** · **91 edges** in the graph.
 
 ---
 
@@ -194,6 +194,44 @@
 - **Validator:** dispatch.mjs (ACCEPT/REJECT per capability)
 - **Artifacts:** `lego/contract.md`, `lego/registry.json`, `lego/forge.mjs`, `lego/dispatch.mjs`
 
+### Self-gating pipeline: art-cohesion + distinctness + sound validators, conductor --validate-all
+`2026-06-09` · ✅ gate green · commit `05f742e`
+
+- **What:** Forged/ported 3 judges as registry bricks (studio-art 9-dim cohesion, studio-distinct 6-axis uniqueness, studio-sound SFX wiring) and taught the conductor a --validate-all mode that runs EVERY game-applicable validator through the dispatcher into one scorecard.
+- **Why:** One command should answer "is this game good?" across every vertical — and the first full scorecard flagged a real problem (Ember art-cohesion 43.3 REJECT: placeholder tiles vs painterly backdrop).
+- **Systems:** Studio Art (cohesion judge), Studio Distinct (uniqueness judge), Studio Sound, Conductor, Lego dispatcher, Lego registry
+- **Validator:** conductor --validate-all (scorecard)
+- **Artifacts:** `orchestrator/conductor.mjs`, `tools/studio-art/`, `tools/studio-distinct/`
+
+### Sysmap deployed: the diary is a live, clickable system map
+`2026-06-10` · 🚀 shipped · commit `603b32e`
+
+- **What:** Shipped the interactive visualizer to Railway behind a tiny no-dep static server (root redirects to /tools/sysmap/ so relative fetches of diary.json + registry.json resolve).
+- **Why:** A diagram you can open beats one you must build: every future diary entry/node appears on the live map on redeploy.
+- **Systems:** Sysmap (interactive visualizer), Studio Diary (diary.json), Lego registry, Railway deploy
+- **Validator:** headless render check (45 nodes / 76 edges, zero console errors)
+- **Artifacts:** `https://studio-sysmap-production.up.railway.app`, `sysmap-serve.mjs`
+
+## Polish
+
+### texture-kit: the missing GENERATOR brick for the texturing capability
+`2026-06-10` · ✅ gate green
+
+- **What:** Gap analysis against the scorecard found we could JUDGE art cohesion but not PRODUCE cohesive art. Forged texture-kit: Gemini generates material tiles (stone/mud/ice/lava) + pickups (coin/spring/goal) with the game's own backdrop as style-ref; a 2×2 mirror quilt makes every tile seamless BY CONSTRUCTION; the deterministic validator measures seams (<8/255), texture energy, palette affinity vs the backdrop (hue-histogram cosine), and sprite keying. Ember's kit: 19/19 checks, 100.
+- **Why:** The art-cohesion judge kept rejecting placeholder foreground tiles — the assembly line was missing the brick that closes that loop.
+- **Systems:** Texture Kit (style-matched tiles), Lego forge, Lego registry, Lego dispatcher, Art pipeline (Gemini), Studio.Backdrop
+- **Validator:** texturing (node validate.mjs --game games/ember → 100)
+- **Artifacts:** `tools/texture-kit/`, `games/ember/src/assets/kit/`, `tools/texture-kit/out/contact.png`
+
+### Ember polish pass: 43.3 REJECT → 6/6 ACCEPT (art-cohesion 77.8)
+`2026-06-10` · 🚀 shipped
+
+- **What:** Integrated the kit per-material (mud/ice/stone finally read differently underfoot), switched to LINEAR filtering (pixelArt:true was shredding painterly tiles into pixel noise — the single biggest cohesion killer), added molten rim-lights on every slab, de-synced tile patterns per slab, themed the crumble ledge, hid the touch joystick on non-touch devices and themed it for touch, stroked-serif HUD + level title cards, per-depth backdrop tints, a proc:cave WebAudio ambience bed in the SDK (music 0.9→1.0), outlined the hero/enemy for silhouette, compound late climaxes on L1/L4 (FUN 90.4→90.5, L1 89→89.5), and a victory stop so the won hero no longer runs off the world edge.
+- **Why:** Make the flagship actually pass its own studio's full gate — quality measured, not asserted.
+- **Systems:** Ember Depths, Texture Kit (style-matched tiles), Studio SDK, Studio.Audio, Studio.Touch, Studio.Juice, Ember campaign (levels.js), Studio.Feel, Studio Art (cohesion judge), Conductor
+- **Validator:** conductor --validate-all → 6/6 ACCEPT (gate ✓, feel 90.5, music 1.0, art-cohesion 77.8, distinctness 75, texturing 100)
+- **Artifacts:** `games/ember/`, `https://ember-depths-production.up.railway.app`
+
 ---
 
 ## Systems graph
@@ -245,6 +283,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Sprite Studio** | tool | sprite-animation | tools/sprite-studio/ — develop + animate + validate sprite animations: live bench + Gemini gen + headless check. |
 | **Contraption Playground** | tool | contraption | tools/contraptions/ — live playground (a tester walks each machine) + Gemini gen + headless check. |
 | **Studio Sound** | tool | music | tools/studio-sound/ — the music brick (forged from the template; gated by validate.mjs). |
+| **Texture Kit (style-matched tiles)** | tool | texturing | tools/texture-kit/ — generates a SEAMLESS material tile kit + themed sprites from the game's own backdrop as Gemini style-ref (2×2 mirror quilt); deterministic validator: seam/energy/palette-affinity/alpha. |
 
 ### 5. Evaluation
 
@@ -262,6 +301,8 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Lego registry** | orchestrator | — | lego/registry.mjs + registry.json — the executable index of bricks; register() THROWS without a validator (the invariant lives here). |
 | **Lego forge** | orchestrator | — | lego/forge.mjs — scaffolds a new brick from a template that already ships a validator, then registers it (so it is born gated). |
 | **Lego dispatcher** | orchestrator | — | lego/dispatch.mjs — the root accept/reject gate: ensure-vendor -> run the brick's validator -> ACCEPT/REJECT (exit code composes). |
+| **Studio Art (cohesion judge)** | tool | art-cohesion | tools/studio-art/ — screenshots a game headless and scores 9-dim VISUAL COHESION 0-100 with Gemini vision (threshold 60). |
+| **Studio Distinct (uniqueness judge)** | tool | distinctness | tools/studio-distinct/ — scores a game's UNIQUENESS vs a sibling or the stock-platformer baseline (Gemini vision, 6 axes). |
 
 ### 6. Feedback
 
@@ -271,6 +312,8 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Conductor** | orchestrator | — | orchestrator/conductor.mjs — runs the gate, reads GAME_META.stages, picks the next ready vertical, emits its agent brief; folds in feel. |
 | **Vertical registry** | orchestrator | — | orchestrator/verticals.json — 11 agent verticals in dependency order, each with the Phaser systems it wields + a machine gate. |
 | **ORCHESTRATION.md** | concept | — | The studio's north star: level up the engine (SDK on PH4) + level up the process (verticals become agents; hub becomes conductor). |
+| **Studio Diary (diary.json)** | concept | — | diary/SCHEMA.md + diary.json — the machine-readable build log + systems graph; DIARY.md is a render, the sysmap consumes it directly. |
+| **Sysmap (interactive visualizer)** | tool | sysmap-check | tools/sysmap/ — vanilla JS+SVG force-graph of diary.json + registry.json; deployed at studio-sysmap-production.up.railway.app. |
 
 ### 7. Publish
 
