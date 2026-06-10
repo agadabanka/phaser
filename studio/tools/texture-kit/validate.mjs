@@ -50,10 +50,17 @@ if (!fs.existsSync(kitDir)) {
   emit({ pass: true, score: 1, capability: 'texturing', game: path.basename(gameDir), notes: ['no kit declared (src/assets/kit/ absent) — procedural art, nothing to gate'] }, 0);
 }
 
-const TILES = ['stone', 'mud', 'ice', 'lava'].flatMap((m) => ['kit_' + m + '.jpg', 'kit_' + m + '.png']).filter((f) => fs.existsSync(path.join(kitDir, f)));
-const SPRITES = ['coin', 'spring', 'goal'].map((s) => 'kit_' + s + '.png').filter((f) => fs.existsSync(path.join(kitDir, f)));
+// material names come from the game's theme-kit.json (any theme: lava-cave,
+// clouds, …); fall back to the lava-cave defaults. Tiles may be .jpg or .png.
+let MATS = ['stone', 'mud', 'ice', 'lava'], SPRITE_NAMES = ['coin', 'spring', 'goal'];
+const tkPath = path.join(gameDir, 'theme-kit.json');
+if (fs.existsSync(tkPath)) {
+  try { const tk = JSON.parse(fs.readFileSync(tkPath, 'utf8')); if (tk.mats) MATS = Object.keys(tk.mats); if (tk.sprites) SPRITE_NAMES = Object.keys(tk.sprites); } catch { /* defaults */ }
+}
+const TILES = MATS.flatMap((m) => ['kit_' + m + '.jpg', 'kit_' + m + '.png']).filter((f) => fs.existsSync(path.join(kitDir, f)));
+const SPRITES = SPRITE_NAMES.flatMap((s) => ['kit_' + s + '.png', 'kit_' + s + '.jpg']).filter((f) => fs.existsSync(path.join(kitDir, f)));
 const notes = [];
-if (!TILES.length) emit({ pass: false, score: 0, capability: 'texturing', game: path.basename(gameDir), notes: ['kit dir exists but contains no material tiles (kit_<mat>.png)'] }, 1);
+if (!TILES.length) emit({ pass: false, score: 0, capability: 'texturing', game: path.basename(gameDir), notes: [`kit dir exists but no material tiles for [${MATS.join(', ')}] (kit_<mat>.jpg|png)`] }, 1);
 
 const backdropPath = ['backdrop.jpg', 'backdrop.png'].map((f) => path.join(assets, f)).find(fs.existsSync);
 const b64 = (p) => `data:image/${p.endsWith('png') ? 'png' : 'jpeg'};base64,` + fs.readFileSync(p).toString('base64');

@@ -54,7 +54,7 @@ function gatherSource(dir) {
     let entries; try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = path.join(d, e.name);
-      if (e.isDirectory()) { if (e.name !== 'vendor' && e.name !== 'node_modules') walk(full); }
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(full); }   // include vendor/ (boot() wires SFX in the SDK)
       else if (/\.(m?js)$/.test(e.name)) files.push(full);
     }
   })(src);
@@ -94,8 +94,13 @@ for (const req of REQUIRED) {
 }
 
 // ---- (2) music bed: classify + VERIFY ----
+// Two wiring styles: an explicit Studio.Audio.music('file') call, OR a
+// Studio.Game.boot() theme declaring `music: { url: 'assets/...' }` (the SDK
+// makes the call dynamically). Collect both.
 const musicArgs = [...text.matchAll(/Studio\.Audio\.music\(\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
-const fileArgs = musicArgs.filter((a) => !a.startsWith('proc:') && /\.(mp3|ogg|wav|m4a)$/i.test(a));
+for (const m of text.matchAll(/music\s*:\s*\{\s*url\s*:\s*['"]([^'"]+)['"]/g)) musicArgs.push(m[1]);   // boot theme
+for (const m of text.matchAll(/music\s*:\s*['"](proc:[^'"]+)['"]/g)) musicArgs.push(m[1]);
+const fileArgs = [...new Set(musicArgs.filter((a) => !a.startsWith('proc:') && /\.(mp3|ogg|wav|m4a)$/i.test(a)))];
 const procArgs = musicArgs.filter((a) => a.startsWith('proc:'));
 
 let bedKind = 'none', musicFail = false;
