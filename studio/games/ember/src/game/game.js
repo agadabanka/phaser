@@ -379,10 +379,18 @@
         }
       });
 
-      // procedural cave AMBIENCE BED (SDK synth) — must start from a user gesture
-      // (autoplay policy); the eval harness sends no gestures, so the bed stays
-      // silent there and the deterministic gate never hears it.
-      var startBed = function () { if (bedOn) return; bedOn = true; Studio.Audio.music('proc:cave', 0.3); };
+      // MUSIC BED — must start from a user gesture (autoplay policy); the eval
+      // harness sends no gestures, so the bed stays silent there and the
+      // deterministic gate never hears it.
+      // Real composed loop (Lyria 2, tools/art/lyria.mjs): a 31s seamless
+      // molten-cave score, MP3 ~0.5MB. Fall back to the SDK procedural synth bed
+      // only if the file can't load (offline recording path).
+      var startBed = function () {
+        if (bedOn) return; bedOn = true;
+        var au = Studio.Audio.music('assets/music/cave.mp3', 0.6);
+        if (au && au.addEventListener) au.addEventListener('error', function () { Studio.Audio.music('proc:cave', 0.3); });
+        else if (!au) Studio.Audio.music('proc:cave', 0.3);
+      };
       this.input.once('pointerdown', startBed);
       if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
 

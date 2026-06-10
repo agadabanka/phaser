@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**22 entries** across 13 phases · **50 systems** · **91 edges** in the graph.
+**23 entries** across 13 phases · **51 systems** · **95 edges** in the graph.
 
 ---
 
@@ -232,6 +232,15 @@
 - **Validator:** conductor --validate-all → 6/6 ACCEPT (gate ✓, feel 90.5, music 1.0, art-cohesion 77.8, distinctness 75, texturing 100)
 - **Artifacts:** `games/ember/`, `https://ember-depths-production.up.railway.app`
 
+### Real music: Lyria 2 composed loop replaces the inaudible synth bed
+`2026-06-10` · 🚀 shipped
+
+- **What:** The "music 1.0" score was hollow — the bed was a 55Hz procedural synth you could not hear, and the validator only checked a hook existed. Built tools/art/lyria.mjs: Google Lyria 2 (Vertex AI) generates a ~30s instrumental, downmixed to mono, peak-normalized, CROSSFADE-LOOPED into a seamless asset, MP3-encoded (~0.5MB) with a measured {rms,duration,model} sidecar. Ember loads assets/music/cave.mp3 on first gesture (proc synth kept only as offline fallback). Upgraded the music validator to VERIFY the bed: a referenced music file must exist and be provably non-silent or the gate FAILS.
+- **Why:** A passing score must mean what it says. "I can't hear any music" was correct — the gate could not tell silence from a song.
+- **Systems:** Lyria Music (Vertex), Studio.Audio, Studio Sound, Ember Depths, music gate
+- **Validator:** music (composed bed verified: lyria-002, 31.17s, rms 0.0456; playback proven in-browser)
+- **Artifacts:** `tools/art/lyria.mjs`, `games/ember/src/assets/music/cave.mp3`, `https://ember-depths-production.up.railway.app`
+
 ---
 
 ## Systems graph
@@ -284,6 +293,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Contraption Playground** | tool | contraption | tools/contraptions/ — live playground (a tester walks each machine) + Gemini gen + headless check. |
 | **Studio Sound** | tool | music | tools/studio-sound/ — the music brick (forged from the template; gated by validate.mjs). |
 | **Texture Kit (style-matched tiles)** | tool | texturing | tools/texture-kit/ — generates a SEAMLESS material tile kit + themed sprites from the game's own backdrop as Gemini style-ref (2×2 mirror quilt); deterministic validator: seam/energy/palette-affinity/alpha. |
+| **Lyria Music (Vertex)** | tool | music | tools/art/lyria.mjs — generates a real instrumental loop with Google Lyria 2 (Vertex AI), downmixes + crossfade-loops + MP3-encodes, writes a measured sidecar so the music validator can prove it is non-silent. |
 
 ### 5. Evaluation
 

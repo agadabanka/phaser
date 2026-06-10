@@ -65,7 +65,7 @@
       "dir": "tools/studio-sound",
       "run": "node tool.mjs",
       "validator": "node validate.mjs",
-      "inputs": "a game dir (--game): statically checks the game wires Studio.Audio.sfx for jump/coin/hit(stomp|hurt)/win + a music/bed hook",
+      "inputs": "a game dir (--game): checks key SFX (jump/coin/hit/win) are wired AND that any Studio.Audio.music(file) bed is a REAL non-silent loop (verified via tools/art/lyria.mjs sidecar manifest or raw-WAV PCM); procedural proc: beds allowed at a lower score",
       "outputs": [
         "out/result.json"
       ],

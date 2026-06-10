@@ -7,7 +7,7 @@
   "levelCount": 5,
   "controls": "Arrows / WASD + Space",
   "art": "ai backdrop + texture-kit (style-matched seamless tiles, themed pickups)",
-  "music": "procedural SFX + proc:cave ambience bed",
+  "music": "Lyria 2 composed loop (assets/music/cave.mp3, 31s seamless) + procedural SFX",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",

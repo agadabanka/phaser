@@ -13,6 +13,7 @@
     "playwright": "^1.60.0"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "google-auth-library": "^10.7.0"
   }
 }

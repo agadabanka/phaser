@@ -529,6 +529,29 @@
         "https://ember-depths-production.up.railway.app"
       ],
       "commit": null
+    },
+    {
+      "id": "e23",
+      "date": "2026-06-10",
+      "phase": "Polish",
+      "title": "Real music: Lyria 2 composed loop replaces the inaudible synth bed",
+      "what": "The \"music 1.0\" score was hollow — the bed was a 55Hz procedural synth you could not hear, and the validator only checked a hook existed. Built tools/art/lyria.mjs: Google Lyria 2 (Vertex AI) generates a ~30s instrumental, downmixed to mono, peak-normalized, CROSSFADE-LOOPED into a seamless asset, MP3-encoded (~0.5MB) with a measured {rms,duration,model} sidecar. Ember loads assets/music/cave.mp3 on first gesture (proc synth kept only as offline fallback). Upgraded the music validator to VERIFY the bed: a referenced music file must exist and be provably non-silent or the gate FAILS.",
+      "why": "A passing score must mean what it says. \"I can't hear any music\" was correct — the gate could not tell silence from a song.",
+      "systems": [
+        "lyria",
+        "audio",
+        "studio-sound",
+        "ember",
+        "music"
+      ],
+      "validator": "music (composed bed verified: lyria-002, 31.17s, rms 0.0456; playback proven in-browser)",
+      "status": "shipped",
+      "artifacts": [
+        "tools/art/lyria.mjs",
+        "games/ember/src/assets/music/cave.mp3",
+        "https://ember-depths-production.up.railway.app"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -931,6 +954,14 @@
         "tier": "content",
         "validator": "texturing",
         "desc": "tools/texture-kit/ — generates a SEAMLESS material tile kit + themed sprites from the game's own backdrop as Gemini style-ref (2×2 mirror quilt); deterministic validator: seam/energy/palette-affinity/alpha."
+      },
+      {
+        "id": "lyria",
+        "kind": "tool",
+        "label": "Lyria Music (Vertex)",
+        "tier": "content",
+        "validator": "music",
+        "desc": "tools/art/lyria.mjs — generates a real instrumental loop with Google Lyria 2 (Vertex AI), downmixes + crossfade-loops + MP3-encodes, writes a measured sidecar so the music validator can prove it is non-silent."
       }
     ],
     "edges": [
@@ -1387,6 +1418,26 @@
       },
       {
         "from": "audio",
+        "to": "music",
+        "rel": "validated-by"
+      },
+      {
+        "from": "lyria",
+        "to": "audio",
+        "rel": "feeds"
+      },
+      {
+        "from": "lyria",
+        "to": "ember",
+        "rel": "feeds"
+      },
+      {
+        "from": "ember",
+        "to": "music",
+        "rel": "validated-by"
+      },
+      {
+        "from": "lyria",
         "to": "music",
         "rel": "validated-by"
       }

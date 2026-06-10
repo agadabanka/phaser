@@ -1,21 +1,24 @@
 /*
  * studio-sound — the VALIDATOR for capability "music".  THE GATE.
  *
- * A REAL STRUCTURAL validator: it statically checks that a game WIRES sound. It
- * scans the game's source (src/game/*.js + any sound.js / audio file) for the
- * Studio.Audio.sfx('<event>') calls that cover the key gameplay moments —
- *   jump · coin · hit (stomp OR hurt) · win
- * — plus a music/bed hook (Studio.Audio.music(...)). The key SFX events are the
- * hard requirement; the music bed is a soft bonus surfaced as a note.
- *   pass ⇔ all key SFX events are present.
+ * Two halves, both deterministic (no network, no clock, no Gemini):
  *
- * No audio rendering: this is a deterministic source check (no network, no clock),
- * so it gates the same offline and online — and needs no Gemini creds.
+ * 1. SFX wiring (the hard requirement). Scans the game's source for the
+ *    Studio.Audio.sfx('<event>') calls covering the key moments —
+ *      jump · coin · hit (stomp OR hurt) · win.
+ *    pass ⇔ all four are wired.
  *
- * Prints a single JSON verdict { pass, score, notes, ... } + exit code (0 = pass,
- * 1 = fail) — the dispatcher reads both.
+ * 2. MUSIC BED (now verified for real, not just "a hook exists"). It reads every
+ *    Studio.Audio.music('<arg>') the game wires and classifies the bed:
+ *      - 'proc:<mood>'        → procedural SDK synth (allowed; scores a touch lower)
+ *      - a file path (.mp3/…) → COMPOSED bed: the file MUST exist under src/ AND be
+ *        provably non-silent. We trust the generator's sidecar manifest
+ *        (<file>.json with measured {rms,duration,model}) written by
+ *        tools/art/lyria.mjs; for a raw .wav we parse the PCM directly. A
+ *        referenced-but-missing or SILENT music file FAILS the gate — that is
+ *        exactly the "the score said music but I hear nothing" bug, now caught.
  *
- *   node validate.mjs --game ../../games/ember   # check a game wires sound
+ *   node validate.mjs --game ../../games/ember
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,14 +31,14 @@ fs.mkdirSync(OUT, { recursive: true });
 const argVal = (flag) => { const i = process.argv.indexOf(flag); return i >= 0 ? process.argv[i + 1] : null; };
 const gameDir = argVal('--game') || path.resolve(HERE, '..', '..', 'games', 'ember');
 
-// the key gameplay events that MUST have an SFX. "hit" is satisfied by EITHER a
-// stomp (you hit an enemy) or a hurt (you got hit) — a game needs at least one.
 const REQUIRED = [
   { event: 'jump', names: ['jump'] },
   { event: 'coin', names: ['coin', 'pickup', 'collect', 'gem'] },
   { event: 'hit (stomp/hurt)', names: ['stomp', 'hurt', 'hit', 'damage', 'squash'] },
   { event: 'win', names: ['win', 'goal', 'victory', 'complete'] },
 ];
+const MIN_RMS = 0.004;       // below this a "bed" is effectively silence
+const MIN_DURATION = 8;      // a loop shorter than this isn't a bed
 
 function emit(verdict, code) {
   const json = JSON.stringify(verdict, null, 2);
@@ -44,8 +47,6 @@ function emit(verdict, code) {
   process.exit(code);
 }
 
-// gather the game's source text: src/game/*.js plus a sound.js / audio.js anywhere
-// under src/, so we catch sound wired in a dedicated module too.
 function gatherSource(dir) {
   const src = fs.existsSync(path.join(dir, 'src')) ? path.join(dir, 'src') : dir;
   const files = [];
@@ -57,55 +58,83 @@ function gatherSource(dir) {
       else if (/\.(m?js)$/.test(e.name)) files.push(full);
     }
   })(src);
-  let text = '';
-  const used = [];
-  for (const f of files) {
-    try { text += '\n' + fs.readFileSync(f, 'utf8'); used.push(path.relative(dir, f)); } catch { /* skip */ }
-  }
-  return { text, files: used };
+  let text = ''; const used = [];
+  for (const f of files) { try { text += '\n' + fs.readFileSync(f, 'utf8'); used.push(path.relative(dir, f)); } catch { /* skip */ } }
+  return { text, files: used, srcRoot: src };
 }
 
-if (!fs.existsSync(gameDir)) {
-  emit({ pass: false, score: 0, capability: 'music', notes: [`no such game dir: ${gameDir}`] }, 1);
+// measure RMS of a 16-bit PCM WAV (defensive about a bogus data-size field).
+function wavRms(buf) {
+  if (buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') return null;
+  const ch = buf.readUInt16LE(22), bits = buf.readUInt16LE(34), rate = buf.readUInt32LE(24);
+  if (bits !== 16) return null;
+  let off = 12, dOff = 0, dLen = 0;
+  while (off + 8 <= buf.length) { const id = buf.toString('ascii', off, off + 4), sz = buf.readUInt32LE(off + 4); if (id === 'data') { dOff = off + 8; dLen = Math.min(sz, buf.length - dOff); break; } off += 8 + sz + (sz & 1); }
+  if (!dOff) return null;
+  const frames = Math.floor(dLen / 2 / ch); let ss = 0, n = 0;
+  for (let i = 0; i < frames; i += 1) { const s = buf.readInt16LE(dOff + i * ch * 2) / 32768; ss += s * s; n++; }
+  return { rms: Math.sqrt(ss / Math.max(1, n)), duration: frames / rate };
 }
 
-const { text, files } = gatherSource(gameDir);
-if (!text.trim()) {
-  emit({ pass: false, score: 0, capability: 'music', game: path.basename(gameDir), notes: ['no JS source found to scan for sound wiring'] }, 1);
-}
+if (!fs.existsSync(gameDir)) emit({ pass: false, score: 0, capability: 'music', notes: [`no such game dir: ${gameDir}`] }, 1);
+const { text, files, srcRoot } = gatherSource(gameDir);
+if (!text.trim()) emit({ pass: false, score: 0, capability: 'music', game: path.basename(gameDir), notes: ['no JS source found to scan for sound wiring'] }, 1);
 
-// find every Studio.Audio.sfx('X') / .sfx("X") event name actually wired.
+// ---- (1) SFX wiring ----
 const sfxWired = new Set();
 for (const m of text.matchAll(/Studio\.Audio\.sfx\(\s*['"]([^'"]+)['"]/g)) sfxWired.add(m[1]);
-// also accept a bare sfx('X') (some games alias Studio.Audio) — conservative: only
-// count it if Studio.Audio is referenced somewhere in the source.
-if (/Studio\.Audio/.test(text)) {
-  for (const m of text.matchAll(/(?:^|[^.\w])sfx\(\s*['"]([^'"]+)['"]/g)) sfxWired.add(m[1]);
-}
+if (/Studio\.Audio/.test(text)) for (const m of text.matchAll(/(?:^|[^.\w])sfx\(\s*['"]([^'"]+)['"]/g)) sfxWired.add(m[1]);
 
-// a music / looping-bed hook: Studio.Audio.music(...) or a .play() on a looping Audio.
-const hasMusicBed = /Studio\.Audio\.music\s*\(/.test(text) || /\.loop\s*=\s*true[\s\S]{0,80}\.play\s*\(/.test(text);
-
-const notes = [];
-const covered = [];
+const notes = [], covered = [];
 let missing = 0;
 for (const req of REQUIRED) {
-  const hitName = req.names.find((n) => sfxWired.has(n));
-  if (hitName) { covered.push(req.event); notes.push(`ok ${req.event}: Studio.Audio.sfx('${hitName}')`); }
-  else { missing++; notes.push(`MISSING ${req.event}: none of [${req.names.join(', ')}] wired via Studio.Audio.sfx`); }
+  const hit = req.names.find((n) => sfxWired.has(n));
+  if (hit) { covered.push(req.event); notes.push(`ok ${req.event}: Studio.Audio.sfx('${hit}')`); }
+  else { missing++; notes.push(`MISSING ${req.event}: none of [${req.names.join(', ')}] wired`); }
 }
 
-// structural score: fraction of required events covered, +0.0..1 bonus weight for
-// the music bed folded in so a fully-wired game with a bed reads as a perfect 1.0.
+// ---- (2) music bed: classify + VERIFY ----
+const musicArgs = [...text.matchAll(/Studio\.Audio\.music\(\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
+const fileArgs = musicArgs.filter((a) => !a.startsWith('proc:') && /\.(mp3|ogg|wav|m4a)$/i.test(a));
+const procArgs = musicArgs.filter((a) => a.startsWith('proc:'));
+
+let bedKind = 'none', musicFail = false;
+const music = {};
+if (fileArgs.length) {
+  bedKind = 'composed';
+  for (const rel of fileArgs) {
+    const assetPath = path.join(srcRoot, rel);
+    if (!fs.existsSync(assetPath)) { musicFail = true; notes.push(`MUSIC FAIL: wired Studio.Audio.music('${rel}') but ${path.relative(gameDir, assetPath)} does NOT exist`); continue; }
+    const bytes = fs.statSync(assetPath).size;
+    const sidecar = assetPath.replace(/\.(mp3|ogg|wav|m4a)$/i, '.json');
+    let verified = null;
+    if (fs.existsSync(sidecar)) {
+      try { const m = JSON.parse(fs.readFileSync(sidecar, 'utf8')); verified = { rms: m.rms, duration: m.duration, model: m.model || m.kind || 'unknown', source: 'sidecar' }; } catch { /* fall through */ }
+    }
+    if (!verified && /\.wav$/i.test(rel)) { const r = wavRms(fs.readFileSync(assetPath)); if (r) verified = { rms: +r.rms.toFixed(4), duration: +r.duration.toFixed(2), model: 'raw-wav', source: 'pcm' }; }
+    if (!verified) { musicFail = true; notes.push(`MUSIC FAIL: ${rel} exists (${(bytes / 1024) | 0}kB) but is UNVERIFIABLE (no <file>.json manifest, not a parseable WAV) — can't prove it's real audio`); continue; }
+    music[rel] = { ...verified, bytes };
+    if (verified.rms < MIN_RMS) { musicFail = true; notes.push(`MUSIC FAIL: ${rel} is SILENT (rms ${verified.rms} < ${MIN_RMS})`); }
+    else if (verified.duration < MIN_DURATION) { musicFail = true; notes.push(`MUSIC FAIL: ${rel} too short (${verified.duration}s < ${MIN_DURATION}s) to be a loop`); }
+    else notes.push(`ok COMPOSED bed: ${rel} — ${verified.model}, ${verified.duration}s, rms ${verified.rms}, ${(bytes / 1024) | 0}kB (${verified.source})`);
+  }
+} else if (procArgs.length) {
+  bedKind = 'procedural';
+  notes.push(`ok procedural bed: Studio.Audio.music('${procArgs[0]}') — SDK synth (allowed; a composed loop scores higher)`);
+} else {
+  notes.push('note: no music bed wired (Studio.Audio.music) — SFX-only');
+}
+
+// score: SFX coverage × a bed factor (composed 1.0 / procedural 0.92 / none 0.85);
+// a referenced-but-broken composed bed collapses to 0.5 and FAILS.
 const sfxFrac = (REQUIRED.length - missing) / REQUIRED.length;
-const score = +(sfxFrac * (hasMusicBed ? 1 : 0.9)).toFixed(3);
-notes.push(hasMusicBed ? 'ok music bed: Studio.Audio.music(...) hook present'
-                       : 'note: no music/loop bed hook (Studio.Audio.music) — SFX-only (soft; not required to pass)');
+const bedFactor = musicFail ? 0.5 : bedKind === 'composed' ? 1.0 : bedKind === 'procedural' ? 0.92 : 0.85;
+const score = +(sfxFrac * bedFactor).toFixed(3);
 notes.push(`scanned ${files.length} source file(s); SFX wired: ${[...sfxWired].sort().join(', ') || 'none'}`);
 
-const pass = missing === 0; // pass iff all KEY SFX events are present
+const pass = missing === 0 && !musicFail; // all key SFX present AND any referenced music is real
 emit({
-  pass, score, capability: 'music', deterministic: true,
-  game: path.basename(gameDir), required: REQUIRED.map((r) => r.event),
-  covered, sfxWired: [...sfxWired].sort(), musicBed: hasMusicBed, notes,
+  pass, score, capability: 'music', deterministic: true, game: path.basename(gameDir),
+  required: REQUIRED.map((r) => r.event), covered, sfxWired: [...sfxWired].sort(),
+  bedKind, music, notes,
 }, pass ? 0 : 1);

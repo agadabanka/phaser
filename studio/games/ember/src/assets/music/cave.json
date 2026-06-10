@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/cave.mp3",
+  "prompt": "Looping instrumental background music for a 2D platformer called \"Ember Depths\": dark molten lava-cave ambience, slow brooding cinematic orchestral drone, warm low strings and soft mallet pulses, distant heartbeat percussion, a faint glowing shimmer, tense but heroic, no vocals, seamless and atmospheric, steady tempo.",
+  "generatedAt": "2026-06-10T05:41:32.791Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0456,
+  "peak": 0.2688,
+  "crossfadeSec": 1.6
+}
