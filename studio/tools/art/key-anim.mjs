@@ -18,7 +18,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const EMBER = new URL('../../games/ember/', import.meta.url);
+const EMBER = new URL(process.env.ART_GAME ? '../../games/' + process.env.ART_GAME + '/' : '../../games/ember/', import.meta.url);
 const ART = new URL('art-src/', EMBER);
 const RUN = 'hero_run.jpg';            // 6-frame strip
 const IDLE = 'hero_idle.jpg';
@@ -82,6 +82,35 @@ const result = await page.evaluate(async ({ runUrl, idleUrl, jumpUrl, RUN_FRAMES
     });
   }
 
+  // GRID-aware splitter: Gemini often returns "one strip" as a 2-row GRID. Find
+  // ROW bands first (per-row ink profile); if >1 row, split columns WITHIN each
+  // row and order frames row-major. Falls back to frameBoxes for a true strip.
+  function gridBoxes(id, w, h, n) {
+    const d = id.data;
+    const rowInk = new Array(h).fill(0);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const p = (y * w + x) * 4; if (!isBg(d[p], d[p + 1], d[p + 2])) rowInk[y]++; }
+    const maxRow = Math.max(...rowInk), rthr = Math.max(2, maxRow * 0.04), RGAP = Math.round(h * 0.02);
+    let rows = [], cur = null, gap = 0;
+    for (let y = 0; y < h; y++) { if (rowInk[y] > rthr) { if (!cur) cur = { y0: y, y1: y }; else cur.y1 = y; gap = 0; } else if (cur) { gap++; if (gap > RGAP) { rows.push(cur); cur = null; } } }
+    if (cur) rows.push(cur);
+    rows = rows.filter((r) => r.y1 - r.y0 > h * 0.08);
+    if (rows.length <= 1) return frameBoxes(id, w, h, n);
+    const out = [];
+    for (const r of rows) {
+      const colInk = new Array(w).fill(0), cMin = new Array(w).fill(h), cMax = new Array(w).fill(-1);
+      for (let y = r.y0; y <= r.y1; y++) for (let x = 0; x < w; x++) { const p = (y * w + x) * 4; if (!isBg(d[p], d[p + 1], d[p + 2])) { colInk[x]++; if (y < cMin[x]) cMin[x] = y; if (y > cMax[x]) cMax[x] = y; } }
+      const mc = Math.max(...colInk), thr = Math.max(2, mc * 0.05), GAP = Math.round(w * 0.012);
+      let bands = [], c2 = null, g2 = 0;
+      for (let x = 0; x < w; x++) { if (colInk[x] > thr) { if (!c2) c2 = { x0: x, x1: x }; else c2.x1 = x; g2 = 0; } else if (c2) { g2++; if (g2 > GAP) { bands.push(c2); c2 = null; } } }
+      if (c2) bands.push(c2);
+      bands = bands.filter((b) => b.x1 - b.x0 > w * 0.04);
+      for (const bd of bands) { let y0 = h, y1 = -1; for (let x = bd.x0; x <= bd.x1; x++) { if (cMin[x] < y0) y0 = cMin[x]; if (cMax[x] > y1) y1 = cMax[x]; } out.push({ x0: bd.x0, y0, x1: bd.x1, y1, w: bd.x1 - bd.x0 + 1, h: y1 - y0 + 1, _row: r.y0 }); }
+    }
+    out.sort((a, b) => (a._row - b._row) || (a.x0 - b.x0));
+    if (out.length > n) { const keep = out.slice().sort((a, b) => (b.w * b.h) - (a.w * a.h)).slice(0, n); return keep.sort((a, b) => (a._row - b._row) || (a.x0 - b.x0)); }
+    return out;
+  }
+
   // tight box of a whole single-character image (idle/jump)
   function wholeBox(id, w, h) {
     const d = id.data; let x0 = w, y0 = h, x1 = -1, y1 = -1;
@@ -104,7 +133,7 @@ const result = await page.evaluate(async ({ runUrl, idleUrl, jumpUrl, RUN_FRAMES
 
   // ---- collect every frame's transparent cutout + its box ----
   const runImg = await load(runUrl);
-  const runBoxes = frameBoxes(runImg.id, runImg.w, runImg.h, RUN_FRAMES);
+  const runBoxes = gridBoxes(runImg.id, runImg.w, runImg.h, RUN_FRAMES);
   const cells = runBoxes.map((b) => ({ canvas: cutTransparent(runImg, b), w: b.w, h: b.h, kind: 'run' }));
 
   for (const [url, kind] of [[idleUrl, 'idle'], [jumpUrl, 'jump']]) {
@@ -160,6 +189,7 @@ const runIdx = result.kinds.map((k, i) => k === 'run' ? i : -1).filter((i) => i 
 const idleIdx = result.kinds.indexOf('idle');
 const jumpIdx = result.kinds.indexOf('jump');
 console.log('wrote', OUT);
+writeFileSync(new URL('art-src/sheet-meta.json', EMBER), JSON.stringify({ frameWidth: result.frameWidth, frameHeight: result.frameHeight, count: result.count }, null, 2) + '\n');
 console.log('frameWidth:', result.frameWidth, 'frameHeight:', result.frameHeight, 'frames:', result.count);
 console.log('run[]:', `${runIdx[0]}..${runIdx[runIdx.length - 1]}`, '  idle:', idleIdx, '  jump:', jumpIdx);
 console.log('detected run frame boxes (uneven → repacked):');

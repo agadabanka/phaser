@@ -1,0 +1,13 @@
+{
+  "capability": "feedback",
+  "name": "notes-loop",
+  "dir": "tools/notes-loop",
+  "run": "node tool.mjs pull",
+  "validator": "node validate.mjs",
+  "inputs": "pull: harvest /api/notes from every deployed game into notes/inbox.json; triage: classify notes to capabilities into notes/triage.json",
+  "outputs": [
+    "out/result.json"
+  ],
+  "deps": [],
+  "deterministic": true
+}

@@ -42,22 +42,31 @@ if (!backdropPath) { console.error('texture-kit: no backdrop.(jpg|png) in ' + as
 const meta = JSON.parse(fs.readFileSync(path.join(gameDir, 'GAME_META.json'), 'utf8'));
 const ref = { base64: fs.readFileSync(backdropPath).toString('base64'), mimeType: backdropPath.endsWith('png') ? 'image/png' : 'image/jpeg' };
 
-const MAT_DESC = {
+let MAT_DESC = {
   stone: 'volcanic basalt cave rock, dark warm grey-brown with faint glowing orange cracks',
   mud: 'dark sticky volcanic mud, deep umber with wet glints and small embedded pebbles',
   ice: 'glassy pale blue-white cave ice with cracks, catching warm orange reflected light from lava',
   lava: 'molten lava, incandescent orange-yellow fissures over a dark cooling crust',
 };
-const SPRITE_DESC = {
+let SPRITE_DESC = {
   coin: 'a small round glowing ember-shard amulet pickup, warm orange gem with a bright molten core',
   spring: 'a compact stone geyser bounce-pad seen from the side, a squat basalt nozzle venting a soft orange glow upward',
   goal: 'an ancient glowing cave gate, a tall narrow stone archway filled with warm amber light',
 };
-const mats = (opt('--mats', 'stone,mud,ice,lava')).split(',').filter((m) => MAT_DESC[m]);
-const sprites = (opt('--sprites', 'coin,spring,goal')).split(',').filter((s) => SPRITE_DESC[s]);
+let PALETTE_WORDS = 'warm molten-cave palette';
+const themeKitPath = path.join(gameDir, 'theme-kit.json');
+if (fs.existsSync(themeKitPath)) {
+  const tk = JSON.parse(fs.readFileSync(themeKitPath, 'utf8'));
+  if (tk.mats) MAT_DESC = tk.mats;
+  if (tk.sprites) SPRITE_DESC = tk.sprites;
+  if (tk.paletteWords) PALETTE_WORDS = tk.paletteWords;
+  console.log('   theme-kit.json: ' + Object.keys(MAT_DESC).join(',') + ' + ' + Object.keys(SPRITE_DESC).join(','));
+}
+const mats = (opt('--mats', Object.keys(MAT_DESC).join(','))).split(',').filter((m) => MAT_DESC[m]);
+const sprites = (opt('--sprites', Object.keys(SPRITE_DESC).join(','))).split(',').filter((s) => SPRITE_DESC[s]);
 
-const matPrompt = (m) => `Seamless tileable game texture of ${MAT_DESC[m]}, for the FLOOR of a 2D platformer called "${meta.name}". Match EXACTLY the painterly hand-painted style, warm molten-cave palette and lighting of the reference image. Uniform flat lighting across the whole square: no vignette, no border, no frame, no text, no perspective — a flat top-lit surface filling the entire image. Detail scale: individual features about 1/8 of the image width so it still reads when tiled small.`;
-const spritePrompt = (s) => `${SPRITE_DESC[s]}, a single game object centered on a SOLID UNIFORM MAGENTA (#FF00FF) background. Match the painterly hand-painted style and warm molten-cave palette of the reference image. The object fills ~70% of the frame. No shadow on the background, no text, no border.`;
+const matPrompt = (m) => `Seamless tileable game texture of ${MAT_DESC[m]}, for the FLOOR of a 2D platformer called "${meta.name}". Match EXACTLY the painterly hand-painted style, ${PALETTE_WORDS} and lighting of the reference image. Uniform flat lighting across the whole square: no vignette, no border, no frame, no text, no perspective — a flat top-lit surface filling the entire image. Detail scale: individual features about 1/8 of the image width so it still reads when tiled small.`;
+const spritePrompt = (s) => `${SPRITE_DESC[s]}, a single game object centered on a SOLID UNIFORM MAGENTA (#FF00FF) background. Match the painterly hand-painted style and ${PALETTE_WORDS} of the reference image. The object fills ~70% of the frame. No shadow on the background, no text, no border.`;
 
 console.log(`🎨 texture-kit for ${meta.name} — style ref: ${path.relative(gameDir, backdropPath)}`);
 const raw = {}; // name -> { kind, base64, mimeType }

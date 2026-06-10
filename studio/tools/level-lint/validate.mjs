@@ -46,6 +46,8 @@ catch (e) { emit({ pass: false, score: 0, capability: 'rules', notes: ['levels.j
 const LEVELS = sandbox.window.LEVELS;
 if (!Array.isArray(LEVELS) || !LEVELS.length) emit({ pass: false, score: 0, capability: 'rules', notes: ['window.LEVELS missing/empty'] }, 1);
 
+const DEADLY_MATS = new Set(['lava', 'storm']);
+const isDeadlyMat = (m) => DEADLY_MATS.has(m || '');
 const notes = [];
 let checks = 0, ok = 0;
 const check = (cond, okMsg, failMsg) => { checks++; if (cond) { ok++; if (okMsg) notes.push('ok ' + okMsg); } else notes.push('FAIL ' + failMsg); };
@@ -110,6 +112,13 @@ function lintVertical(L, i) {
       const mover = (L.movers || []).find((m) => Math.abs(m.x - a.x) <= 160 || Math.abs(m.x - b.x) <= 160);
       check(inEnvelope || updraft || spring || mover, null,
         `${tag}: chain hop ${k}->${k + 1} (dx ${dx}, up ${dyUp}) outside envelope and no updraft/spring/mover powers it`);
+    }
+    // every waypoint must stand over a walkable platform wide enough to land on
+    const minW = R.chainPlatformMinWPx || 120;
+    for (let k = 0; k < chain.length; k++) {
+      const wp = chain[k];
+      const under = plats.find((p) => Math.abs(wp.x - (p.x + p.w / 2)) <= p.w / 2 + 6 && Math.abs((p.y - 20) - wp.y) <= 40 && !isDeadlyMat(p.mat));
+      check(under && under.w >= minW, null, `${tag}: waypoint ${k} (${wp.x},${wp.y}) not over a walkable platform ≥ ${minW}px`);
     }
     // spawn near the first waypoint, goal near the top of the world
     check(Math.abs((L.spawn?.x ?? -1) - chain[0].x) <= 120, null, `${tag}: spawn.x ${L.spawn?.x} far from chain[0].x ${chain[0].x}`);

@@ -114,7 +114,8 @@ function lastReason(out) {
   const miss = lines.find((l) => /^MISS/.test(l));
   return miss ? miss.slice(0, 100) : '';
 }
-const reg = JSON.parse(fs.readFileSync(path.join(HERE, 'verticals.json'), 'utf8'));
+// RFC-001: the pipeline lives in the Lego registry now (stages.order/verticals)
+const reg = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'lego', 'registry.json'), 'utf8')).stages;
 const metaPath = path.join(gameDir, 'GAME_META.json');
 const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : { name: path.basename(gameDir), stages: {} };
 const stages = meta.stages || {};

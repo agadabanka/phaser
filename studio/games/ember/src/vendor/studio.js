@@ -640,7 +640,10 @@
       (spec.walls || []).forEach(function (w) {
         var ht = (w.tiles || 1) * T; slab(platforms, w.x + T / 2, spec.groundY - ht / 2, T, ht, w.mat || 'stone');
       });
-      (spec.platforms || []).forEach(function (p) { slab(platforms, p.x + p.w / 2, p.y + T / 2, p.w, T, p.mat || 'solid'); });
+      (spec.platforms || []).forEach(function (p) {
+        var pm = Studio.Materials.get(p.mat || 'solid');
+        slab(pm.deadly ? hazards : platforms, p.x + p.w / 2, p.y + T / 2, p.w, T, p.mat || 'solid');
+      });
       var coins = scene.physics.add.staticGroup();
       (spec.coins || []).forEach(function (c) { coins.create(c.x, c.y, 'coin'); });
       var enemies = scene.physics.add.group({ allowGravity: false, immovable: true });
@@ -775,7 +778,7 @@
       if (dx < -8) out.left = true; else if (dx > 8) out.right = true;
       if (sense.inUpdraft) return out;
       var above = sense.target.y < sense.y - 12;
-      if (sense.onGround && above && Math.abs(dx) < 90) out.jump = true;
+      if (sense.onGround && above && Math.abs(dx) < 150) out.jump = true;
       else if (!sense.onGround && sense.vy != null && sense.vy < -10) out.jump = true;
       return out;
     },

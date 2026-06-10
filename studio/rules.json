@@ -2,7 +2,10 @@
   "_comment": "RFC-001 §3: the studio's RULES as first-class data. The geometry contract that keeps levels AI-completable-by-construction (per archetype), the judge thresholds, and the movement envelope the contracts assume. Read by tools/level-lint (the cheap static gate that runs before the expensive browser gate) and quotable by docs/agents. Pixels unless noted.",
   "movement": {
     "_": "what the Studio.Platformer tune actually delivers — the envelope every geometry rule is derived from",
-    "fullHop": { "dx": 200, "dyUp": 120 },
+    "fullHop": {
+      "dx": 200,
+      "dyUp": 120
+    },
     "tile": 40
   },
   "archetypes": {
@@ -19,14 +22,15 @@
     },
     "vertical": {
       "_": "climb-to-the-top games (clouds). World is platforms + a waypoint chain; the void/storm below is deadly. Every consecutive chain hop must be inside the movement envelope OR powered by a declared mechanic (updraft/spring/mover).",
-      "hopDxMaxPx": 190,
+      "hopDxMaxPx": 180,
       "hopDyUpMaxPx": 110,
       "updraftDyMaxPx": 420,
       "springDyMaxPx": 260,
       "platformMinWPx": 80,
       "chainRequired": true,
       "goalNearTopPx": 280,
-      "spawnOnPlatform": true
+      "spawnOnPlatform": true,
+      "chainPlatformMinWPx": 120
     }
   },
   "thresholds": {

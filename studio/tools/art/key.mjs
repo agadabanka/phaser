@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
-const EMBER = new URL('../../games/ember/', import.meta.url);
+const EMBER = new URL(process.env.ART_GAME ? '../../games/' + process.env.ART_GAME + '/' : '../../games/ember/', import.meta.url);
 const jobs = process.argv.slice(2).map(s => { const [i, o] = s.split(':'); return { i, o }; });
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
 const page = await browser.newPage();
