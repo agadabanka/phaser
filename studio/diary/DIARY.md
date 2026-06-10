@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**23 entries** across 13 phases · **51 systems** · **95 edges** in the graph.
+**24 entries** across 13 phases · **52 systems** · **100 edges** in the graph.
 
 ---
 
@@ -241,6 +241,15 @@
 - **Validator:** music (composed bed verified: lyria-002, 31.17s, rms 0.0456; playback proven in-browser)
 - **Artifacts:** `tools/art/lyria.mjs`, `games/ember/src/assets/music/cave.mp3`, `https://ember-depths-production.up.railway.app`
 
+### Playtest shell: pause + note-taking finally wired to the hub API
+`2026-06-10` · 🚀 shipped
+
+- **What:** Every game host has served the hub convention (/api/notes, /api/meta, /api/diary) since scaffold — but no game ever shipped the FRONT END. Built Studio.Shell (SDK): a DOM overlay with pause/resume (freezes the scene, ducks music), a 📝 note-taking panel that auto-pauses, releases the keyboard for typing, POSTs {text + where/level/x/coins/deaths} to /api/notes and lists the latest notes back, plus restart and mute (new Studio.Audio.setMuted reaches all registered beds). Wired into Ember AND the game-template so every future game inherits it.
+- **Why:** Playtesting needs margins to write in: a note pinned to the exact depth/position it was felt at is the studio's feedback loop closing.
+- **Systems:** Playtest Shell, Studio SDK, Studio.Audio, Ember Depths, Game Template
+- **Validator:** browser proof: pause froze frame counter, note round-tripped through /api/notes with context, mute/restart verified; 0-death gate still GREEN (webgl+canvas)
+- **Artifacts:** `sdk/studio.js (Studio.Shell)`, `https://ember-depths-production.up.railway.app`
+
 ---
 
 ## Systems graph
@@ -324,6 +333,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **ORCHESTRATION.md** | concept | — | The studio's north star: level up the engine (SDK on PH4) + level up the process (verticals become agents; hub becomes conductor). |
 | **Studio Diary (diary.json)** | concept | — | diary/SCHEMA.md + diary.json — the machine-readable build log + systems graph; DIARY.md is a render, the sysmap consumes it directly. |
 | **Sysmap (interactive visualizer)** | tool | sysmap-check | tools/sysmap/ — vanilla JS+SVG force-graph of diary.json + registry.json; deployed at studio-sysmap-production.up.railway.app. |
+| **Playtest Shell** | sdk | — | Studio.Shell — DOM playtest overlay every game inherits: pause/resume (scene + music duck), 📝 notes POSTing {text + live game context} to the host's /api/notes, restart, mute. Inert until clicked, so the deterministic gate is untouched. |
 
 ### 7. Publish
 

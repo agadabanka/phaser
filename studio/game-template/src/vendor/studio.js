@@ -10,6 +10,7 @@
  *   Studio.Audio     procedural WebAudio SFX + music hook
  *   Studio.Cam       follow camera w/ deadzone + bounds
  *   Studio.Materials look + footing + grounding (AI-safe surfaces)
+ *   Studio.Shell     playtest shell (pause / notes->/api/notes / restart / mute)
  *
  * Load order in a game:  <script src="phaser.min.js"></script>
  *                        <script src="studio.js"></script>
@@ -725,7 +726,65 @@
       stomp: function () { tone(160, 0.12, 'sawtooth'); }, hurt: function () { tone(120, 0.25, 'sawtooth', 0.12); },
       win: function () { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { tone(f, 0.16, 'triangle'); }, i * 110); }); }
     };
-    return { sfx: function (n) { try { (SFX[n] || function () {})(); } catch (e) {} }, music: function (url, vol) { try { var au = new Audio(url); au.loop = true; au.volume = vol || 0.4; au.play(); return au; } catch (e) {} } };
+    // PROCEDURAL music bed — Studio.Audio.music('proc:<mood>') synthesizes a quiet
+    // looping ambience (two slow detuned drones through a lowpass, breathing via an
+    // LFO, plus a sparse seeded pentatonic pluck) instead of streaming a file.
+    // Call it from a USER-GESTURE handler (autoplay policy); it never touches game
+    // state, so the deterministic gate is unaffected. Returns { stop() }.
+    var MOODS = { cave: { root: 55, fifth: 82.41, cutoff: 420, pluck: [220, 261.63, 293.66, 329.63, 392] } };
+    function bed(mood, vol) {
+      var a = ac(); if (!a) return null;
+      var m = MOODS[mood] || MOODS.cave, master = a.createGain(), lp = a.createBiquadFilter();
+      master.gain.value = (vol || 0.3) * 0.5; lp.type = 'lowpass'; lp.frequency.value = m.cutoff;
+      lp.connect(master); master.connect(a.destination);
+      var stops = [];
+      [m.root, m.root * 1.005, m.fifth].forEach(function (f, i) {
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = i === 2 ? 'triangle' : 'sine'; o.frequency.value = f; g.gain.value = i === 2 ? 0.18 : 0.3;
+        var lfo = a.createOscillator(), lg = a.createGain();
+        lfo.frequency.value = 0.06 + i * 0.021; lg.gain.value = 0.12;     // slow breathing
+        lfo.connect(lg); lg.connect(g.gain);
+        o.connect(g); g.connect(lp); o.start(); lfo.start();
+        stops.push(o, lfo);
+      });
+      var step = 0, timer = setInterval(function () {                      // sparse seeded pluck
+        step++; if ((step * 2654435761 >>> 0) % 7 > 1) return;
+        var n = m.pluck[(step * 40503 >>> 0) % m.pluck.length];
+        var o = a.createOscillator(), g = a.createGain();
+        o.type = 'sine'; o.frequency.value = n; g.gain.value = 0.05;
+        o.connect(g); g.connect(lp);
+        var t = a.currentTime; o.start(t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4); o.stop(t + 1.4);
+      }, 1800);
+      var baseGain = master.gain.value;
+      return {
+        stop: function () { try { clearInterval(timer); stops.forEach(function (o) { o.stop(); }); master.disconnect(); } catch (e) {} },
+        mute: function (m) { try { master.gain.value = m ? 0 : baseGain; } catch (e) {} }
+      };
+    }
+    // mute plumbing: every bed (proc handle or <audio>) registers here so the
+    // Shell's mute / pause controls reach playback without owning the handles.
+    var muted = false, beds = [];
+    function applyMute(h, m) {
+      try {
+        if (!h) return;
+        if (h.mute) h.mute(m);                      // proc bed handle
+        else if ('muted' in h) h.muted = m;         // HTMLAudioElement
+      } catch (e) {}
+    }
+    return {
+      sfx: function (n) { if (muted) return; try { (SFX[n] || function () {})(); } catch (e) {} },
+      music: function (url, vol) {
+        try {
+          var h;
+          if (typeof url === 'string' && url.indexOf('proc:') === 0) h = bed(url.slice(5), vol);
+          else { h = new Audio(url); h.loop = true; h.volume = vol || 0.4; h.play(); }
+          if (h) { beds.push(h); applyMute(h, muted); }
+          return h;
+        } catch (e) {}
+      },
+      setMuted: function (m) { muted = !!m; beds.forEach(function (h) { applyMute(h, muted); }); },
+      isMuted: function () { return muted; }
+    };
   })();
 
   // ---------------------------------------------------------------------- Cam
@@ -752,12 +811,22 @@
       var st = { left: false, right: false, down: false, _up: false, _btn: false };
       Object.defineProperty(st, 'jump', { get: function () { return st._up || st._btn; } });
       Object.defineProperty(st, 'up', { get: function () { return st._up; } });
+      // opt.theme lets a game match the touch UI to its art direction (additive;
+      // defaults are the original neutral palette).
+      var th = Object.assign({
+        base: 0x0f1528, baseA: 0.4, baseStroke: 0xffffff,
+        thumb: 0x2a3556, thumbStroke: 0xffd34d,
+        btn: 0x3a1420, btnA: 0.5, btnStroke: 0xffae6b, label: '#ffce9e'
+      }, opt.theme || {});
       var bx = 120, by = H - 86, R = 68;
-      scene.add.circle(bx, by, R, 0x0f1528, 0.4).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffffff, 0.22);
-      var thumb = scene.add.circle(bx, by, 30, 0x2a3556, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, 0xffd34d, 0.85);
+      var ring = scene.add.circle(bx, by, R, th.base, th.baseA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.baseStroke, 0.22);
+      var thumb = scene.add.circle(bx, by, 30, th.thumb, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, th.thumbStroke, 0.85);
       var jx = W - 96, jy = H - 84;
-      var jbtn = scene.add.circle(jx, jy, 54, 0x3a1420, 0.5).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, 0xffae6b, 0.7).setInteractive();
-      scene.add.text(jx, jy, 'JUMP', { fontFamily: 'monospace', fontSize: '13px', color: '#ffce9e' }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      var jbtn = scene.add.circle(jx, jy, 54, th.btn, th.btnA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.btnStroke, 0.7).setInteractive();
+      var jlbl = scene.add.text(jx, jy, 'JUMP', { fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', color: th.label }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      // touch UI only ON TOUCH DEVICES (opt.always forces it): a desktop/keyboard
+      // player should never stare at a joystick they can't use.
+      if (!isTouch && !opt.always) [ring, thumb, jbtn, jlbl].forEach(function (e) { e.setVisible(false); });
       jbtn.on('pointerdown', function () { st._btn = true; }); jbtn.on('pointerup', function () { st._btn = false; }); jbtn.on('pointerout', function () { st._btn = false; });
       var pid = null;
       function setFrom(px, py) { var dx = px - bx, dy = py - by, m = Math.hypot(dx, dy) || 1; if (m > R) { dx = dx / m * R; dy = dy / m * R; } thumb.setPosition(bx + dx, by + dy); var nx = dx / R, ny = dy / R; st.left = nx < -0.35; st.right = nx > 0.35; st._up = ny < -0.45; st.down = ny > 0.45; }
@@ -766,6 +835,113 @@
       scene.input.on('pointermove', function (p) { if (p.id === pid) setFrom(p.x, p.y); });
       scene.input.on('pointerup', function (p) { if (p.id === pid) release(); });
       return st;
+    }
+  };
+
+  // ------------------------------------------------------------------- Shell
+  // The PLAYTEST SHELL — the hub-convention front end every Studio game host
+  // already serves an API for (server.js: /api/notes, /api/meta). A DOM overlay
+  // (not canvas) so it works while the scene is paused and never touches the
+  // render pipeline:
+  //   ⏸ pause/resume the scene (music auto-ducks)   ↻ restart (game callback)
+  //   📝 note-taking: pauses, opens a panel, POSTs {text + game context} to
+  //      /api/notes and lists the latest notes back        🔊 mute toggle
+  // Everything is INERT until clicked — the eval harness never clicks, so the
+  // deterministic gate is unaffected.
+  Studio.Shell = {
+    create: function (scene, opt) {
+      opt = opt || {};
+      if (typeof document === 'undefined') return null;
+      var th = Object.assign({ bg: 'rgba(20,13,8,0.82)', border: '#ffb24a', text: '#ffd9a0', accent: '#ff9a3c' }, opt.theme || {});
+      var FONT = 'Georgia, "Times New Roman", serif';
+      var key = scene.scene.key, mgr = scene.sys.game.scene;
+      var paused = false, userMuted = false, panelOpen = false, pausedByPanel = false;
+
+      var root_ = document.createElement('div');
+      root_.id = 'studio-shell';
+      root_.style.cssText = 'position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:1000;display:flex;gap:8px;font-family:' + FONT + ';';
+      document.body.appendChild(root_);
+
+      function btn(label, title) {
+        var b = document.createElement('button');
+        b.textContent = label; b.title = title;
+        b.style.cssText = 'width:40px;height:40px;border-radius:10px;border:1px solid ' + th.border + ';background:' + th.bg + ';color:' + th.text + ';font-size:18px;line-height:1;cursor:pointer;padding:0;touch-action:manipulation;';
+        root_.appendChild(b); return b;
+      }
+      var bPause = btn('⏸', 'pause / resume');
+      var bNotes = btn('📝', 'playtest notes');
+      var bRestart = btn('↻', 'restart');
+      var bMute = btn('🔊', 'mute / unmute');
+
+      var veil = document.createElement('div');   // PAUSED veil
+      veil.textContent = 'PAUSED';
+      veil.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:998;background:rgba(10,5,3,0.45);color:' + th.text + ';font-family:' + FONT + ';font-size:42px;letter-spacing:6px;text-shadow:0 2px 8px #000;pointer-events:none;';
+      document.body.appendChild(veil);
+
+      function setPaused(p) {
+        if (p === paused) return;
+        paused = p;
+        try { p ? mgr.pause(key) : mgr.resume(key); } catch (e) {}
+        try { Studio.Audio.setMuted(p || userMuted); } catch (e) {}
+        bPause.textContent = p ? '▶' : '⏸';
+        veil.style.display = (p && !panelOpen) ? 'flex' : 'none';
+        if (opt.onPause) try { opt.onPause(p); } catch (e) {}
+      }
+      bPause.onclick = function () { setPaused(!paused); };
+      bRestart.onclick = function () { setPaused(false); closePanel(); if (opt.onRestart) try { opt.onRestart(); } catch (e) {} };
+      bMute.onclick = function () { userMuted = !userMuted; try { Studio.Audio.setMuted(userMuted || paused); } catch (e) {} bMute.textContent = userMuted ? '🔇' : '🔊'; };
+
+      // ---- notes panel (open = auto-pause + keyboard released to the textarea) ----
+      var panel = document.createElement('div');
+      panel.style.cssText = 'position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:999;width:min(320px,calc(100vw - 24px));background:' + th.bg + ';border:1px solid ' + th.border + ';border-radius:12px;padding:10px;display:none;color:' + th.text + ';font-family:' + FONT + ';backdrop-filter:blur(3px);';
+      panel.innerHTML =
+        '<div style="font-size:14px;margin-bottom:6px;">📝 Playtest notes <span data-ctx style="opacity:.7;font-size:12px;"></span></div>' +
+        '<textarea data-text rows="3" placeholder="what did you feel / find?" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid ' + th.border + ';border-radius:8px;color:' + th.text + ';font-family:' + FONT + ';font-size:14px;padding:6px;"></textarea>' +
+        '<div style="display:flex;gap:8px;margin-top:6px;align-items:center;">' +
+        '<button data-save style="flex:0 0 auto;border:1px solid ' + th.border + ';background:' + th.accent + ';color:#221007;border-radius:8px;padding:6px 14px;font-family:' + FONT + ';font-size:14px;cursor:pointer;">Save note</button>' +
+        '<span data-status style="font-size:12px;opacity:.8;"></span></div>' +
+        '<div data-list style="margin-top:8px;font-size:12px;line-height:1.5;max-height:130px;overflow:auto;"></div>';
+      document.body.appendChild(panel);
+      var ta = panel.querySelector('[data-text]'), status = panel.querySelector('[data-status]'),
+          list = panel.querySelector('[data-list]'), ctxEl = panel.querySelector('[data-ctx]');
+
+      function refreshList() {
+        fetch('/api/notes').then(function (r) { return r.json(); }).then(function (ns) {
+          var last = (ns || []).slice(-4).reverse();
+          list.innerHTML = last.length
+            ? last.map(function (n) { return '<div style="border-top:1px dashed rgba(255,178,74,.3);padding-top:4px;margin-top:4px;">' + String(n.text || '').replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) + ' <span style="opacity:.55">— ' + (n.where || '') + '</span></div>'; }).join('')
+            : '<em style="opacity:.6">no notes yet — first one sets the bar</em>';
+        }).catch(function () { list.innerHTML = '<em style="opacity:.6">notes API offline (static host)</em>'; });
+      }
+      function openPanel() {
+        panelOpen = true; pausedByPanel = !paused; setPaused(true);
+        veil.style.display = 'none';
+        var c = opt.context ? opt.context() : {};
+        ctxEl.textContent = c.where ? '· ' + c.where : '';
+        panel.style.display = 'block'; refreshList();
+        try { scene.input.keyboard.enabled = false; } catch (e) {}   // type freely
+        setTimeout(function () { ta.focus(); }, 0);
+      }
+      function closePanel() {
+        if (!panelOpen) return;
+        panelOpen = false; panel.style.display = 'none';
+        try { scene.input.keyboard.enabled = true; } catch (e) {}
+        if (pausedByPanel) setPaused(false); else veil.style.display = paused ? 'flex' : 'none';
+      }
+      bNotes.onclick = function () { panelOpen ? closePanel() : openPanel(); };
+      panel.querySelector('[data-save]').onclick = function () {
+        var text = (ta.value || '').trim();
+        if (!text) { status.textContent = 'write something first'; return; }
+        var c = opt.context ? opt.context() : {};
+        status.textContent = 'saving…';
+        fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ text: text, ts: new Date().toISOString() }, c)) })
+          .then(function (r) { if (!r.ok) throw 0; status.textContent = 'saved ✓'; ta.value = ''; refreshList(); })
+          .catch(function () { status.textContent = 'save failed — notes API offline?'; });
+      };
+
+      var api = { setPaused: setPaused, isPaused: function () { return paused; }, openNotes: openPanel, closeNotes: closePanel,
+        destroy: function () { [root_, panel, veil].forEach(function (e) { try { e.remove(); } catch (x) {} }); } };
+      return api;
     }
   };
 

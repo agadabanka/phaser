@@ -76,6 +76,13 @@
       hud();
       this.cursors = this.input.keyboard.createCursorKeys();
 
+      // PLAYTEST SHELL (hub convention): pause / 📝 notes -> /api/notes / restart
+      // / mute. DOM overlay, inert until clicked — the eval gate never sees it.
+      Studio.Shell.create(this, {
+        context: function () { return { where: '@' + Math.round(player.x), x: Math.round(player.x), coins: coins, deaths: deaths, won: won, game: 'template' }; },
+        onRestart: function () { reset(); }
+      });
+
       Studio.harness.install(window.game, {
         snapshot: snapshot,
         setInput: function (o) { input = Object.assign({ left: false, right: false, jump: false }, o || {}); },

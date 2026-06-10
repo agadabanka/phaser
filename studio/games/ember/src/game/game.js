@@ -394,6 +394,22 @@
       this.input.once('pointerdown', startBed);
       if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
 
+      // PLAYTEST SHELL — pause / 📝 notes (POSTs to this host's /api/notes with
+      // live game context) / restart / mute. DOM overlay; inert until clicked,
+      // so the deterministic gate never sees it.
+      Studio.Shell.create(this, {
+        context: function () {
+          var L = window.LEVELS[levelIndex] || {};
+          return {
+            where: 'D' + (levelIndex + 1) + ' ' + (L.name || '') + ' @' + Math.round(player.x),
+            level: levelIndex + 1, levelName: L.name || '',
+            x: Math.round(player.x), y: Math.round(player.y),
+            coins: coins, deaths: deaths, won: won, game: 'ember-depths'
+          };
+        },
+        onRestart: function () { reset(); }
+      });
+
       Studio.harness.install(window.game, {
         snapshot: snapshot,
         setInput: function (o) { input = Object.assign({ left: false, right: false, jump: false, down: false }, o || {}); },

@@ -6,3 +6,7 @@ live-shot.png
 spike-matter/phaser.min.js
 tools/contraptions/phaser.min.js
 tools/sprite-studio/phaser.min.js
+
+# per-game runtime data (playtest notes written by server.js)
+games/*/data/
+game-template/data/

@@ -552,6 +552,28 @@
         "https://ember-depths-production.up.railway.app"
       ],
       "commit": null
+    },
+    {
+      "id": "e24",
+      "date": "2026-06-10",
+      "phase": "Polish",
+      "title": "Playtest shell: pause + note-taking finally wired to the hub API",
+      "what": "Every game host has served the hub convention (/api/notes, /api/meta, /api/diary) since scaffold — but no game ever shipped the FRONT END. Built Studio.Shell (SDK): a DOM overlay with pause/resume (freezes the scene, ducks music), a 📝 note-taking panel that auto-pauses, releases the keyboard for typing, POSTs {text + where/level/x/coins/deaths} to /api/notes and lists the latest notes back, plus restart and mute (new Studio.Audio.setMuted reaches all registered beds). Wired into Ember AND the game-template so every future game inherits it.",
+      "why": "Playtesting needs margins to write in: a note pinned to the exact depth/position it was felt at is the studio's feedback loop closing.",
+      "systems": [
+        "shell",
+        "sdk",
+        "audio",
+        "ember",
+        "game-template"
+      ],
+      "validator": "browser proof: pause froze frame counter, note round-tripped through /api/notes with context, mute/restart verified; 0-death gate still GREEN (webgl+canvas)",
+      "status": "shipped",
+      "artifacts": [
+        "sdk/studio.js (Studio.Shell)",
+        "https://ember-depths-production.up.railway.app"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -962,6 +984,13 @@
         "tier": "content",
         "validator": "music",
         "desc": "tools/art/lyria.mjs — generates a real instrumental loop with Google Lyria 2 (Vertex AI), downmixes + crossfade-loops + MP3-encodes, writes a measured sidecar so the music validator can prove it is non-silent."
+      },
+      {
+        "id": "shell",
+        "kind": "sdk",
+        "label": "Playtest Shell",
+        "tier": "feedback",
+        "desc": "Studio.Shell — DOM playtest overlay every game inherits: pause/resume (scene + music duck), 📝 notes POSTing {text + live game context} to the host's /api/notes, restart, mute. Inert until clicked, so the deterministic gate is untouched."
       }
     ],
     "edges": [
@@ -1440,6 +1469,31 @@
         "from": "lyria",
         "to": "music",
         "rel": "validated-by"
+      },
+      {
+        "from": "shell",
+        "to": "sdk",
+        "rel": "builds-on"
+      },
+      {
+        "from": "shell",
+        "to": "audio",
+        "rel": "depends-on"
+      },
+      {
+        "from": "ember",
+        "to": "shell",
+        "rel": "depends-on"
+      },
+      {
+        "from": "game-template",
+        "to": "shell",
+        "rel": "depends-on"
+      },
+      {
+        "from": "shell",
+        "to": "railway",
+        "rel": "feeds"
       }
     ]
   }
