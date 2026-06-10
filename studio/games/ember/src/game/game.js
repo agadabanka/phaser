@@ -43,6 +43,7 @@
       touch: { base: 0x140a08, baseStroke: 0xffb24a, thumb: 0x3a1a0c, thumbStroke: 0xff7a18, btn: 0x2a120a, btnA: 0.55, btnStroke: 0xff9a3c, label: '#ffd9a0' },
       hud: { color: '#ffd9a0', stroke: '#2a120a' }, stageWord: 'depth', stagePrefix: 'D',
       music: { url: 'assets/music/cave.mp3', vol: 0.6, fallback: 'proc:cave' },
+      menu: { logo: 'assets/menu/logo.png', shots: 'assets/menu/level-{i}.jpg' },
       toasts: { level: 'DEPTH {i}  ·  {name}', win: 'THE CORE — CLEARED' }
     },
     hooks: {

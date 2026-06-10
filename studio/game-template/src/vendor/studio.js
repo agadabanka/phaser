@@ -1254,44 +1254,86 @@
       }
       function pauseWorld(p) { try { p ? scene.physics.world.pause() : scene.physics.world.resume(); } catch (e) {} }
 
-      function showTitle() {
+      // The MENU — deepfin-bar layout: full-bleed painted backdrop, the hero
+      // LARGE on the left, the wordmark + tagline top-right, a ZONE RAIL of
+      // per-level thumbnail cards (number chip, name, best stats, lock), and a
+      // bottom action bar. All asset-driven (TH.menu = { logo, shots }) with
+      // graceful text/tint fallbacks, so the template needs zero new assets.
+      var menuSel = 0;
+      function showTitle() { showMenu(); }
+      function showLevels() { showMenu(); }
+      function showMenu() {
         mode = 'menu'; pauseWorld(true);
         var c = newLayer();
-        menuScrim(c, 0.5);
-        mtext(c, 480, 150, title.toUpperCase(), 52);
-        if (cfg.tagline) mtext(c, 480, 205, cfg.tagline, 16);
-        var start = mtext(c, 480, 290, '▶  START', 30, true);
-        start.on('pointerdown', function () { startGame(0); });
-        var lv = mtext(c, 480, 345, 'LEVELS', 18, true);
-        lv.on('pointerdown', function () { showLevels(); });
+        var unlocked = Math.max(1, save.unlocked || 1);
+        menuSel = Math.min(unlocked - 1, LEVELS.length - 1);
+        // full-bleed backdrop (opaque — the menu is its own stage, not a scrim)
+        if (scene.textures.exists('bg_main')) c.add(scene.add.image(480, 270, 'bg_main').setDisplaySize(960, 540));
+        else menuScrim(c, 1);
+        c.add(scene.add.rectangle(480, 522, 960, 64, 0x000000, 0.38));            // bottom bar
+        c.add(scene.add.rectangle(806, 250, 308, 470, 0x000000, 0.28));           // zone rail backing
+        // HERO — big, breathing
+        var heroKey = scene.textures.exists('hero_sheet') ? 'hero_sheet' : (scene.textures.exists('hero_art') ? 'hero_art' : null);
+        if (heroKey) {
+          var h = heroKey === 'hero_sheet' ? scene.add.sprite(0, 0, 'hero_sheet', (TH.hero && TH.hero.anims && TH.hero.anims.idle) || 0) : scene.add.image(0, 0, 'hero_art');
+          h.setPosition(285, 330); h.setScale(250 / h.height);
+          scene.tweens.add({ targets: h, y: 318, duration: 1600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+          c.add(h);
+        }
+        // WORDMARK + tagline (image logo if the game generated one, else type)
+        if (TH.menu && TH.menu.logo && scene.textures.exists('menu_logo')) {
+          var lg = scene.add.image(0, 0, 'menu_logo');
+          lg.setScale(Math.min(440 / lg.width, 150 / lg.height, 1));   // fit a 440x150 lockup box
+          lg.setPosition(300, 30 + lg.displayHeight / 2);
+          c.add(lg);
+          if (cfg.tagline) mtext(c, 300, 30 + lg.displayHeight + 18, cfg.tagline.toUpperCase(), 11).setAlpha(0.92);
+        } else {
+          mtext(c, 310, 80, title.toUpperCase(), 46);
+          if (cfg.tagline) mtext(c, 310, 124, cfg.tagline.toUpperCase(), 12).setAlpha(0.92);
+        }
+        // ZONE RAIL — one card per level
+        var railX = 806, cardW = 280, cardH = 74, gapY = 88, y0 = 250 - ((LEVELS.length - 1) * gapY) / 2;
+        var selBox = scene.add.rectangle(railX, y0, cardW + 10, cardH + 10).setStrokeStyle(3, TH.accent != null ? TH.accent : 0xffd34d, 1).setFillStyle(0, 0);
+        c.add(selBox);
+        function selectCard(i) { menuSel = i; selBox.setPosition(railX, y0 + i * gapY); }
+        LEVELS.forEach(function (L, i) {
+          var cy = y0 + i * gapY, open = i < unlocked;
+          var shotKey = 'menu_lv' + i;
+          var card;
+          if (TH.menu && TH.menu.shots && scene.textures.exists(shotKey)) {
+            card = scene.add.image(railX, cy, shotKey); card.setDisplaySize(cardW, cardH);
+          } else {
+            card = scene.add.rectangle(railX, cy, cardW, cardH, L.sky != null ? L.sky : 0x223044, 1);
+          }
+          if (!open) card.setAlpha(0.35); else { card.setInteractive({ useHandCursor: true }); card.on('pointerover', function () { selectCard(i); }); card.on('pointerdown', function () { startGame(i); }); }
+          c.add(card);
+          // number chip
+          c.add(scene.add.rectangle(railX - cardW / 2 + 16, cy - cardH / 2 + 14, 24, 22, 0x000000, 0.55));
+          mtext(c, railX - cardW / 2 + 16, cy - cardH / 2 + 14, open ? String(i + 1) : '🔒', 14);
+          // name plate + best
+          var b = save.best[i];
+          mtext(c, railX, cy + cardH / 2 - 12, (L.name || ('LEVEL ' + (i + 1))).toUpperCase(), 13);
+          if (b && (b.coins != null || b.timeMs != null)) mtext(c, railX + cardW / 2 - 8, cy - cardH / 2 + 13, (b.coins != null ? '¢' + b.coins : '') + (b.timeMs != null ? ' ' + (b.timeMs / 1000).toFixed(1) + 's' : ''), 10).setOrigin(1, 0.5).setAlpha(0.9);
+        });
+        selectCard(menuSel);
+        // bottom action bar
+        mtext(c, 480, 506, '▶  CLICK A ' + (TH.stageWord || 'stage').toUpperCase() + '   ·   OR PRESS SPACE TO PLAY', 15);
+        mtext(c, 480, 528, cfg.controls || '← → move · SPACE jump', 11).setAlpha(0.75);
+        // sound toggle, bottom-left
         var muted = Studio.Audio.isMuted && Studio.Audio.isMuted();
-        var mu = mtext(c, 480, 388, muted ? '🔇 SOUND OFF' : '🔊 SOUND ON', 15, true);
+        var mu = mtext(c, 70, 506, muted ? '🔇 SOUND' : '🔊 SOUND', 12, true);
         mu.on('pointerdown', function () {
           var m = !(Studio.Audio.isMuted && Studio.Audio.isMuted());
-          Studio.Audio.setMuted(m); mu.setText(m ? '🔇 SOUND OFF' : '🔊 SOUND ON');
+          Studio.Audio.setMuted(m); mu.setText(m ? '🔇 SOUND' : '🔊 SOUND');
         });
-        mtext(c, 480, 470, cfg.controls || '← → move · SPACE jump  (joystick on touch)', 13).setAlpha(0.8);
-        scene.input.keyboard.once('keydown-ENTER', function () { if (mode === 'menu') startGame(0); });
-        scene.input.keyboard.once('keydown-SPACE', function () { if (mode === 'menu') startGame(0); });
-      }
-      function showLevels() {
-        mode = 'menu'; pauseWorld(true);
-        var c = newLayer();
-        menuScrim(c, 0.55);
-        mtext(c, 480, 120, 'CHOOSE YOUR ' + (TH.stageWord || 'stage').toUpperCase(), 26);
-        var unlocked = Math.max(1, save.unlocked || 1);
-        var n = LEVELS.length, gap = Math.min(150, 760 / n), x0 = 480 - ((n - 1) * gap) / 2;
-        LEVELS.forEach(function (L, i) {
-          var open = i < unlocked;
-          var chip = mtext(c, x0 + i * gap, 250, open ? String(i + 1) : '🔒', 34, open);
-          if (!open) chip.setAlpha(0.45);
-          if (open) chip.on('pointerdown', function () { startGame(i); });
-          var b = save.best[i];
-          if (b) mtext(c, x0 + i * gap, 300, (b.coins != null ? '¢' + b.coins : '') + (b.timeMs != null ? ' · ' + (b.timeMs / 1000).toFixed(1) + 's' : ''), 11).setAlpha(0.75);
-          mtext(c, x0 + i * gap, 330, L.name || '', 11).setAlpha(0.6);
-        });
-        var back = mtext(c, 480, 440, '← BACK', 16, true);
-        back.on('pointerdown', function () { showTitle(); });
+        // keyboard: arrows pick a zone, SPACE/ENTER plays the selection
+        var onKey = function (ev) {
+          if (mode !== 'menu') return;
+          if (ev.key === 'ArrowDown') selectCard(Math.min(unlocked - 1, menuSel + 1));
+          else if (ev.key === 'ArrowUp') selectCard(Math.max(0, menuSel - 1));
+          else if (ev.key === 'Enter' || ev.key === ' ') { scene.input.keyboard.off('keydown', onKey); startGame(menuSel); }
+        };
+        scene.input.keyboard.on('keydown', onKey);
       }
       function startGame(i) {
         clearMenu(); mode = 'play'; pauseWorld(false);
@@ -1374,6 +1416,7 @@
             else s.setVisible(true);
           });
         }
+        if (VERT) world.enemies.getChildren().forEach(function (e) { if (e.body) e.body.enable = false; });
         // enemy follower art
         if (TH.enemy && TH.enemy.img) {
           world.enemies.getChildren().forEach(function (e) {
@@ -1416,7 +1459,7 @@
           if (HOOKS.onCoin) try { HOOKS.onCoin(scene, c); } catch (e) {}
         }));
         colliders.push(scene.physics.add.overlap(player, world.hazards, function () { die(); }));
-        colliders.push(scene.physics.add.overlap(player, world.enemies, function (p, e) {
+        if (!VERT) colliders.push(scene.physics.add.overlap(player, world.enemies, function (p, e) {
           if (!e.active) return;
           if (p.body.velocity.y > 40 && p.y < e.y - 6) {
             e.disableBody(true, true); if (e._art) e._art.setVisible(false); pc.launch(p, 380); Studio.Audio.sfx('stomp');
@@ -1526,6 +1569,9 @@
           if (TH.enemy && TH.enemy.img) this.load.image('enemy_art', TH.enemy.img);
           var kit = TH.kitFiles || {};
           for (var k in kit) this.load.image(k, kit[k]);
+          // menu assets (declared-only — no speculative loads, no 404 noise)
+          if (TH.menu && TH.menu.logo) this.load.image('menu_logo', TH.menu.logo);
+          if (TH.menu && TH.menu.shots) for (var li = 0; li < LEVELS.length; li++) this.load.image('menu_lv' + li, TH.menu.shots.replace('{i}', li));
         },
         create: function () {
           scene = this;
@@ -1603,6 +1649,7 @@
             autopilot: function (on) { auto = !!on; input = { left: false, right: false, jump: false, down: false }; },
             reset: reset
           });
+          root.__game.gotoLevel = function (i) { clearMenu(); mode = 'play'; pauseWorld(false); loadLevel(i); };
           root.__sense = function () {
             var og = player.body.blocked.down || player.body.touching.down;
             var s = VERT ? senseVertical(og) : senseRunner(og);

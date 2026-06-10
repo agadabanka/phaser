@@ -123,7 +123,13 @@ window.LEVELS = [
     "gusts": [],
     "springs": [],
     "contraptions": [],
-    "enemies": [],
+    "enemies": [
+      {
+        "x": 480,
+        "y": 896,
+        "patrol": 24
+      }
+    ],
     "coins": [
       {
         "x": 320,
@@ -307,7 +313,18 @@ window.LEVELS = [
     "gusts": [],
     "springs": [],
     "contraptions": [],
-    "enemies": [],
+    "enemies": [
+      {
+        "x": 480,
+        "y": 1026,
+        "patrol": 24
+      },
+      {
+        "x": 640,
+        "y": 756,
+        "patrol": 24
+      }
+    ],
     "coins": [
       {
         "x": 320,
@@ -511,7 +528,18 @@ window.LEVELS = [
     "gusts": [],
     "springs": [],
     "contraptions": [],
-    "enemies": [],
+    "enemies": [
+      {
+        "x": 480,
+        "y": 1026,
+        "patrol": 24
+      },
+      {
+        "x": 640,
+        "y": 756,
+        "patrol": 24
+      }
+    ],
     "coins": [
       {
         "x": 320,
@@ -727,7 +755,18 @@ window.LEVELS = [
     "gusts": [],
     "springs": [],
     "contraptions": [],
-    "enemies": [],
+    "enemies": [
+      {
+        "x": 480,
+        "y": 1026,
+        "patrol": 24
+      },
+      {
+        "x": 640,
+        "y": 756,
+        "patrol": 24
+      }
+    ],
     "coins": [
       {
         "x": 320,
@@ -931,7 +970,18 @@ window.LEVELS = [
     "gusts": [],
     "springs": [],
     "contraptions": [],
-    "enemies": [],
+    "enemies": [
+      {
+        "x": 480,
+        "y": 1046,
+        "patrol": 24
+      },
+      {
+        "x": 640,
+        "y": 776,
+        "patrol": 24
+      }
+    ],
     "coins": [
       {
         "x": 320,

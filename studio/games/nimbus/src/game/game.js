@@ -41,6 +41,7 @@
       touch: { base: 0x24355a, baseStroke: 0xbfe8ff, thumb: 0x2a3556, thumbStroke: 0xfff0c8, btn: 0x24355a, btnA: 0.5, btnStroke: 0xbfe8ff, label: '#eaf2ff' },
       hud: { color: '#fff4e0', stroke: '#2a3556' }, stageWord: 'cloud', stagePrefix: 'C',
       music: { url: 'assets/music/sky.mp3', vol: 0.6, fallback: 'proc:cave' },
+      menu: { logo: 'assets/menu/logo.png', shots: 'assets/menu/level-{i}.jpg' },
       toasts: { level: 'CLOUD {i}  ·  {name}', win: 'THE SUN BELL RINGS' },
       vxHeadroom: 130
     },

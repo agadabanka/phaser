@@ -134,15 +134,15 @@ function build(spec) {
 // staying deterministic + 0-death (enemies removed; updraft in its verified
 // centre→right config). introduce → develop → twist → master.
 const LEVELS = [
-  build({ name: 'Foothill Puffs', height: 1500, sky: 0x8fb4e4, bgTint: 0xffffff, enemies: 0,
+  build({ name: 'Foothill Puffs', height: 1500, sky: 0x8fb4e4, bgTint: 0xffffff, enemies: 2,
     steps: ['hop', 'mist', 'hop', 'crystal', 'hop', 'mist', { t: 'updraft', rise: 300 }, 'hop'] }),
-  build({ name: 'Whisperdraft', height: 1700, sky: 0x8fb0e0, bgTint: 0xfff2e2, enemies: 0,
+  build({ name: 'Whisperdraft', height: 1700, sky: 0x8fb0e0, bgTint: 0xfff2e2, enemies: 2,
     steps: ['hop', 'mist', 'crystal', 'hop', 'mist', 'hop', 'crystal', { t: 'updraft', rise: 340 }, 'hop'] }),
-  build({ name: 'Mistspire', height: 1800, sky: 0x88a8d8, bgTint: 0xe8f0ff, enemies: 0,
+  build({ name: 'Mistspire', height: 1800, sky: 0x88a8d8, bgTint: 0xe8f0ff, enemies: 2,
     steps: ['hop', 'mist', { mat: 'cloud', storm: 1 }, 'crystal', 'hop', 'mist', 'crystal', { t: 'updraft', rise: 340 }, 'hop'] }),
-  build({ name: 'Stormshelf Pass', height: 1900, sky: 0x7890c0, bgTint: 0xd8d2ee, enemies: 0,
+  build({ name: 'Stormshelf Pass', height: 1900, sky: 0x7890c0, bgTint: 0xd8d2ee, enemies: 2,
     steps: ['hop', 'crystal', { mat: 'cloud', storm: 1 }, 'mist', 'hop', { mat: 'cloud', storm: 1 }, 'crystal', { t: 'updraft', rise: 340 }, 'hop'] }),
-  build({ name: 'The Sun Bell', height: 2000, sky: 0x88a0d0, bgTint: 0xffe9c8, enemies: 0,
+  build({ name: 'The Sun Bell', height: 2000, sky: 0x88a0d0, bgTint: 0xffe9c8, enemies: 2,
     steps: ['hop', 'mist', 'crystal', { mat: 'cloud', storm: 1 }, 'hop', 'mist', 'crystal', { t: 'updraft', rise: 360 }, 'hop'] }),
 ];
 
