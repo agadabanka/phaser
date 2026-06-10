@@ -54,6 +54,26 @@ switch (cmd) {
   case 'feel': run(path.join(STUDIO, 'tools', 'eval', 'feel.mjs'), [gameDir(args[0])]); break;
   case 'ship': { const g = gameDir(args[0]); const r = spawnSync('npx', ['--yes', '@railway/cli', 'up', '--detach'], { stdio: 'inherit', cwd: g }); process.exitCode = r.status ?? 1; break; }
   case 'notes': run(path.join(STUDIO, 'tools', 'notes-loop', 'tool.mjs'), args); break;
+  case 'publish': {
+    // push the game's subtree to its OWN GitHub repo (the deepfin convention:
+    // every game is a standalone repo the hub + issues point at).
+    const g = gameDir(args[0]);
+    const slug = path.basename(g);
+    const meta = JSON.parse(fs.readFileSync(path.join(g, 'GAME_META.json'), 'utf8'));
+    const repo = meta.repo || ('agadabanka/' + slug);
+    const tok = process.env.GH_TOKEN;
+    if (!tok) { console.error('set GH_TOKEN'); process.exit(2); }
+    const prefix = path.relative(path.resolve(STUDIO, '..'), g).replace(/\\/g, '/');
+    const root = path.resolve(STUDIO, '..');
+    console.log('publishing ' + prefix + ' -> ' + repo);
+    const split = spawnSync('git', ['subtree', 'split', '--prefix=' + prefix, 'HEAD'], { cwd: root, encoding: 'utf8' });
+    if (split.status !== 0) { console.error(split.stderr || 'subtree split failed'); process.exit(1); }
+    const sha = split.stdout.trim();
+    const r = spawnSync('git', ['push', '--force', 'https://x-access-token:' + tok + '@github.com/' + repo + '.git', sha + ':refs/heads/main'], { cwd: root, stdio: 'inherit' });
+    process.exitCode = r.status ?? 1;
+    if (r.status === 0) console.log('✅ https://github.com/' + repo);
+    break;
+  }
   default:
     console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0].split('\n').filter((l) => /studio [a-z]/.test(l)).map((l) => l.replace(/^\s*\*\s?/, '')).join('\n'));
     process.exit(cmd ? 2 : 0);

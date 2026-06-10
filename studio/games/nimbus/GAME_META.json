@@ -38,5 +38,6 @@
     "music": true,
     "deploy": true
   },
-  "archetype": "vertical"
+  "archetype": "vertical",
+  "repo": "agadabanka/nimbus-climb"
 }
