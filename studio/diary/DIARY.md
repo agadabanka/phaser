@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**29 entries** across 16 phases · **61 systems** · **124 edges** in the graph.
+**30 entries** across 16 phases · **65 systems** · **132 edges** in the graph.
 
 ---
 
@@ -300,6 +300,15 @@
 - **Validator:** gates GREEN both games (nimbus double-gate 2426/2426 deterministic WITH enemies); menus verified live on both deploys
 - **Artifacts:** `sdk/studio.js (Studio.Menu/Save)`, `tools/art/logo.mjs`, `tools/menu-shots/`, `https://nimbus-climb-production.up.railway.app`, `https://ember-depths-production.up.railway.app`
 
+### Connected to the family: per-game repos, notes→ISSUES, hub registration, deepfin on the map
+`2026-06-10` · 🚀 shipped
+
+- **What:** Ember Depths + Nimbus Climb are standalone GitHub repos now (studio publish = subtree push; GAME_META.repo is truth). Playtest notes auto-file as GitHub issues (label playtest-note, note-id back-reference; the user's 5 rescued Nimbus notes became nimbus-climb#1–5, and a live test note became #6 end-to-end). Both games registered in game-engine hub/games.json (commit 6b952fa). Shell gained the deepfin corner links (DIARY / REPO / NOTES→ISSUES / ENGINE). The sysmap now shows the whole FAMILY: the hub + deepfin/jazz/the-platformer as sibling games, with the lineage edges (feel←jazz, menu←deepfin). Duplicate studio-sysmap Railway project deleted.
+- **Why:** A game is not shipped until it lives where the rest of the family lives: its own repo, its notes in issues, its card in the hub.
+- **Systems:** game-engine hub, Deepfin, Jazz, the-platformer, Ember Depths, Nimbus Climb, notes-loop, Playtest Shell, Sysmap (interactive visualizer)
+- **Validator:** live POST /api/notes → nimbus-climb#6 created automatically; hub games.json lists 5 games; gates GREEN
+- **Artifacts:** `https://github.com/agadabanka/ember-depths`, `https://github.com/agadabanka/nimbus-climb`, `game-engine hub/games.json@6b952fa`
+
 ---
 
 ## Flows — the order systems are called
@@ -449,4 +458,5 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Game Template** | game | gate | game-template/ — the neutral Phaser 4 base on the Studio SDK; the canonical clean game new titles are scaffolded from. Live on Railway. |
 | **Ember Depths** | game | gate | games/ember/ — a 5-level lava-cave platformer showing off the PH4 GPU FX + particles; mean FUN 91.6, gate green. Live on Railway. |
 | **Ember campaign (levels.js)** | game | feel | games/ember/src/game/levels.js — the 5-level descent authored to Studio.Feel (introduce -> develop -> twist -> master). |
+| **game-engine hub** | orchestrator | — | agadabanka/game-engine — the family hub: hub/games.json registers every shipped game (repo/url/meta/stages); notes→issues convention; the studio's games are registered there too. |
 

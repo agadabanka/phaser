@@ -697,6 +697,33 @@
         "https://ember-depths-production.up.railway.app"
       ],
       "commit": null
+    },
+    {
+      "id": "e30",
+      "date": "2026-06-10",
+      "phase": "Parity",
+      "title": "Connected to the family: per-game repos, notes→ISSUES, hub registration, deepfin on the map",
+      "what": "Ember Depths + Nimbus Climb are standalone GitHub repos now (studio publish = subtree push; GAME_META.repo is truth). Playtest notes auto-file as GitHub issues (label playtest-note, note-id back-reference; the user's 5 rescued Nimbus notes became nimbus-climb#1–5, and a live test note became #6 end-to-end). Both games registered in game-engine hub/games.json (commit 6b952fa). Shell gained the deepfin corner links (DIARY / REPO / NOTES→ISSUES / ENGINE). The sysmap now shows the whole FAMILY: the hub + deepfin/jazz/the-platformer as sibling games, with the lineage edges (feel←jazz, menu←deepfin). Duplicate studio-sysmap Railway project deleted.",
+      "why": "A game is not shipped until it lives where the rest of the family lives: its own repo, its notes in issues, its card in the hub.",
+      "systems": [
+        "hub",
+        "deepfin",
+        "jazz-game",
+        "platformer-game",
+        "ember",
+        "nimbus",
+        "notes-loop",
+        "shell",
+        "sysmap"
+      ],
+      "validator": "live POST /api/notes → nimbus-climb#6 created automatically; hub games.json lists 5 games; gates GREEN",
+      "status": "shipped",
+      "artifacts": [
+        "https://github.com/agadabanka/ember-depths",
+        "https://github.com/agadabanka/nimbus-climb",
+        "game-engine hub/games.json@6b952fa"
+      ],
+      "commit": null
     }
   ],
   "graph": {
@@ -1180,6 +1207,34 @@
         "label": "logo + menu-shots",
         "tier": "content",
         "desc": "tools/art/logo.mjs (Gemini wordmark per game, keyed) + tools/menu-shots (screenshots every level via __game.gotoLevel into zone cards that can never drift)."
+      },
+      {
+        "id": "hub",
+        "kind": "orchestrator",
+        "label": "game-engine hub",
+        "tier": "publish",
+        "desc": "agadabanka/game-engine — the family hub: hub/games.json registers every shipped game (repo/url/meta/stages); notes→issues convention; the studio's games are registered there too."
+      },
+      {
+        "id": "deepfin",
+        "kind": "game",
+        "label": "Deepfin",
+        "tier": "games",
+        "desc": "agadabanka/deepfin — Pearl the axolotl swims five fathoms (built on game-engine). Its menu lockup + notes→issues protocol set the quality bar the studio now matches."
+      },
+      {
+        "id": "jazz-game",
+        "kind": "game",
+        "label": "Jazz",
+        "tier": "games",
+        "desc": "agadabanka/jazz — the bunny-with-a-bazooka platformer whose movement tune + FUN model the studio ported."
+      },
+      {
+        "id": "platformer-game",
+        "kind": "game",
+        "label": "the-platformer",
+        "tier": "games",
+        "desc": "agadabanka/the-platformer — the base game + rig the whole family was built from."
       }
     ],
     "edges": [
@@ -1803,6 +1858,46 @@
         "from": "menu-tools",
         "to": "art-pipeline",
         "rel": "depends-on"
+      },
+      {
+        "from": "ember",
+        "to": "hub",
+        "rel": "feeds"
+      },
+      {
+        "from": "nimbus",
+        "to": "hub",
+        "rel": "feeds"
+      },
+      {
+        "from": "deepfin",
+        "to": "hub",
+        "rel": "feeds"
+      },
+      {
+        "from": "jazz-game",
+        "to": "hub",
+        "rel": "feeds"
+      },
+      {
+        "from": "platformer-game",
+        "to": "hub",
+        "rel": "feeds"
+      },
+      {
+        "from": "feel",
+        "to": "jazz-game",
+        "rel": "builds-on"
+      },
+      {
+        "from": "menu",
+        "to": "deepfin",
+        "rel": "builds-on"
+      },
+      {
+        "from": "notes-loop",
+        "to": "hub",
+        "rel": "feeds"
       }
     ]
   },
