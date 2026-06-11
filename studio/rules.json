@@ -1,67 +1,145 @@
 {
-  "_comment": "RFC-001 §3: the studio's RULES as first-class data. The geometry contract that keeps levels AI-completable-by-construction (per archetype), the judge thresholds, and the movement envelope the contracts assume. Read by tools/level-lint (the cheap static gate that runs before the expensive browser gate) and quotable by docs/agents. Pixels unless noted.",
-  "movement": {
-    "_": "what the Studio.Platformer tune actually delivers — the envelope every geometry rule is derived from",
-    "fullHop": { "dx": 200, "dyUp": 120 },
-    "tile": 40
+ "_comment": "RFC-001 \u00a73: the studio's RULES as first-class data. The geometry contract that keeps levels AI-completable-by-construction (per archetype), the judge thresholds, and the movement envelope the contracts assume. Read by tools/level-lint (the cheap static gate that runs before the expensive browser gate) and quotable by docs/agents. Pixels unless noted.",
+ "movement": {
+  "_": "what the Studio.Platformer tune actually delivers \u2014 the envelope every geometry rule is derived from",
+  "fullHop": {
+   "dx": 200,
+   "dyUp": 120
   },
-  "archetypes": {
-    "runner": {
-      "_": "left-to-right floor games (Ember). Floor is a ground[] of material slabs; lava/deadly is a GAP in walkable ground.",
-      "gapMaxPx": 120,
-      "wallMaxTiles": 2,
-      "wallGapClearancePx": 160,
-      "iceExitSolid": true,
-      "noGapLandingOnIce": true,
-      "springSlabMinPx": 200,
-      "moverMaxGapPx": 120,
-      "goalOnWalkable": true
+  "tile": 40
+ },
+ "archetypes": {
+  "runner": {
+   "_": "left-to-right floor games (Ember). Floor is a ground[] of material slabs; lava/deadly is a GAP in walkable ground.",
+   "gapMaxPx": 120,
+   "wallMaxTiles": 2,
+   "wallGapClearancePx": 160,
+   "iceExitSolid": true,
+   "noGapLandingOnIce": true,
+   "springSlabMinPx": 200,
+   "moverMaxGapPx": 120,
+   "goalOnWalkable": true
+  },
+  "vertical": {
+   "_": "climb-to-the-top games (clouds). World is platforms + a waypoint chain; the void/storm below is deadly. Every consecutive chain hop must be inside the movement envelope OR powered by a declared mechanic (updraft/spring/mover).",
+   "hopDxMaxPx": 180,
+   "hopDyUpMaxPx": 110,
+   "updraftDyMaxPx": 420,
+   "springDyMaxPx": 260,
+   "platformMinWPx": 80,
+   "chainRequired": true,
+   "goalNearTopPx": 280,
+   "spawnOnPlatform": true,
+   "chainPlatformMinWPx": 120,
+   "goalNearTopFrac": 0.3
+  },
+  "shooter": {
+   "_": "vertical space shooter (Starlance). The deadly thing is the sweeping-gap bullet curtain; survivability is GUARANTEED when the live gap is always a safe column the autopilot can sit in.",
+   "shipSpeed": 360,
+   "shipHalf": 16,
+   "curtainBound": "sweepSpeed*fallTime < gapW/2 - shipHalf - 6 ; sweepSpeed = amp*2PI/period ; fallTime = shipY(470)/bulletSpeed",
+   "formationsNonDeadly": true
+  },
+  "rts": {
+   "_": "car lane-push RTS (Roadwar). Garage (you, bottom) vs fortress (top) across 3 lanes; you spend auto-income SCRAP to BUILD cars that drive up and brawl. WINNABLE-BY-CONSTRUCTION: the autopilot goes all-in on the rally lane with autoBuild, so two static facts guarantee a 0-death win.",
+   "incomeBoundFrac": 0.9,
+   "sideLaneUnitsAllowed": [
+    "scout"
+   ],
+   "rallyLaneRequired": true,
+   "scheduleFinite": true,
+   "garageTurretDefendsAllLanes": true,
+   "garageLeakBudgetFrac": 0.35,
+   "winBound": "ACCUMULATION: income/autoBuild.cost > fortressTurret.dmg/(fortressTurretCd*autoBuild.hp) \u2014 the player adds rally units faster than the fortress turret removes them, so the deathball grows without bound and the (finite-schedule) fortress falls. SIDE-LEAK: a leaked off-rally scout reaches the base and is shot at distance-0 every garageTurretCd, dying after ceil(hp/dmg) shots having landed floor(killTime/scout.cd) attacks; the CUMULATIVE chip of all side scouts must stay under garageLeakBudgetFrac*garageHp.",
+   "fortressTurretCd": 0.55,
+   "garageTurretCd": 0.6,
+   "unitStats": {
+    "scout": {
+     "cost": 20,
+     "hp": 42,
+     "dmg": 6,
+     "cd": 0.5,
+     "speed": 96
     },
-    "vertical": {
-      "_": "climb-to-the-top games (clouds). World is platforms + a waypoint chain; the void/storm below is deadly. Every consecutive chain hop must be inside the movement envelope OR powered by a declared mechanic (updraft/spring/mover).",
-      "hopDxMaxPx": 180,
-      "hopDyUpMaxPx": 110,
-      "updraftDyMaxPx": 420,
-      "springDyMaxPx": 260,
-      "platformMinWPx": 80,
-      "chainRequired": true,
-      "goalNearTopPx": 280,
-      "spawnOnPlatform": true,
-      "chainPlatformMinWPx": 120,
-      "goalNearTopFrac": 0.3
+    "brawler": {
+     "cost": 46,
+     "hp": 130,
+     "dmg": 13,
+     "cd": 0.7,
+     "speed": 60
     },
-    "shooter": {
-      "_": "vertical space shooter (Starlance). The deadly thing is the sweeping-gap bullet curtain; survivability is GUARANTEED when the live gap is always a safe column the autopilot can sit in.",
-      "shipSpeed": 360,
-      "shipHalf": 16,
-      "curtainBound": "sweepSpeed*fallTime < gapW/2 - shipHalf - 6 ; sweepSpeed = amp*2PI/period ; fallTime = shipY(470)/bulletSpeed",
-      "formationsNonDeadly": true
-    },
-    "rts": {
-      "_": "car lane-push RTS (Roadwar). Garage (you, bottom) vs fortress (top) across 3 lanes; you spend auto-income SCRAP to BUILD cars that drive up and brawl. WINNABLE-BY-CONSTRUCTION: the autopilot goes all-in on the rally lane with autoBuild, so two static facts guarantee a 0-death win.",
-      "incomeBoundFrac": 0.9,
-      "sideLaneUnitsAllowed": ["scout"],
-      "rallyLaneRequired": true,
-      "scheduleFinite": true,
-      "garageTurretDefendsAllLanes": true,
-      "garageLeakBudgetFrac": 0.35,
-      "winBound": "ACCUMULATION: income/autoBuild.cost > fortressTurret.dmg/(fortressTurretCd*autoBuild.hp) — the player adds rally units faster than the fortress turret removes them, so the deathball grows without bound and the (finite-schedule) fortress falls. SIDE-LEAK: a leaked off-rally scout reaches the base and is shot at distance-0 every garageTurretCd, dying after ceil(hp/dmg) shots having landed floor(killTime/scout.cd) attacks; the CUMULATIVE chip of all side scouts must stay under garageLeakBudgetFrac*garageHp.",
-      "fortressTurretCd": 0.55,
-      "garageTurretCd": 0.6,
-      "unitStats": {
-        "scout": { "cost": 20, "hp": 42, "dmg": 6, "cd": 0.5, "speed": 96 },
-        "brawler": { "cost": 46, "hp": 130, "dmg": 13, "cd": 0.7, "speed": 60 },
-        "gunner": { "cost": 36, "hp": 54, "dmg": 9, "cd": 0.55, "speed": 74 }
-      },
-      "field": { "garageY": 492, "fortressY": 64, "lanes": [260, 480, 700] }
+    "gunner": {
+     "cost": 36,
+     "hp": 54,
+     "dmg": 9,
+     "cd": 0.55,
+     "speed": 74
     }
+   },
+   "field": {
+    "garageY": 492,
+    "fortressY": 64,
+    "lanes": [
+     260,
+     480,
+     700
+    ]
+   }
   },
-  "thresholds": {
-    "gateDeaths": 0,
-    "funMin": 85,
-    "artCohesionMin": 60,
-    "distinctnessMin": 50,
-    "musicBedMinRms": 0.004,
-    "musicBedMinSeconds": 8
+  "isorts": {
+   "_": "isometric continuous-front car RTS (Roadwar Iso). Same economy/combat as 'rts' but a CONTINUOUS lateral lx in [-1,1] instead of 3 fixed lanes; same WINNABLE-BY-CONSTRUCTION accumulation + side-leak bounds (off-rally = |lx-rally|>band).",
+   "incomeBoundFrac": 0.9,
+   "sideLaneUnitsAllowed": [
+    "scout"
+   ],
+   "rallyLaneRequired": false,
+   "scheduleFinite": true,
+   "garageTurretDefendsAllLanes": true,
+   "garageLeakBudgetFrac": 0.35,
+   "winBound": "ACCUMULATION: income/autoBuild.cost > fortressTurret.dmg/(fortressTurretCd*autoBuild.hp) \u2014 the player adds rally units faster than the fortress turret removes them, so the deathball grows without bound and the (finite-schedule) fortress falls. SIDE-LEAK: a leaked off-rally scout reaches the base and is shot at distance-0 every garageTurretCd, dying after ceil(hp/dmg) shots having landed floor(killTime/scout.cd) attacks; the CUMULATIVE chip of all side scouts must stay under garageLeakBudgetFrac*garageHp.",
+   "fortressTurretCd": 0.55,
+   "garageTurretCd": 0.6,
+   "unitStats": {
+    "scout": {
+     "cost": 20,
+     "hp": 42,
+     "dmg": 6,
+     "cd": 0.5,
+     "speed": 96
+    },
+    "brawler": {
+     "cost": 46,
+     "hp": 130,
+     "dmg": 13,
+     "cd": 0.7,
+     "speed": 60
+    },
+    "gunner": {
+     "cost": 36,
+     "hp": 54,
+     "dmg": 9,
+     "cd": 0.55,
+     "speed": 74
+    }
+   },
+   "field": {
+    "garageY": 492,
+    "fortressY": 64,
+    "lanes": [
+     260,
+     480,
+     700
+    ]
+   },
+   "continuousFront": true
   }
+ },
+ "thresholds": {
+  "gateDeaths": 0,
+  "funMin": 85,
+  "artCohesionMin": 60,
+  "distinctnessMin": 50,
+  "musicBedMinRms": 0.004,
+  "musicBedMinSeconds": 8
+ }
 }

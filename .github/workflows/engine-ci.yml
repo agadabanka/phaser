@@ -1,0 +1,43 @@
+name: Engine CI — gate every game
+
+# THE REGRESSION RATCHET (the engine defends itself). On any change to the shared
+# SDK, a game, the eval tools, or the rules, re-vendor the current SDK into EVERY
+# game and re-run that game's deterministic 0-death gate across all four archetypes.
+# A change that breaks any shipped game turns this red — caught here, not by hand.
+
+on:
+  push:
+    paths:
+      - 'studio/sdk/**'
+      - 'studio/games/**'
+      - 'studio/tools/**'
+      - 'studio/rules.json'
+      - '.github/workflows/engine-ci.yml'
+  pull_request:
+    paths:
+      - 'studio/sdk/**'
+      - 'studio/games/**'
+      - 'studio/tools/**'
+      - 'studio/rules.json'
+  workflow_dispatch:
+
+jobs:
+  engine-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: Install Chromium (for the browser gate)
+        run: npx playwright install --with-deps chromium
+      - name: Engine regression ratchet — re-vendor + gate every game
+        run: node tools/ci/run.mjs

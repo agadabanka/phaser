@@ -172,9 +172,11 @@ function lintRts(L, i) {
   const gt = L.garageTurret || { range: 150, dmg: 14 };
   let leakDmg = 0, sideN = 0;
   (L.schedule || []).forEach((ev) => {
-    if (ev.lane == null || ev.lane === rally) return;                   // on-rally meets the deathball head-on
+    // off-rally = a flank the deathball never meets: lane!=rally (lane mode) OR |lx-rally|>band (iso continuous front)
+    const onRally = ev.lane != null ? (ev.lane === rally) : ev.lx != null ? (Math.abs(ev.lx - rally) < 0.1) : true;
+    if (onRally) return;
     sideN++;
-    check(allowed.has(ev.type), null, `${tag}: side-lane unit "${ev.type}"@lane${ev.lane} not in {${[...allowed].join(',')}} (the deathball never meets it; only a scout the base gun can clear is safe)`);
+    check(allowed.has(ev.type), null, `${tag}: side unit "${ev.type}"@${ev.lane != null ? 'lane' + ev.lane : 'lx' + ev.lx} not in {${[...allowed].join(',')}} (the deathball never meets it; only a scout the base gun can clear is safe)`);
     const su = U[ev.type]; if (!su) return;
     const killShots = Math.ceil(su.hp / gt.dmg), killTime = killShots * gCd;
     leakDmg += Math.floor(killTime / su.cd) * su.dmg;                   // garage HP this leaked scout chips before dying
@@ -184,7 +186,7 @@ function lintRts(L, i) {
     check(leakDmg <= budget, `${tag}: side leaks survivable (${leakDmg} ≤ ${Math.round(budget)} garage budget, ${sideN} scout(s))`, `${tag}: side leaks chip ${leakDmg} > ${Math.round(budget)} garage budget — widen garageTurret.dmg, fewer side scouts, or more garageHp`);
   }
 }
-LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : archetype === 'rts' ? lintRts(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
+LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : (archetype === 'rts' || archetype === 'isorts') ? lintRts(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
 
 const pass = ok === checks;
 const score = +(100 * (checks ? ok / checks : 0)).toFixed(1);
