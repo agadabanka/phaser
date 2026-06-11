@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { effectiveSchedule } from '../../tools/eval/pressure.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sandbox = { window: {} }; vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(HERE, 'src/game/levels.js'), 'utf8'), sandbox);
@@ -39,7 +40,7 @@ function runLevel(spec, maxFrames) {
   let clock = 0, frame = 0, schedIdx = 0, gTurretCd = 0, fTurretCd = 0;
   const dt = 1 / 60;
   const rl = spec.rally != null ? spec.rally : 1, bt = spec.autoBuild || 'brawler';
-  const sched = spec.schedule || [];
+  const sched = effectiveSchedule(spec, 'lane');
 
   function spawnUnit(side, type, lane) {
     const st = tuned(spec, type);

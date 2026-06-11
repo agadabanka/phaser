@@ -988,6 +988,46 @@
     return typeof t === 'string' ? t : (t && t.url) || null;
   };
 
+  // ---------------------------------------------------------------------- Iso
+  // A reusable perspective-ISO PROJECTOR — the building block behind every
+  // isometric game (not just the RTS). Configure the screen anchors once, then
+  // project (lx∈[-1,1] across, t∈[0,1] depth: 0 far/top, 1 near/bottom) → a screen
+  // point with a perspective SCALE and a DEPTH for sorting (near draws over far).
+  // `lxAt` inverts a click back to lx; `place` positions+scales+depth-sorts a sprite.
+  Studio.Iso = {
+    projector: function (o) {
+      o = o || {};
+      var farY = o.farY != null ? o.farY : 120, nearY = o.nearY != null ? o.nearY : 470, cx = o.cx != null ? o.cx : 480;
+      var farHalf = o.farHalf || 150, nearHalf = o.nearHalf || 330, farSc = o.farScale || 0.52, nearSc = o.nearScale || 1.04, dBase = o.depthBase || 10, dSpan = o.depthSpan || 120;
+      return {
+        at: function (lx, t) { var hw = farHalf + t * (nearHalf - farHalf); return { sx: cx + lx * hw, sy: farY + t * (nearY - farY), sc: farSc + t * (nearSc - farSc), depth: dBase + t * dSpan }; },
+        lxAt: function (px) { return Math.max(-1, Math.min(1, (px - cx) / nearHalf)); },
+        place: function (spr, lx, t, baseScale) { var p = this.at(lx, t); spr.setPosition(p.sx, p.sy); spr.setScale((baseScale || 1) * p.sc); spr.setDepth(p.depth); return p; }
+      };
+    }
+  };
+
+  // SYSTEMATIC enemy pressure — the engine's tension knob (mirrors tools/eval/
+  // pressure.mjs verbatim; the 0-death gate keeps the mirror honest). A level's
+  // `difficulty` (0..1) deterministically expands its schedule with FLANK waves
+  // (off-rally units that bypass the centre deathball and pressure the HQ → garage
+  // damage = tension, and a flank-aware strategy beats a centre-only one = depth).
+  Studio.rtsPressure = function (spec, mode) {
+    var base = (spec.schedule || []).map(function (e) { var o = {}; for (var k in e) o[k] = e[k]; return o; });
+    var d = spec.difficulty || 0;
+    if (d > 0) {
+      var span = base.reduce(function (m, e) { return Math.max(m, e.t); }, 20), n = Math.round(d * 12);
+      for (var k = 0; k < n; k++) {
+        var t = +(6 + (span - 4) * (k / Math.max(1, n - 1))).toFixed(2), left = k % 2 === 0, heavy = d > 0.45 && k % 3 !== 0;
+        var e = { t: t, type: heavy ? 'brawler' : 'scout', flank: true };
+        if (mode === 'lane') e.lane = left ? 0 : 2; else e.lx = left ? -0.62 : 0.62;
+        base.push(e);
+      }
+      base.sort(function (a, b) { return a.t - b.t; });
+    }
+    return base;
+  };
+
   // ---------------------------------------------------------------------- Cam
   Studio.Cam = {
     follow: function (scene, target, opt) {
@@ -1220,6 +1260,7 @@
       cfg = cfg || {};
       if (cfg.archetype === 'shooter') return Studio.Shooter.boot(cfg);   // a different game loop entirely
       if (cfg.archetype === 'rts') return Studio.RTS.boot(cfg);
+      if (cfg.archetype === 'isorts') return Studio.IsoRTS.boot(cfg);     // isometric continuous-front RTS
       var TH = cfg.theme || {};
       var HOOKS = cfg.hooks || {};
       var VERT = cfg.archetype === 'vertical';
@@ -2226,7 +2267,7 @@
 
       var scene, units = [], uid = 0, scrap = 0, income = 12, depots = 0, garageHp = 1000, fortressHp = 1000, garageMax = 1000, fortressMax = 1000;
       var levelIndex = 0, clock = 0, frame = 0, won = false, deaths = 0, selLane = 1, buildType = 'brawler';
-      var auto = false, schedIdx = 0, bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
+      var auto = false, schedIdx = 0, effSched = [], bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
       var gTurretCd = 0, fTurretCd = 0, bullets = [];
       var spec = function () { return LEVELS[levelIndex] || {}; };
 
@@ -2242,7 +2283,7 @@
 
       function loadLevel(i) {
         levelIndex = i; clock = 0; schedIdx = 0; won = false;
-        var s = spec();
+        var s = spec(); effSched = Studio.rtsPressure(s, 'lane');   // systematic difficulty→flank pressure
         units = []; uid = 0; bullets.forEach(function (b) { try { b.spr.destroy(); } catch (e) {} }); bullets = [];
         depots = 0; if (depotLayer) depotLayer.removeAll(true);
         income = s.income || 12; scrap = s.startScrap != null ? s.startScrap : 40;
@@ -2341,7 +2382,7 @@
         // bullets
         for (var b = bullets.length - 1; b >= 0; b--) { var bl = bullets[b]; bl.t -= dt; if (bl.spr) bl.spr.setPosition(bl.x + (bl.tx - bl.x) * (1 - bl.t / bl.life), bl.y + (bl.ty - bl.y) * (1 - bl.t / bl.life)); if (bl.t <= 0) { try { bl.spr.destroy(); } catch (e) {} bullets.splice(b, 1); } }
         // enemy spawn schedule (deterministic)
-        var sched = spec().schedule || [];
+        var sched = effSched;
         while (schedIdx < sched.length && clock >= sched[schedIdx].t) { var ev = sched[schedIdx]; build('e', ev.type, ev.lane != null ? ev.lane : 1); schedIdx++; }
       }
       function nearestUnitNear(side, x, y, range) {
@@ -2511,6 +2552,248 @@
       function showCard(i, stats) { mode = 'card'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(400); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x140d04, 0.7)); mtext(menuLayer, 480, 200, (spec().name || 'GROUND') + ' — TAKEN', 26); mtext(menuLayer, 480, 250, 'scrap ' + stats.score + '  ·  ' + (stats.timeMs / 1000).toFixed(1) + 's', 16); var go = function () { if (mode === 'card') startGame(i + 1); }; mtext(menuLayer, 480, 320, '▶  NEXT GROUND', 22, true).on('pointerdown', go); scene.input.keyboard.once('keydown-SPACE', go); scene.time.delayedCall(2600, go); }
       function showWin(st) { mode = 'win'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(400); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x140d04, 0.78)); mtext(menuLayer, 480, 170, TH.toasts && TH.toasts.win || 'THE ROAD IS YOURS', 34); mtext(menuLayer, 480, 230, 'final scrap ' + st.score, 18); mtext(menuLayer, 480, 310, '↻  PLAY AGAIN', 22, true).on('pointerdown', function () { startGame(0); }); mtext(menuLayer, 480, 360, 'MENU', 15, true).on('pointerdown', function () { showMenu(); }); }
       function showLose() { mode = 'win'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(400); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x1a0404, 0.8)); mtext(menuLayer, 480, 200, 'GARAGE DESTROYED', 30); mtext(menuLayer, 480, 280, '↻  RETRY', 22, true).on('pointerdown', function () { startGame(levelIndex); }); mtext(menuLayer, 480, 330, 'MENU', 15, true).on('pointerdown', function () { showMenu(); }); }
+
+      var config = { type: Phaser.AUTO, backgroundColor: TH.cssBg || '#1a160f', seed: [cfg.seed || title], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H }, render: { preserveDrawingBuffer: true, pixelArt: false }, physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }, scene: [Play] };
+      var rp = new URLSearchParams(location.search).get('r'); if (rp === 'canvas') config.type = Phaser.CANVAS; else if (rp === 'webgl') config.type = Phaser.WEBGL;
+      root.game = new Phaser.Game(config);
+      return root.game;
+    }
+  };
+
+  // ============================================================ Studio.IsoRTS
+  // The ISOMETRIC redesign of the car RTS: a freer 2.5D battlefield instead of
+  // three fixed lanes. The deterministic combat + economy + win-by-construction
+  // bounds are REUSED from Studio.RTS (depth axis y: fortress 64 → garage 492),
+  // but the lane index is replaced by a CONTINUOUS lateral coordinate lx∈[-1,1]
+  // (units fight whoever is within a lateral BAND ahead), and the world is drawn
+  // in perspective iso: deeper = higher + narrower + smaller, near = lower + wider
+  // + bigger, depth-sorted. Same scrap economy, same turrets, same 0-death proof.
+  Studio.IsoRTS = {
+    boot: function (cfg) {
+      var TH = cfg.theme || {}, LEVELS = cfg.levels || root.LEVELS || [];
+      var title = cfg.title || 'Studio IsoRTS', slug = cfg.slug || 'isorts';
+      var W = 960, H = 540, FONT = 'Georgia, "Times New Roman", serif';
+      var FORT_Y = 64, GAR_Y = 492, DEPTH = GAR_Y - FORT_Y;           // combat depth axis (reused from RTS)
+      var BAND = 0.22;                                                 // lateral engage band (lx units)
+      // iso projection screen anchors
+      var FAR_Y = 120, NEAR_Y = 470, CX = 480, FAR_HALF = 150, NEAR_HALF = 330, FAR_SC = 0.52, NEAR_SC = 1.04;
+      var UNIT = {
+        scout:   { cost: 20, hp: 42,  dmg: 6,  range: 38,  speed: 96, cd: 0.5, r: 17 },
+        brawler: { cost: 46, hp: 130, dmg: 13, range: 42,  speed: 60, cd: 0.7, r: 20 },
+        gunner:  { cost: 36, hp: 54,  dmg: 9,  range: 140, speed: 74, cd: 0.55, r: 17 },
+        warlord: { cost: 999, hp: 620, dmg: 22, range: 46, speed: 42, cd: 0.9, r: 32 }
+      };
+      var REFINERY = (cfg.economy && cfg.economy.refinery) || { cost: 55, bonus: 7, max: 4 };
+      var save = Studio.Save.load(slug);
+
+      var scene, units = [], uid = 0, scrap = 0, income = 12, depots = 0, garageHp = 1000, fortressHp = 1000, garageMax = 1000, fortressMax = 1000;
+      var levelIndex = 0, clock = 0, frame = 0, won = false, deaths = 0, buildType = 'brawler', selLx = 0;
+      var auto = false, schedIdx = 0, effSched = [], bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
+      var gTurretCd = 0, fTurretCd = 0, bullets = [], bgImg = null, fieldLayer = null, depotLayer = null;
+      var spec = function () { return LEVELS[levelIndex] || {}; };
+      function curIncome() { return income + depots * REFINERY.bonus; }
+
+      // the shared iso building block — configured for this game's field
+      var ISO = Studio.Iso.projector({ farY: FAR_Y, nearY: NEAR_Y, cx: CX, farHalf: FAR_HALF, nearHalf: NEAR_HALF, farScale: FAR_SC, nearScale: NEAR_SC, depthSpan: 120 });
+      function project(lx, y) { return ISO.at(lx, (y - FORT_Y) / DEPTH); }          // (lx∈[-1,1], depth-y) -> iso screen
+      function place(spr, lx, y, baseScale) { return ISO.place(spr, lx, (y - FORT_Y) / DEPTH, baseScale); }
+
+      function snapshot() {
+        return {
+          x: 0, y: 0, vx: 0, vy: 0, scrap: Math.round(scrap), coins: Math.round(scrap),
+          garageHp: Math.round(garageHp), fortressHp: Math.round(fortressHp), depots: depots, income: +curIncome().toFixed(1),
+          units: units.filter(function (u) { return u.alive; }).length,
+          deaths: deaths, dead: deaths > 0, won: won, frame: frame, level: levelIndex, maxX: 0
+        };
+      }
+
+      function loadLevel(i) {
+        levelIndex = i; clock = 0; schedIdx = 0; won = false;
+        var s = spec(); effSched = Studio.rtsPressure(s, 'lx');     // systematic difficulty→flank pressure (iso)
+        units.forEach(function (u) { try { u.spr.destroy(); } catch (e) {} }); units = []; uid = 0;
+        bullets.forEach(function (b) { try { b.spr.destroy(); } catch (e) {} }); bullets = [];
+        depots = 0; if (depotLayer) depotLayer.removeAll(true);
+        income = s.income || 12; scrap = s.startScrap != null ? s.startScrap : 40;
+        garageHp = garageMax = s.garageHp || 1000; fortressHp = fortressMax = s.fortressHp || 1000;
+        if (bgImg) bgImg.setTexture(scene.textures.exists('bg_' + i) ? 'bg_' + i : 'bg_0');
+        levelStartFrame = frame;
+        if (bedOn) Studio.Audio.switchMusic(Studio.levelMusic(TH, LEVELS, i), TH.music && TH.music.vol != null ? TH.music.vol : 0.55);
+        toast((TH.toasts && TH.toasts.level || 'GROUND {i} · {name}').replace('{i}', i + 1).replace('{name}', s.name || ''));
+        hud();
+      }
+      function tuned(type) { var u = UNIT[type], t = (spec().tune || {})[type] || {}; return { cost: t.cost || u.cost, hp: t.hp || u.hp, dmg: t.dmg || u.dmg, range: u.range, speed: u.speed, cd: u.cd, r: u.r }; }
+      function spawnUnit(side, type, lx) {
+        var st = tuned(type), id = uid++, y = side === 'p' ? GAR_Y - 18 : FORT_Y + 18;
+        var tex = (side === 'p' ? 'car_' : 'enemy_') + type;
+        var spr = scene.add.image(0, 0, scene.textures.exists(tex) ? tex : (side === 'p' ? 'car_fallback' : 'enemy_fallback'));
+        var base = (type === 'warlord' ? 0.7 : 0.4) * (44 / Math.max(1, spr.height));
+        if (side === 'e') spr.setFlipX(true);
+        var u = { id: id, side: side, type: type, lx: lx, y: y, hp: st.hp, maxHp: st.hp, dmg: st.dmg, range: st.range, speed: st.speed, cd: 0, atkCd: st.cd, r: st.r, spr: spr, base: base, alive: true };
+        place(spr, lx, y, base); if (fieldLayer) fieldLayer.add(spr); units.push(u);
+      }
+      function build(side, type, lx) {
+        if (type === 'depot') return buildRefinery();
+        if (side === 'p') { var c = tuned(type).cost; if (scrap < c) return false; scrap -= c; }
+        spawnUnit(side, type, lx); Studio.Audio.sfx('jump'); return true;
+      }
+      function buildRefinery() {
+        if (depots >= REFINERY.max || scrap < REFINERY.cost) return false;
+        scrap -= REFINERY.cost; depots++;
+        if (scene && depotLayer) { var lx = -0.9 + (depots - 1) * 0.12, p = project(lx, GAR_Y + 6); var spr = scene.add.image(p.sx, p.sy, scene.textures.exists('depot_art') ? 'depot_art' : 'spark').setDepth(p.depth).setScale(0.5 * p.sc); depotLayer.add(spr); Studio.Juice.burst(scene, p.sx, p.sy, { texture: 'spark', n: 8, tint: 0xffcc44, life: 360 }); }
+        Studio.Audio.sfx('coin'); hud(); return true;
+      }
+      function nearestEnemyAhead(u) {
+        var foe = u.side === 'p' ? 'e' : 'p', best = null, bd = 1e9;
+        for (var i = 0; i < units.length; i++) { var o = units[i]; if (!o.alive || o.side !== foe) continue; if (Math.abs(o.lx - u.lx) > BAND) continue; var ahead = u.side === 'p' ? (o.y < u.y) : (o.y > u.y); if (!ahead) continue; var d = Math.abs(o.y - u.y); if (d < bd) { bd = d; best = o; } }
+        return best ? { o: best, d: bd } : null;
+      }
+      function nearestApproaching(side, hqY, range) {
+        var best = null, bd = range || 150;
+        for (var i = 0; i < units.length; i++) { var u = units[i]; if (!u.alive || u.side !== side) continue; var d = Math.abs(u.y - hqY); if (d < bd) { bd = d; best = u; } }
+        return best;
+      }
+      function spawnBullet(from, to) { var p = project(from.lx, from.y), q = project(to.lx, to.y); var spr = scene.add.image(p.sx, p.sy, 'pellet').setDepth(200); if (fieldLayer) fieldLayer.add(spr); bullets.push({ x: p.sx, y: p.sy, tx: q.sx, ty: q.sy, t: 0.18, life: 0.18, spr: spr }); }
+
+      function tickWorld(dt) {
+        scrap += curIncome() * dt;
+        for (var i = 0; i < units.length; i++) {
+          var u = units[i]; if (!u.alive) continue; u.cd -= dt;
+          var ne = nearestEnemyAhead(u), dir = u.side === 'p' ? -1 : 1;
+          var hqY = u.side === 'p' ? FORT_Y : GAR_Y, hqDist = Math.abs(u.y - hqY);
+          if (ne && ne.d <= Math.max(u.range, u.r + 10)) {
+            var want = u.range > 80 ? u.range - 6 : (u.r + ne.o.r + 4);
+            if (ne.d > want + 4) u.y += dir * u.speed * dt;
+            if (u.cd <= 0) { ne.o.hp -= u.dmg; u.cd = u.atkCd; if (u.range > 80) { spawnBullet(u, ne.o); Studio.Juice.muzzle(scene, project(u.lx, u.y).sx, project(u.lx, u.y).sy, { tint: u.side === 'p' ? 0xffe27a : 0xff7a4a }); } else { var pc = project((u.lx + ne.o.lx) / 2, (u.y + ne.o.y) / 2); Studio.Juice.burst(scene, pc.sx, pc.sy, { texture: 'spark', n: 5, tint: 0xffcc44, life: 200 }); } }
+          } else if (hqDist <= u.range + 6 && (!ne || ne.d > u.range)) {
+            if (u.cd <= 0) { if (u.side === 'p') fortressHp -= u.dmg; else garageHp -= u.dmg; u.cd = u.atkCd; var ph = project(u.lx, hqY + dir * -10); Studio.Juice.burst(scene, ph.sx, ph.sy, { texture: 'spark', n: 6, tint: 0xff5a3c, life: 240 }); }
+          } else { u.y += dir * u.speed * dt; }
+          if (u.spr) place(u.spr, u.lx, u.y, u.base);
+          if (u.hp <= 0) { u.alive = false; if (u.spr) { var boss = u.type === 'warlord', pp = project(u.lx, u.y); Studio.Juice.explode(scene, pp.sx, pp.sy, { texture: 'spark', smoke: 'smoke', n: boss ? 34 : 13, r: boss ? 90 : 42, tint: u.side === 'p' ? 0x6ad6ff : 0xff7a3c, life: boss ? 700 : 420, spMax: boss ? 280 : 160, shake: boss ? 320 : 0, flash: boss }); if (boss) Studio.Juice.popText(scene, pp.sx, pp.sy - 26, 'WARLORD DOWN', { size: 20, color: '#ffd24a' }); u.spr.destroy(); } }
+        }
+        gTurretCd -= dt; fTurretCd -= dt;
+        var gT = nearestApproaching('e', GAR_Y, spec().garageTurret ? spec().garageTurret.range : 150);
+        if (gT && gTurretCd <= 0) { gTurretCd = 0.6; gT.hp -= (spec().garageTurret ? spec().garageTurret.dmg : 14); spawnBullet({ lx: 0, y: GAR_Y - 10 }, gT); }
+        var fT = nearestApproaching('p', FORT_Y, spec().fortressTurret ? spec().fortressTurret.range : 160);
+        if (fT && fTurretCd <= 0) { fTurretCd = 0.55; fT.hp -= (spec().fortressTurret ? spec().fortressTurret.dmg : 16); spawnBullet({ lx: 0, y: FORT_Y + 10 }, fT); }
+        for (var b = bullets.length - 1; b >= 0; b--) { var bl = bullets[b]; bl.t -= dt; if (bl.spr) bl.spr.setPosition(bl.x + (bl.tx - bl.x) * (1 - bl.t / bl.life), bl.y + (bl.ty - bl.y) * (1 - bl.t / bl.life)); if (bl.t <= 0) { try { bl.spr.destroy(); } catch (e) {} bullets.splice(b, 1); } }
+        var sched = effSched;
+        while (schedIdx < sched.length && clock >= sched[schedIdx].t) { var ev = sched[schedIdx]; build('e', ev.type, ev.lx != null ? ev.lx : 0); schedIdx++; }
+      }
+
+      var Play = {
+        key: 'Play',
+        preload: function () {
+          for (var i = 0; i < LEVELS.length; i++) if (TH.backdrops) this.load.image('bg_' + i, TH.backdrops.replace('{i}', i + 1));
+          var imgs = TH.images || {}; for (var k in imgs) this.load.image(k, imgs[k]);
+          if (TH.menu && TH.menu.logo) this.load.image('menu_logo', TH.menu.logo);
+        },
+        create: function () {
+          scene = this;
+          Studio.Textures.bake(this, 'spark', 10, 10, function (g) { g.fillStyle(TH.accent != null ? TH.accent : 0xffcc44, 1).fillCircle(5, 5, 5); g.fillStyle(0xffffff, 1).fillCircle(5, 5, 2); });
+          Studio.Textures.bake(this, 'pellet', 7, 7, function (g) { g.fillStyle(0xfff0a0, 1).fillCircle(3.5, 3.5, 3.5); });
+          Studio.Textures.bake(this, 'smoke', 16, 16, function (g) { g.fillStyle(0x888078, 0.5).fillCircle(8, 8, 8); });
+          Studio.Textures.bake(this, 'car_fallback', 30, 34, function (g) { g.fillStyle(0x4aa3ff, 1).fillRoundedRect(3, 2, 24, 30, 5); });
+          Studio.Textures.bake(this, 'enemy_fallback', 30, 34, function (g) { g.fillStyle(0xd64a4a, 1).fillRoundedRect(3, 2, 24, 30, 5); });
+          Studio.Textures.bake(this, 'garage_fallback', 200, 110, function (g) { g.fillStyle(0x2a6aa0, 1).fillRoundedRect(0, 20, 200, 80, 10); g.fillStyle(0x9cd, 1).fillRect(70, 40, 60, 50); });
+          Studio.Textures.bake(this, 'fortress_fallback', 220, 120, function (g) { g.fillStyle(0x402038, 1).fillRoundedRect(0, 24, 220, 86, 10); g.fillStyle(0xff3b6b, 1).fillRect(96, 60, 28, 28); });
+
+          this.add.rectangle(W / 2, H / 2, W, H, TH.sky != null ? TH.sky : 0x1a160f).setDepth(-100);
+          bgImg = this.add.image(W / 2, H / 2, scene.textures.exists('bg_0') ? 'bg_0' : 'spark').setDepth(-90);
+          if (scene.textures.exists('bg_0')) { var bw = bgImg.width, bh = bgImg.height, k = Math.max(W / bw, H / bh); bgImg.setScale(k); } else bgImg.setVisible(false);
+          Studio.Juice.ambient(this, W, { texture: 'spark', y: H + 6, vyMin: -30, vyMax: -12, drift: 12, scale: 0.5, alpha: 0.2, frequency: 240, tint: TH.accent != null ? TH.accent : 0xffcc44, lifespan: 6000 });
+
+          // HQ buildings at the iso ends (origin bottom so they sit on the ground)
+          var fp = project(0, FORT_Y), gp = project(0, GAR_Y);
+          this.fortress = this.add.image(fp.sx, fp.sy, scene.textures.exists('fortress_art') ? 'fortress_art' : 'fortress_fallback').setOrigin(0.5, 0.9).setDepth(fp.depth - 1); this.fortress.setScale((150 / Math.max(1, this.fortress.height)) * fp.sc * 1.4);
+          this.garage = this.add.image(gp.sx, gp.sy + 6, scene.textures.exists('garage_art') ? 'garage_art' : 'garage_fallback').setOrigin(0.5, 0.85).setDepth(gp.depth + 2); this.garage.setScale((150 / Math.max(1, this.garage.height)) * gp.sc);
+          fieldLayer = this.add.container(0, 0); depotLayer = this.add.container(0, 0).setDepth(gp.depth);
+
+          if (TH.grade) Studio.Juice.grade(this, function (cm) { try { cm.saturate(TH.grade.saturate || 0.14); cm.brightness(TH.grade.brightness || 1); } catch (e) {} });
+          if (TH.vignette) Studio.Juice.vignette(this, TH.vignette);
+
+          scene._hud = this.add.text(16, 12, '', { fontFamily: FONT, fontSize: '18px', color: TH.hud && TH.hud.color || '#ffe7a0', stroke: TH.hud && TH.hud.stroke || '#1a1208', strokeThickness: 5 }).setScrollFactor(0).setDepth(500);
+          this._fbar = this.add.graphics().setDepth(501); this._gbar = this.add.graphics().setDepth(501);
+
+          this._buildUI = this.add.container(0, 0).setDepth(502);
+          var defs = [['scout', '1'], ['brawler', '2'], ['gunner', '3'], ['depot', '4']];
+          defs.forEach(function (d, i) {
+            var econ = d[0] === 'depot', cost = econ ? REFINERY.cost : UNIT[d[0]].cost, bx = 312 + i * 116, by = H - 26;
+            var btn = scene.add.rectangle(bx, by, 108, 36, econ ? 0x3a2c08 : 0x000000, econ ? 0.7 : 0.55).setStrokeStyle(2, econ ? 0xffd24a : (TH.accent != null ? TH.accent : 0xffcc44)).setInteractive({ useHandCursor: true });
+            var lbl = scene.add.text(bx, by, d[1] + ' ' + (econ ? 'REFINERY' : d[0].toUpperCase()) + ' ' + cost, { fontFamily: FONT, fontSize: '11px', color: econ ? '#ffd86a' : '#ffe7a0' }).setOrigin(0.5);
+            btn.on('pointerdown', function () { buildType = d[0]; if (econ) build('p', 'depot', 0); });
+            scene._buildUI.add(btn); scene._buildUI.add(lbl);
+          });
+          scene.add.text(CX, H - 52, 'CLICK THE FIELD TO DEPLOY  ·  1/2/3 pick a car', { fontFamily: FONT, fontSize: '11px', color: '#ffe7a0' }).setOrigin(0.5).setDepth(502).setAlpha(0.85);
+          hud();
+
+          // click the field -> deploy the selected car at that lateral spot
+          this.input.on('pointerdown', function (ptr) { if (mode !== 'play') return; if (ptr.y > H - 44) return; var lx = ISO.lxAt(ptr.x); selLx = lx; if (buildType !== 'depot') build('p', buildType, lx); });
+          this.input.keyboard.on('keydown', function (e) { if (mode !== 'play') return; if (e.key === '1') buildType = 'scout'; else if (e.key === '2') buildType = 'brawler'; else if (e.key === '3') buildType = 'gunner'; else if (e.key === '4') build('p', 'depot', 0); else if (e.key === ' ') build('p', buildType, selLx); });
+
+          var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
+          this.input.once('pointerdown', startBed); if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
+
+          Studio.Shell.create(this, {
+            theme: TH.shell || null,
+            links: (function () { var L = [{ label: '📖 DIARY', href: '/api/diary' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } return L; })(),
+            context: function () { var s = spec(); return { where: 'G' + (levelIndex + 1) + ' ' + (s.name || ''), level: levelIndex + 1, scrap: Math.round(scrap), fortressHp: Math.round(fortressHp), garageHp: Math.round(garageHp), won: won, deaths: deaths, game: slug }; },
+            onRestart: function () { startGame(0); }
+          });
+          Studio.harness.install(root.game, {
+            snapshot: snapshot, setInput: function () {},
+            autopilot: function (on) { auto = !!on; },
+            reset: function () { clearMenu(); mode = 'play'; deaths = 0; won = false; frame = 0; loadLevel(0); hud(); }
+          });
+
+          loadLevel(0);
+          if (!cfg.skipMenu) showMenu();
+        },
+        update: function (time, delta) {
+          if (!scene || mode !== 'play') return;
+          frame++; var dt = Math.min((delta || (1000 / 60)) / 1000, 1 / 30); clock += dt;
+          if (auto && !won) {
+            var rl = spec().rally != null ? spec().rally : 0, bt = spec().autoBuild || 'brawler', econ = spec().autoEcon || 0;
+            var eg = 0; while (depots < econ && scrap >= REFINERY.cost && eg < 2) { build('p', 'depot', rl); eg++; }
+            var guard = 0; while (scrap >= tuned(bt).cost && guard < 4) { build('p', bt, rl); guard++; }
+          }
+          tickWorld(dt);
+          if (!won && fortressHp <= 0) {
+            if (scene && scene.fortress) { for (var fb = 0; fb < 5; fb++) { (function (k) { scene.time.delayedCall(k * 90, function () { var pe = project((k - 2) * 0.12, FORT_Y); Studio.Juice.explode(scene, pe.sx, pe.sy, { texture: 'spark', smoke: 'smoke', n: 22, r: 70, tint: 0xffb24a, life: 560, spMax: 240, shake: 200, flash: k === 0 }); }); })(fb); } }
+            if (levelIndex < LEVELS.length - 1) { Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 160, 150, 255, 200); var stats = { score: Math.round(scrap), timeMs: Math.round(((frame - levelStartFrame) / 60) * 1000) }; if (!auto) { save = Studio.Save.levelClear(slug, levelIndex, { coins: Math.round(scrap), timeMs: stats.timeMs }) || save; showCard(levelIndex, stats); } else { loadLevel(levelIndex + 1); } }
+            else { won = true; Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 300, 200, 255, 220); if (!auto) showWin({ score: Math.round(scrap) }); }
+          }
+          if (garageHp <= 0 && deaths === 0) { deaths++; Studio.Juice.flash(scene, 240, 255, 60, 60); Studio.Juice.shake(scene, 240, 0.012); if (!auto) showLose(); else { loadLevel(levelIndex); } }
+          hud();
+        }
+      };
+      function hud() {
+        if (!scene || !scene._hud) return;
+        scene._hud.setText('⚙ scrap ' + Math.round(scrap) + '  (+' + Math.round(curIncome()) + '/s' + (depots ? ' · ' + depots + '⛽' : '') + ')   ' + (TH.stageWord || 'ground') + ' ' + (levelIndex + 1) + '/' + LEVELS.length);
+        if (scene._fbar) { scene._fbar.clear(); scene._fbar.fillStyle(0x331018).fillRect(330, 22, 300, 9); scene._fbar.fillStyle(0xff3b6b).fillRect(330, 22, 300 * Math.max(0, fortressHp / fortressMax), 9); }
+        if (scene._gbar) { scene._gbar.clear(); scene._gbar.fillStyle(0x06202a).fillRect(330, H - 92, 300, 9); scene._gbar.fillStyle(0x44d6ff).fillRect(330, H - 92, 300 * Math.max(0, garageHp / garageMax), 9); }
+      }
+      function toast(txt) { if (!txt || mode !== 'play' || !scene) return; var t = scene.add.text(W / 2, 210, txt, { fontFamily: FONT, fontSize: '30px', color: TH.hud && TH.hud.color || '#ffe7a0', stroke: TH.hud && TH.hud.stroke || '#1a1208', strokeThickness: 6 }).setOrigin(0.5).setDepth(520).setAlpha(0); scene.tweens.add({ targets: t, alpha: 1, y: 196, duration: 420, yoyo: true, hold: 1100, onComplete: function () { try { t.destroy(); } catch (e) {} } }); }
+
+      function clearMenu() { if (menuLayer) { try { menuLayer.destroy(true); } catch (e) {} menuLayer = null; } }
+      function mtext(c, x, y, str, size, it) { var t = scene.add.text(x, y, str, { fontFamily: FONT, fontSize: size + 'px', color: TH.hud && TH.hud.color || '#ffe7a0', stroke: TH.hud && TH.hud.stroke || '#1a1208', strokeThickness: Math.max(3, size / 7), align: 'center' }).setOrigin(0.5); if (it) { t.setInteractive({ useHandCursor: true }); t.on('pointerover', function () { t.setScale(1.07); }); t.on('pointerout', function () { t.setScale(1); }); } c.add(t); return t; }
+      function showMenu() {
+        mode = 'menu'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600);
+        if (scene.textures.exists('bg_0')) { var b = scene.add.image(W / 2, H / 2, 'bg_0'); b.setScale(Math.max(W / b.width, H / b.height)); menuLayer.add(b); } else menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, TH.sky != null ? TH.sky : 0x1a160f));
+        menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x140d04, 0.5));
+        var hk = scene.textures.exists('car_brawler') ? 'car_brawler' : 'car_fallback';
+        var hs = scene.add.image(290, 300, hk); hs.setScale(150 / Math.max(1, scene.textures.get(hk).getSourceImage().height)); scene.tweens.add({ targets: hs, y: 288, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }); menuLayer.add(hs);
+        if (scene.textures.exists('menu_logo')) { var lg = scene.add.image(0, 0, 'menu_logo'); lg.setScale(Math.min(440 / lg.width, 130 / lg.height, 1)); lg.setPosition(300, 30 + lg.displayHeight / 2); menuLayer.add(lg); if (cfg.tagline) mtext(menuLayer, 300, 30 + lg.displayHeight + 16, cfg.tagline.toUpperCase(), 11); }
+        else { mtext(menuLayer, 300, 70, title.toUpperCase(), 42); if (cfg.tagline) mtext(menuLayer, 300, 112, cfg.tagline.toUpperCase(), 11); }
+        var unlocked = Math.max(1, save.unlocked || 1), y0 = 250 - ((LEVELS.length - 1) * 60) / 2;
+        LEVELS.forEach(function (L, i) { var open = i < unlocked, cy = y0 + i * 60; var card = scene.add.rectangle(800, cy, 280, 50, L.sky != null ? L.sky : 0x241a0c, 1).setStrokeStyle(2, open ? (TH.accent != null ? TH.accent : 0xffcc44) : 0x333, 1); if (open) { card.setInteractive({ useHandCursor: true }); card.on('pointerdown', function () { startGame(i); }); } else card.setAlpha(0.4); menuLayer.add(card); mtext(menuLayer, 800, cy, (open ? (i + 1) + '. ' : '🔒 ') + (L.name || 'GROUND ' + (i + 1)).toUpperCase(), 13); });
+        mtext(menuLayer, 480, 498, '▶  CLICK A GROUND · OR PRESS SPACE', 14);
+        var go = function () { if (mode === 'menu') startGame(Math.min(unlocked - 1, LEVELS.length - 1)); };
+        scene.input.keyboard.once('keydown-SPACE', go); scene.input.keyboard.once('keydown-ENTER', go);
+      }
+      function startGame(i) { clearMenu(); mode = 'play'; won = false; deaths = 0; loadLevel(i); hud(); }
+      function showCard(i, stats) { mode = 'card'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x140d04, 0.7)); mtext(menuLayer, 480, 200, (spec().name || 'GROUND') + ' — TAKEN', 26); mtext(menuLayer, 480, 250, 'scrap ' + stats.score + '  ·  ' + (stats.timeMs / 1000).toFixed(1) + 's', 16); var go = function () { if (mode === 'card') startGame(i + 1); }; mtext(menuLayer, 480, 320, '▶  NEXT GROUND', 22, true).on('pointerdown', go); scene.input.keyboard.once('keydown-SPACE', go); scene.time.delayedCall(2600, go); }
+      function showWin(st) { mode = 'win'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x140d04, 0.78)); mtext(menuLayer, 480, 170, TH.toasts && TH.toasts.win || 'THE ROAD IS YOURS', 34); mtext(menuLayer, 480, 230, 'final scrap ' + st.score, 18); mtext(menuLayer, 480, 310, '↻  PLAY AGAIN', 22, true).on('pointerdown', function () { startGame(0); }); mtext(menuLayer, 480, 360, 'MENU', 15, true).on('pointerdown', function () { showMenu(); }); }
+      function showLose() { mode = 'win'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x1a0404, 0.8)); mtext(menuLayer, 480, 200, 'GARAGE DESTROYED', 30); mtext(menuLayer, 480, 280, '↻  RETRY', 22, true).on('pointerdown', function () { startGame(levelIndex); }); mtext(menuLayer, 480, 330, 'MENU', 15, true).on('pointerdown', function () { showMenu(); }); }
 
       var config = { type: Phaser.AUTO, backgroundColor: TH.cssBg || '#1a160f', seed: [cfg.seed || title], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H }, render: { preserveDrawingBuffer: true, pixelArt: false }, physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }, scene: [Play] };
       var rp = new URLSearchParams(location.search).get('r'); if (rp === 'canvas') config.type = Phaser.CANVAS; else if (rp === 'webgl') config.type = Phaser.WEBGL;

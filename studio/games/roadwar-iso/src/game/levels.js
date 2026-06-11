@@ -9,7 +9,7 @@
  */
 window.LEVELS = [
   {
-    name: 'Desert Highway', sky: 0x3a2a16, income: 16, startScrap: 60, garageHp: 900, fortressHp: 600,
+    name: 'Desert Highway', difficulty: 0.5, sky: 0x3a2a16, income: 16, startScrap: 60, garageHp: 900, fortressHp: 600,
     rally: 0, autoBuild: 'brawler', fortressTurret: { range: 150, dmg: 10 }, garageTurret: { range: 150, dmg: 12 },
     schedule: [
       { t: 2, type: 'scout', lx: 0 },
@@ -18,7 +18,7 @@ window.LEVELS = [
     ]
   },
   {
-    name: 'The Junkyard', sky: 0x24281a, income: 18, startScrap: 60, garageHp: 980, fortressHp: 900,
+    name: 'The Junkyard', difficulty: 0.65, sky: 0x24281a, income: 18, startScrap: 60, garageHp: 980, fortressHp: 900,
     rally: 0, autoBuild: 'brawler', autoEcon: 1, fortressTurret: { range: 155, dmg: 12 }, garageTurret: { range: 158, dmg: 13 },
     schedule: [
       { t: 1, type: 'gunner', lx: 0 }, { t: 2, type: 'scout', lx: 0 },
@@ -28,7 +28,7 @@ window.LEVELS = [
     ]
   },
   {
-    name: 'Neon Strip', sky: 0x161038, income: 20, startScrap: 72, garageHp: 1020, fortressHp: 1080,
+    name: 'Neon Strip', difficulty: 1, sky: 0x161038, income: 20, startScrap: 72, garageHp: 1020, fortressHp: 1080,
     rally: 0, autoBuild: 'brawler', autoEcon: 2, fortressTurret: { range: 160, dmg: 14 }, garageTurret: { range: 166, dmg: 14 },
     schedule: [
       { t: 1, type: 'brawler', lx: 0 }, { t: 2, type: 'scout', lx: -0.6 },
@@ -38,7 +38,7 @@ window.LEVELS = [
     ]
   },
   {
-    name: 'Red Canyon', sky: 0x301410, income: 22, startScrap: 84, garageHp: 1080, fortressHp: 1320,
+    name: 'Red Canyon', difficulty: 1, sky: 0x301410, income: 22, startScrap: 84, garageHp: 1080, fortressHp: 1320,
     rally: 0, autoBuild: 'brawler', autoEcon: 2, fortressTurret: { range: 165, dmg: 16 }, garageTurret: { range: 174, dmg: 16 },
     schedule: [
       { t: 1, type: 'brawler', lx: 0 }, { t: 2, type: 'brawler', lx: 0 },
@@ -48,7 +48,7 @@ window.LEVELS = [
     ]
   },
   {
-    name: "Warlord's Gate", sky: 0x200810, income: 26, startScrap: 100, garageHp: 1180, fortressHp: 1820,
+    name: "Warlord's Gate", difficulty: 0.8, sky: 0x200810, income: 26, startScrap: 100, garageHp: 1180, fortressHp: 1820,
     rally: 0, autoBuild: 'brawler', autoEcon: 2, fortressTurret: { range: 170, dmg: 18 }, garageTurret: { range: 182, dmg: 18 },
     schedule: [
       { t: 1, type: 'scout', lx: 0 }, { t: 2, type: 'gunner', lx: 0 }, { t: 3, type: 'scout', lx: -0.6 },

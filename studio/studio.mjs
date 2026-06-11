@@ -12,6 +12,7 @@
  *   studio feel <game>               the FUN model per level
  *   studio lens <game>               diagnose FUN through the design lenses (MDA + Schell) → prescriptions
  *   studio strategies <game>         sweep AI playstyles → strategic depth, tension & balance (beyond 0-death)
+ *   studio balance <game> [--dry]    auto-tune per-level `difficulty` to a rising tension curve (the floor stays winnable)
  *   studio check <game>              EVERY applicable validator -> scorecard (--validate-all)
  *   studio ship <game>               railway up from the game dir
  *   studio publish <game> [--public] ENSURE the game's GitHub repo exists (private
@@ -58,6 +59,7 @@ switch (cmd) {
   case 'feel': run(path.join(STUDIO, 'tools', 'eval', 'feel.mjs'), [gameDir(args[0])]); break;
   case 'lens': run(path.join(STUDIO, 'tools', 'design-lens', 'lens.mjs'), [gameDir(args[0]), ...args.slice(1)]); break;
   case 'strategies': case 'styles': run(path.join(STUDIO, 'tools', 'eval', 'strategies.mjs'), [gameDir(args[0])]); break;
+  case 'balance': run(path.join(STUDIO, 'tools', 'eval', 'balance.mjs'), [gameDir(args[0]), ...args.slice(1)]); break;
   case 'ship': { const g = gameDir(args[0]); const r = spawnSync('npx', ['--yes', '@railway/cli', 'up', '--detach'], { stdio: 'inherit', cwd: g }); process.exitCode = r.status ?? 1; break; }
   case 'notes': run(path.join(STUDIO, 'tools', 'notes-loop', 'tool.mjs'), args); break;
   case 'publish': {

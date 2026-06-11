@@ -830,6 +830,34 @@
     "tools/eval/strategies.mjs"
    ],
    "commit": null
+  },
+  {
+   "id": "e35",
+   "date": "2026-06-11",
+   "phase": "Engine",
+   "title": "Systematic difficulty: a tension model + auto-balancer (engine building blocks), beyond 0-death",
+   "what": "Made TENSION a systematic, declared, validated engine property instead of hand-tuning. Four building blocks: (1) Studio.rtsPressure (SDK) + tools/eval/pressure.mjs (the canonical mirror) — a level's `difficulty` (0..1) deterministically expands its schedule with FLANK waves (off-rally units that bypass the centre deathball and pressure the HQ → garage damage = tension, and a flank-aware strategy beats centre-only = depth). (2) tools/eval/rts-core.mjs — the shared pure-Node (Iso)RTS sim + 7 AI playstyles, the one simulator under every RTS eval. (3) tools/eval/strategies.mjs (studio strategies) — sweeps the playstyles → canonical (autopilot) tension curve + worst-case near-loss + strategic diversity. (4) tools/eval/balance.mjs (studio balance) — auto-tunes per-level `difficulty` to a target tension curve that RISES to the finale, keeping the canonical strategy winnable as the floor; writes difficulty back into the level data. Result on both Roadwar (lanes) and Roadwar Iso (continuous front): the strategy-sweep that showed STOMPS (every style wins, tension ~0.06) now shows a tension curve climbing 0.34→0.71 to a BRUTAL boss finale, with 89% strategic diversity (some playstyles genuinely fail = real choices) — and both gates stay GREEN 0-death (the floor). Also fixed rallyLx (lane-index vs lx disambiguation) so the sim is faithful to both archetypes.",
+   "why": "The steer was that 0-death is one optimal strategy's pass/fail — a weak signal — and that whatever we build should be SYSTEMATIC in the engine. So difficulty/tension is now a knob the engine owns (rules, not per-level hacks): the designer declares a rising tension curve and the balancer realises it against the strategy-sweep, with the 0-death gate demoted to a winnability floor. The next RTS/iso game inherits the whole loop.",
+   "systems": [
+    "rts",
+    "isorts",
+    "roadwar",
+    "roadwar-iso",
+    "strategies",
+    "game-runtime",
+    "rules",
+    "feel"
+   ],
+   "validator": "both gates GREEN 0-death (floor); strategy-sweep tension 0.06→0.47 mean, curve 0.34→0.71 rising; diversity 89%",
+   "status": "shipped",
+   "artifacts": [
+    "sdk/studio.js (Studio.rtsPressure)",
+    "tools/eval/pressure.mjs",
+    "tools/eval/rts-core.mjs",
+    "tools/eval/strategies.mjs",
+    "tools/eval/balance.mjs"
+   ],
+   "commit": null
   }
  ],
  "graph": {
@@ -1412,6 +1440,22 @@
     "tier": "evaluation",
     "validator": null,
     "desc": "Runs many AI playstyles through a level → strategic diversity + tension + balance. A different kind of eval than the binary 0-death gate."
+   },
+   {
+    "id": "pressure",
+    "kind": "sdk",
+    "label": "rtsPressure",
+    "tier": "engine",
+    "validator": null,
+    "desc": "Difficulty→flank-pressure model (Studio.rtsPressure + pressure.mjs mirror): the engine's systematic tension knob."
+   },
+   {
+    "id": "balance",
+    "kind": "tool",
+    "label": "Auto-Balancer",
+    "tier": "evaluation",
+    "validator": null,
+    "desc": "studio balance — auto-tunes per-level difficulty to a rising tension curve, floored by winnability, checked by the strategy-sweep."
    }
   ],
   "edges": [
@@ -2200,6 +2244,36 @@
     "from": "strategies",
     "to": "feel",
     "rel": "builds-on"
+   },
+   {
+    "from": "isorts",
+    "to": "pressure",
+    "rel": "builds-on"
+   },
+   {
+    "from": "rts",
+    "to": "pressure",
+    "rel": "builds-on"
+   },
+   {
+    "from": "balance",
+    "to": "strategies",
+    "rel": "builds-on"
+   },
+   {
+    "from": "balance",
+    "to": "pressure",
+    "rel": "builds-on"
+   },
+   {
+    "from": "roadwar",
+    "to": "balance",
+    "rel": "tuned-by"
+   },
+   {
+    "from": "roadwar-iso",
+    "to": "balance",
+    "rel": "tuned-by"
    }
   ]
  },

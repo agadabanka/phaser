@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**34 entries** across 18 phases · **74 systems** · **157 edges** in the graph.
+**35 entries** across 18 phases · **76 systems** · **163 edges** in the graph.
 
 ---
 
@@ -349,6 +349,15 @@
 - **Validator:** iso gate 0-death webgl+canvas (9005, frame-identical); strategy-sweep 7×5; design-lens FUN 91.7
 - **Artifacts:** `sdk/studio.js (Studio.Iso, Studio.IsoRTS)`, `games/roadwar-iso/`, `tools/eval/strategies.mjs`
 
+### Systematic difficulty: a tension model + auto-balancer (engine building blocks), beyond 0-death
+`2026-06-11` · 🚀 shipped
+
+- **What:** Made TENSION a systematic, declared, validated engine property instead of hand-tuning. Four building blocks: (1) Studio.rtsPressure (SDK) + tools/eval/pressure.mjs (the canonical mirror) — a level's `difficulty` (0..1) deterministically expands its schedule with FLANK waves (off-rally units that bypass the centre deathball and pressure the HQ → garage damage = tension, and a flank-aware strategy beats centre-only = depth). (2) tools/eval/rts-core.mjs — the shared pure-Node (Iso)RTS sim + 7 AI playstyles, the one simulator under every RTS eval. (3) tools/eval/strategies.mjs (studio strategies) — sweeps the playstyles → canonical (autopilot) tension curve + worst-case near-loss + strategic diversity. (4) tools/eval/balance.mjs (studio balance) — auto-tunes per-level `difficulty` to a target tension curve that RISES to the finale, keeping the canonical strategy winnable as the floor; writes difficulty back into the level data. Result on both Roadwar (lanes) and Roadwar Iso (continuous front): the strategy-sweep that showed STOMPS (every style wins, tension ~0.06) now shows a tension curve climbing 0.34→0.71 to a BRUTAL boss finale, with 89% strategic diversity (some playstyles genuinely fail = real choices) — and both gates stay GREEN 0-death (the floor). Also fixed rallyLx (lane-index vs lx disambiguation) so the sim is faithful to both archetypes.
+- **Why:** The steer was that 0-death is one optimal strategy's pass/fail — a weak signal — and that whatever we build should be SYSTEMATIC in the engine. So difficulty/tension is now a knob the engine owns (rules, not per-level hacks): the designer declares a rising tension curve and the balancer realises it against the strategy-sweep, with the 0-death gate demoted to a winnability floor. The next RTS/iso game inherits the whole loop.
+- **Systems:** Studio.RTS, Studio.IsoRTS, Roadwar, Roadwar Iso, Strategy Sweep, Studio.Game.boot, rules.json + level-lint, Studio.Feel
+- **Validator:** both gates GREEN 0-death (floor); strategy-sweep tension 0.06→0.47 mean, curve 0.34→0.71 rising; diversity 89%
+- **Artifacts:** `sdk/studio.js (Studio.rtsPressure)`, `tools/eval/pressure.mjs`, `tools/eval/rts-core.mjs`, `tools/eval/strategies.mjs`, `tools/eval/balance.mjs`
+
 ---
 
 ## Flows — the order systems are called
@@ -452,6 +461,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.RTS** | sdk | — | The car-RTS archetype: deterministic 3-lane lane-push (build→rally→brawl). Win-by-construction via economic bounds (accumulation + side-leak), not geometry. |
 | **Studio.Iso** | sdk | — | Reusable perspective-iso projector: lx+depth → screen with perspective scale + depth-sort. The building block behind any isometric game. |
 | **Studio.IsoRTS** | sdk | — | Isometric continuous-front RTS archetype (built on Studio.Iso); reuses the RTS economy/combat/win-by-construction with lane→lx band. |
+| **rtsPressure** | sdk | — | Difficulty→flank-pressure model (Studio.rtsPressure + pressure.mjs mirror): the engine's systematic tension knob. |
 
 ### 4. Content
 
@@ -491,6 +501,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **rules.json + level-lint** | concept | rules | the geometry contract as data (per archetype) + the cheap static gate that lints levels before the browser gate. |
 | **Design Lens** | sdk | — | MDA + Jesse Schell's lenses as a tool: traces each weak Feel component to the lens that asks why + a concrete per-archetype mechanic fix; judges per-level quality AND campaign intensity escalation. |
 | **Strategy Sweep** | tool | — | Runs many AI playstyles through a level → strategic diversity + tension + balance. A different kind of eval than the binary 0-death gate. |
+| **Auto-Balancer** | tool | — | studio balance — auto-tunes per-level difficulty to a rising tension curve, floored by winnability, checked by the strategy-sweep. |
 
 ### 6. Feedback
 

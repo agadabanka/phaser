@@ -1007,6 +1007,27 @@
     }
   };
 
+  // SYSTEMATIC enemy pressure — the engine's tension knob (mirrors tools/eval/
+  // pressure.mjs verbatim; the 0-death gate keeps the mirror honest). A level's
+  // `difficulty` (0..1) deterministically expands its schedule with FLANK waves
+  // (off-rally units that bypass the centre deathball and pressure the HQ → garage
+  // damage = tension, and a flank-aware strategy beats a centre-only one = depth).
+  Studio.rtsPressure = function (spec, mode) {
+    var base = (spec.schedule || []).map(function (e) { var o = {}; for (var k in e) o[k] = e[k]; return o; });
+    var d = spec.difficulty || 0;
+    if (d > 0) {
+      var span = base.reduce(function (m, e) { return Math.max(m, e.t); }, 20), n = Math.round(d * 12);
+      for (var k = 0; k < n; k++) {
+        var t = +(6 + (span - 4) * (k / Math.max(1, n - 1))).toFixed(2), left = k % 2 === 0, heavy = d > 0.45 && k % 3 !== 0;
+        var e = { t: t, type: heavy ? 'brawler' : 'scout', flank: true };
+        if (mode === 'lane') e.lane = left ? 0 : 2; else e.lx = left ? -0.62 : 0.62;
+        base.push(e);
+      }
+      base.sort(function (a, b) { return a.t - b.t; });
+    }
+    return base;
+  };
+
   // ---------------------------------------------------------------------- Cam
   Studio.Cam = {
     follow: function (scene, target, opt) {
@@ -2246,7 +2267,7 @@
 
       var scene, units = [], uid = 0, scrap = 0, income = 12, depots = 0, garageHp = 1000, fortressHp = 1000, garageMax = 1000, fortressMax = 1000;
       var levelIndex = 0, clock = 0, frame = 0, won = false, deaths = 0, selLane = 1, buildType = 'brawler';
-      var auto = false, schedIdx = 0, bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
+      var auto = false, schedIdx = 0, effSched = [], bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
       var gTurretCd = 0, fTurretCd = 0, bullets = [];
       var spec = function () { return LEVELS[levelIndex] || {}; };
 
@@ -2262,7 +2283,7 @@
 
       function loadLevel(i) {
         levelIndex = i; clock = 0; schedIdx = 0; won = false;
-        var s = spec();
+        var s = spec(); effSched = Studio.rtsPressure(s, 'lane');   // systematic difficulty→flank pressure
         units = []; uid = 0; bullets.forEach(function (b) { try { b.spr.destroy(); } catch (e) {} }); bullets = [];
         depots = 0; if (depotLayer) depotLayer.removeAll(true);
         income = s.income || 12; scrap = s.startScrap != null ? s.startScrap : 40;
@@ -2361,7 +2382,7 @@
         // bullets
         for (var b = bullets.length - 1; b >= 0; b--) { var bl = bullets[b]; bl.t -= dt; if (bl.spr) bl.spr.setPosition(bl.x + (bl.tx - bl.x) * (1 - bl.t / bl.life), bl.y + (bl.ty - bl.y) * (1 - bl.t / bl.life)); if (bl.t <= 0) { try { bl.spr.destroy(); } catch (e) {} bullets.splice(b, 1); } }
         // enemy spawn schedule (deterministic)
-        var sched = spec().schedule || [];
+        var sched = effSched;
         while (schedIdx < sched.length && clock >= sched[schedIdx].t) { var ev = sched[schedIdx]; build('e', ev.type, ev.lane != null ? ev.lane : 1); schedIdx++; }
       }
       function nearestUnitNear(side, x, y, range) {
@@ -2567,7 +2588,7 @@
 
       var scene, units = [], uid = 0, scrap = 0, income = 12, depots = 0, garageHp = 1000, fortressHp = 1000, garageMax = 1000, fortressMax = 1000;
       var levelIndex = 0, clock = 0, frame = 0, won = false, deaths = 0, buildType = 'brawler', selLx = 0;
-      var auto = false, schedIdx = 0, bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
+      var auto = false, schedIdx = 0, effSched = [], bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
       var gTurretCd = 0, fTurretCd = 0, bullets = [], bgImg = null, fieldLayer = null, depotLayer = null;
       var spec = function () { return LEVELS[levelIndex] || {}; };
       function curIncome() { return income + depots * REFINERY.bonus; }
@@ -2588,7 +2609,7 @@
 
       function loadLevel(i) {
         levelIndex = i; clock = 0; schedIdx = 0; won = false;
-        var s = spec();
+        var s = spec(); effSched = Studio.rtsPressure(s, 'lx');     // systematic difficulty→flank pressure (iso)
         units.forEach(function (u) { try { u.spr.destroy(); } catch (e) {} }); units = []; uid = 0;
         bullets.forEach(function (b) { try { b.spr.destroy(); } catch (e) {} }); bullets = [];
         depots = 0; if (depotLayer) depotLayer.removeAll(true);
@@ -2655,7 +2676,7 @@
         var fT = nearestApproaching('p', FORT_Y, spec().fortressTurret ? spec().fortressTurret.range : 160);
         if (fT && fTurretCd <= 0) { fTurretCd = 0.55; fT.hp -= (spec().fortressTurret ? spec().fortressTurret.dmg : 16); spawnBullet({ lx: 0, y: FORT_Y + 10 }, fT); }
         for (var b = bullets.length - 1; b >= 0; b--) { var bl = bullets[b]; bl.t -= dt; if (bl.spr) bl.spr.setPosition(bl.x + (bl.tx - bl.x) * (1 - bl.t / bl.life), bl.y + (bl.ty - bl.y) * (1 - bl.t / bl.life)); if (bl.t <= 0) { try { bl.spr.destroy(); } catch (e) {} bullets.splice(b, 1); } }
-        var sched = spec().schedule || [];
+        var sched = effSched;
         while (schedIdx < sched.length && clock >= sched[schedIdx].t) { var ev = sched[schedIdx]; build('e', ev.type, ev.lx != null ? ev.lx : 0); schedIdx++; }
       }
 

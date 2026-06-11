@@ -6,6 +6,7 @@
  */
 import fs from 'node:fs'; import vm from 'node:vm'; import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { effectiveSchedule } from '../../tools/eval/pressure.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const sb = { window: {} }; vm.createContext(sb);
 vm.runInContext(fs.readFileSync(path.join(HERE, 'src/game/levels.js'), 'utf8'), sb);
@@ -23,7 +24,7 @@ const tuned = (s, t) => { const u = UNIT[t], o = (s.tune || {})[t] || {}; return
 
 function runLevel(spec, maxFrames) {
   let units = [], uid = 0, depots = 0, scrap = spec.startScrap != null ? spec.startScrap : 40;
-  const income = spec.income || 12, dt = 1 / 60, sched = spec.schedule || [];
+  const income = spec.income || 12, dt = 1 / 60, sched = effectiveSchedule(spec, 'lx');
   const rl = spec.rally != null ? spec.rally : 0, bt = spec.autoBuild || 'brawler';
   let garageHp = spec.garageHp || 1000, fortressHp = spec.fortressHp || 1000, clock = 0, frame = 0, schedIdx = 0, gCd = 0, fCd = 0;
   const curIncome = () => income + depots * REFINERY.bonus;
