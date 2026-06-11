@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**32 entries** across 17 phases · **70 systems** · **150 edges** in the graph.
+**33 entries** across 18 phases · **70 systems** · **150 edges** in the graph.
 
 ---
 
@@ -328,6 +328,17 @@
 - **Systems:** Studio.RTS, Roadwar, Design Lens, rules.json + level-lint, Studio.Feel, Lyria Music (Vertex), game-engine hub, Playtest Shell, Studio.Game.boot, Publish
 - **Validator:** gate GREEN webgl+canvas frame-identical (9801, 0 deaths, all 5 grounds, boss fought); level-lint rts 100% (accumulation + side-leak); FUN 86.3 (bar 80) via design-lens; deployed live
 - **Artifacts:** `games/roadwar/`, `https://github.com/agadabanka/roadwar`, `https://roadwar-production.up.railway.app`, `tools/design-lens/`
+
+## Engine
+
+### Engine polish pass: economy, per-level music, richer juice/props, composite FUN — and the hub unstuck
+`2026-06-11` · 🚀 shipped
+
+- **What:** A round of ENGINE-LEVEL upgrades (every game inherits them), driven by playtest notes. (1) ECONOMY: a buildable REFINERY (coin generation) in Studio.RTS — spend scrap to raise income, the army-vs-economy choice; the autopilot opens with refineries (autoEcon) on the later grounds and still gates 0-death (8966, deterministic). (2) PER-LEVEL MUSIC: Studio.levelMusic + Audio.switchMusic cross-fade a distinct track per level across ALL three archetypes (theme.musicByLevel / levels[i].music); the music validator now verifies every per-level track and scores per-level variety. Roadwar ships 5 distinct Lyria battle themes (desert/junkyard/neon/canyon/boss-metal). (3) JUICE + PROPS: Studio.Juice gains explode / ring / muzzle / popText / ambient-drift, wired through RTS combat (hit rings, ranged muzzle flashes, scaled death explosions, a WARLORD-DOWN pop, a fortress-fall explosion chain) plus procedural roadside props + ground atmosphere. (4) COMPOSITE FUN: the design lens now also scores PRODUCTION POLISH (Schell #58 juice · #62 spectacle · #40 reward · #31 variety · #63 beauty) — the real fun the geometry Feel model is blind to — and blends it with the level-design score for the headline FUN (Roadwar 86.3 design + 100 polish = 91.5). (5) The game-engine HUB 'stuck on loading' bug was fixed (cold-start cache-poisoning in /api/dashboard) and starsweeper registered → all 8 games show.
+- **Why:** The throughline the playtests asked for: put the RULES in the ENGINE. Economy, per-level scores, juice and props aren't per-game hacks — they're SDK capabilities with validators, so the next game gets them free. And 'make it more fun' got a measurable home: the lens credits the production polish the Feel model couldn't see, so juice/spectacle/reward/variety/beauty count toward FUN by design, honestly.
+- **Systems:** Studio.RTS, Roadwar, Design Lens, Studio.Feel, Lyria Music (Vertex), Studio.Game.boot, rules.json + level-lint, game-engine hub
+- **Validator:** gate 0-death webgl+canvas (8966); music validator per-level (5/5 tracks, perLevelMusic ✓); design-lens FUN 91.5 (design 86.3 + polish 100); hub /api/dashboard 8 games, no hang
+- **Artifacts:** `sdk/studio.js`, `tools/studio-sound/validate.mjs`, `tools/design-lens/`, `https://hub-production-6d28.up.railway.app`
 
 ---
 
