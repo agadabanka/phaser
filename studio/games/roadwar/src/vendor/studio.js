@@ -2142,7 +2142,11 @@
       var UNIT = {  // base stats (a level/theme may scale via spec.tune)
         scout:   { cost: 20, hp: 42,  dmg: 6,  range: 38,  speed: 96, cd: 0.5, r: 17, dps: 12 },
         brawler: { cost: 46, hp: 130, dmg: 13, range: 42,  speed: 60, cd: 0.7, r: 20, dps: 18 },
-        gunner:  { cost: 36, hp: 54,  dmg: 9,  range: 140, speed: 74, cd: 0.55, r: 17, dps: 16 }
+        gunner:  { cost: 36, hp: 54,  dmg: 9,  range: 140, speed: 74, cd: 0.55, r: 17, dps: 16 },
+        // warlord = the ENEMY BOSS (schedule-only; never player-buildable) — the
+        // climactic war-rig: huge HP, heavy hit, slow. The rally deathball grinds
+        // it down before it reaches the garage (verified 0-death in the sim/gate).
+        warlord: { cost: 999, hp: 620, dmg: 22, range: 46, speed: 42, cd: 0.9, r: 32, dps: 24 }
       };
       var save = Studio.Save.load(slug);
 
@@ -2546,7 +2550,7 @@
     // the fortress after the schedule exhausts — so the arc peaks at the final push.
     // A flank (off the rally lane) reads as a sharper spike (the moment you must react).
     function collectBeatsRts(spec) {
-      var sched = (spec.schedule || []), b = [], TW = { scout: 4, gunner: 6, brawler: 7 };
+      var sched = (spec.schedule || []), b = [], TW = { scout: 4, gunner: 6, brawler: 7, warlord: 10 };
       var lastT = sched.reduce(function (a, e) { return Math.max(a, e.t || 0); }, 0), span = lastT + 12;
       var rally = spec.rally != null ? spec.rally : 1;
       // RISING "battle heat" — the front-line melee never stops and intensifies as

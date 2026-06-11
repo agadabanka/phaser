@@ -20,7 +20,7 @@
       backdrops: 'assets/ground-{i}.jpg',
       images: {
         car_scout: 'assets/car-scout.png', car_brawler: 'assets/car-brawler.png', car_gunner: 'assets/car-gunner.png',
-        enemy_scout: 'assets/enemy-scout.png', enemy_brawler: 'assets/enemy-brawler.png', enemy_gunner: 'assets/enemy-gunner.png',
+        enemy_scout: 'assets/enemy-scout.png', enemy_brawler: 'assets/enemy-brawler.png', enemy_gunner: 'assets/enemy-gunner.png', enemy_warlord: 'assets/enemy-warlord.png',
         garage_art: 'assets/garage.png', fortress_art: 'assets/fortress.png', depot_art: 'assets/depot.png'
       },
       grade: { saturate: 0.16, brightness: 1.02 }, vignette: 0.4,

@@ -19,7 +19,8 @@ const LANES = [260, 480, 700], GAR_Y = 492, FORT_Y = 64;
 const UNIT = {
   scout:   { cost: 20, hp: 42,  dmg: 6,  range: 38,  speed: 96, cd: 0.5,  r: 17 },
   brawler: { cost: 46, hp: 130, dmg: 13, range: 42,  speed: 60, cd: 0.7,  r: 20 },
-  gunner:  { cost: 36, hp: 54,  dmg: 9,  range: 140, speed: 74, cd: 0.55, r: 17 }
+  gunner:  { cost: 36, hp: 54,  dmg: 9,  range: 140, speed: 74, cd: 0.55, r: 17 },
+  warlord: { cost: 999, hp: 620, dmg: 22, range: 46, speed: 42, cd: 0.9, r: 32 }
 };
 const QUIET = process.argv.includes('--quiet');
 
@@ -84,18 +85,21 @@ function runLevel(spec, maxFrames) {
     while (schedIdx < sched.length && clock >= sched[schedIdx].t) { const ev = sched[schedIdx]; build('e', ev.type, ev.lane != null ? ev.lane : 1); schedIdx++; }
   }
 
-  let minGarage = garageHp, maxLiveP = 0, maxLiveE = 0;
+  let minGarage = garageHp, maxLiveP = 0, maxLiveE = 0, bossSeen = false, bossAliveAtWin = false;
   while (fortressHp > 0 && garageHp > 0 && frame < maxFrames) {
     frame++; clock += dt;
     // autopilot
     let guard = 0;
     while (scrap >= tuned(spec, bt).cost && guard < 4) { build('p', bt, rl); guard++; }
     tickWorld();
+    if (units.some(u => u.type === 'warlord')) bossSeen = true;
     if (garageHp < minGarage) minGarage = garageHp;
     const lp = units.filter(u => u.alive && u.side === 'p').length, le = units.filter(u => u.alive && u.side === 'e').length;
     if (lp > maxLiveP) maxLiveP = lp; if (le > maxLiveE) maxLiveE = le;
   }
-  return { won: fortressHp <= 0, lost: garageHp <= 0, frame, t: +(frame / 60).toFixed(1), fortressHp: Math.round(fortressHp), garageHp: Math.round(garageHp), minGarage: Math.round(minGarage), maxLiveP, maxLiveE };
+  const hasBoss = sched.some(e => e.type === 'warlord');
+  if (hasBoss) bossAliveAtWin = units.some(u => u.type === 'warlord' && u.alive);
+  return { won: fortressHp <= 0, lost: garageHp <= 0, frame, t: +(frame / 60).toFixed(1), fortressHp: Math.round(fortressHp), garageHp: Math.round(garageHp), minGarage: Math.round(minGarage), maxLiveP, maxLiveE, hasBoss, bossSeen, bossAliveAtWin };
 }
 
 let allWon = true, totalFrames = 0;
@@ -104,7 +108,8 @@ LEVELS.forEach((spec, i) => {
   totalFrames += r.frame;
   const verdict = r.won && !r.lost ? 'WIN ' : r.lost ? 'LOSE' : 'TIME';
   if (!r.won || r.lost) allWon = false;
-  console.log(`G${i + 1} ${(spec.name + '').padEnd(16)} ${verdict}  t=${String(r.t).padStart(5)}s  fort=${String(r.fortressHp).padStart(5)}  garage=${String(r.garageHp).padStart(5)}  minGarage=${String(r.minGarage).padStart(5)}  peakP=${r.maxLiveP} peakE=${r.maxLiveE}`);
+  const boss = r.hasBoss ? `  boss=${r.bossSeen ? (r.bossAliveAtWin ? 'ALIVE@win!' : 'fought✓') : 'NEVER-SPAWNED✗'}` : '';
+  console.log(`G${i + 1} ${(spec.name + '').padEnd(16)} ${verdict}  t=${String(r.t).padStart(5)}s  fort=${String(r.fortressHp).padStart(5)}  garage=${String(r.garageHp).padStart(5)}  minGarage=${String(r.minGarage).padStart(5)}  peakP=${r.maxLiveP} peakE=${r.maxLiveE}${boss}`);
 });
 console.log(`\n${allWon ? '✅ ALL 5 GROUNDS WON' : '❌ NOT ALL WON'}  ·  total frames ${totalFrames} (gate budget 22000, ${(totalFrames / 60).toFixed(0)}s)`);
 process.exit(allWon ? 0 : 1);
