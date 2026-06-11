@@ -26,7 +26,11 @@
       grade: { saturate: 0.16, brightness: 1.02 }, vignette: 0.4,
       shell: { base: 0x241a0c, border: '#ffcc44', text: '#ffe7a0', accent: '#ff9a3c' },
       hud: { color: '#ffe7a0', stroke: '#1a1208' }, stageWord: 'ground',
-      music: { url: 'assets/music/anthem.mp3', vol: 0.55, fallback: 'proc:cave' },
+      music: { url: 'assets/music/ground-1.mp3', vol: 0.55, fallback: 'proc:cave' },
+      musicByLevel: [
+        'assets/music/ground-1.mp3', 'assets/music/ground-2.mp3', 'assets/music/ground-3.mp3',
+        'assets/music/ground-4.mp3', 'assets/music/ground-5.mp3'
+      ],
       menu: { logo: 'assets/menu/logo.png' },
       toasts: { level: 'GROUND {i}  ·  {name}', win: "THE ROAD IS YOURS" }
     }

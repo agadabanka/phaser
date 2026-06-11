@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/ground-5.mp3",
+  "prompt": "Looping instrumental HEAVY OMINOUS BATTLE-METAL theme for a final WARLORD-FORTRESS boss toon car-combat level: chugging heavy guitars, pounding war drums, dark brass, menacing and climactic, no vocals, seamless loop, driving heavy tempo.",
+  "generatedAt": "2026-06-11T01:39:44.997Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0627,
+  "peak": 0.4566,
+  "crossfadeSec": 1.6
+}

@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/ground-1.mp3",
+  "prompt": "Looping instrumental surf-rock battle anthem for a sunny DESERT-HIGHWAY toon car-combat level: twangy reverb guitars, driving rock drums, brass stabs, heroic and rowdy, cartoon-action energy, no vocals, seamless loop, steady mid-tempo.",
+  "generatedAt": "2026-06-11T01:36:19.228Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.069,
+  "peak": 0.4421,
+  "crossfadeSec": 1.6
+}

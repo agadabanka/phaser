@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/ground-4.mp3",
+  "prompt": "Looping instrumental SPAGHETTI-WESTERN ROCK battle theme for a RED-CANYON toon car-combat level: twangy western guitar, whistling lead, galloping rock drums, dusty heroic standoff energy, no vocals, seamless loop, mid-tempo.",
+  "generatedAt": "2026-06-11T01:38:50.408Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.069,
+  "peak": 0.6422,
+  "crossfadeSec": 1.6
+}

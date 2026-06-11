@@ -22,6 +22,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -100,6 +101,11 @@ for (const req of REQUIRED) {
 const musicArgs = [...text.matchAll(/Studio\.Audio\.music\(\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
 for (const m of text.matchAll(/music\s*:\s*\{\s*url\s*:\s*['"]([^'"]+)['"]/g)) musicArgs.push(m[1]);   // boot theme
 for (const m of text.matchAll(/music\s*:\s*['"](proc:[^'"]+)['"]/g)) musicArgs.push(m[1]);
+// PER-LEVEL music: a theme `musicByLevel: [ 'a.mp3', 'b.mp3', ... ]` or per-level `music:` strings
+const byLevel = [];
+const mbl = text.match(/musicByLevel\s*:\s*\[([\s\S]*?)\]/);
+if (mbl) for (const s of mbl[1].matchAll(/['"]([^'"]+\.(?:mp3|ogg|wav|m4a))['"]/gi)) byLevel.push(s[1]);
+for (const rel of byLevel) musicArgs.push(rel);   // each must exist + be non-silent (verified below)
 const fileArgs = [...new Set(musicArgs.filter((a) => !a.startsWith('proc:') && /\.(mp3|ogg|wav|m4a)$/i.test(a)))];
 const procArgs = musicArgs.filter((a) => a.startsWith('proc:'));
 
@@ -130,16 +136,29 @@ if (fileArgs.length) {
   notes.push('note: no music bed wired (Studio.Audio.music) — SFX-only');
 }
 
-// score: SFX coverage × a bed factor (composed 1.0 / procedural 0.92 / none 0.85);
+// ---- (3) PER-LEVEL MUSIC: distinct verified tracks vs the level count ----
+let levelCount = 0;
+try {
+  const lp = path.join(srcRoot, 'game', 'levels.js');
+  if (fs.existsSync(lp)) { const sb = { window: {} }; vm.createContext(sb); vm.runInContext(fs.readFileSync(lp, 'utf8'), sb, { timeout: 2000 }); levelCount = (sb.window.LEVELS || []).length; }
+} catch { /* ignore */ }
+const distinctTracks = Object.keys(music).length;                 // verified composed beds
+const perLevelMusic = byLevel.length >= 2 && distinctTracks >= 2;  // a real score-per-level
+if (perLevelMusic) notes.push(`ok PER-LEVEL MUSIC: ${distinctTracks} distinct verified track(s)${levelCount ? ` for ${levelCount} level(s)` : ''} — a score per level`);
+else if (levelCount >= 2 && bedKind === 'composed') notes.push(`PER-LEVEL MUSIC gap: ${levelCount} levels but ${distinctTracks} track — declare theme.musicByLevel (or levels[i].music) for a distinct score per level`);
+
+// score: SFX coverage × a bed factor (composed 1.0 / procedural 0.92 / none 0.85)
+// × a variety factor that nudges a multi-level game toward per-level scores.
 // a referenced-but-broken composed bed collapses to 0.5 and FAILS.
 const sfxFrac = (REQUIRED.length - missing) / REQUIRED.length;
 const bedFactor = musicFail ? 0.5 : bedKind === 'composed' ? 1.0 : bedKind === 'procedural' ? 0.92 : 0.85;
-const score = +(sfxFrac * bedFactor).toFixed(3);
+const varietyFactor = perLevelMusic ? 1.0 : (levelCount >= 2 && bedKind === 'composed' ? 0.95 : 1.0);
+const score = +(sfxFrac * bedFactor * varietyFactor).toFixed(3);
 notes.push(`scanned ${files.length} source file(s); SFX wired: ${[...sfxWired].sort().join(', ') || 'none'}`);
 
 const pass = missing === 0 && !musicFail; // all key SFX present AND any referenced music is real
 emit({
   pass, score, capability: 'music', deterministic: true, game: path.basename(gameDir),
   required: REQUIRED.map((r) => r.event), covered, sfxWired: [...sfxWired].sort(),
-  bedKind, music, notes,
+  bedKind, perLevelMusic, levelCount, distinctTracks, music, notes,
 }, pass ? 0 : 1);

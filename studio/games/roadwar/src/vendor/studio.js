@@ -904,21 +904,52 @@
         else if ('muted' in h) h.muted = m;         // HTMLAudioElement
       } catch (e) {}
     }
+    var musicBed = null, musicUrl = null;
+    function startBedHandle(url, vol) {
+      var h;
+      if (typeof url === 'string' && url.indexOf('proc:') === 0) h = bed(url.slice(5), vol);
+      else { h = new Audio(url); h.loop = true; h.volume = vol || 0.4; h.play(); }
+      if (h) { beds.push(h); applyMute(h, muted); }
+      return h;
+    }
     return {
       sfx: function (n) { if (muted) return; try { (SFX[n] || function () {})(); } catch (e) {} },
       music: function (url, vol) {
+        try { var h = startBedHandle(url, vol); if (h) { musicBed = h; musicUrl = url; } return h; } catch (e) {}
+      },
+      // PER-LEVEL MUSIC — swap the looping track (fade the old out, the new in).
+      // Cosmetic only (never in a snapshot), so it can't affect determinism.
+      switchMusic: function (url, vol) {
         try {
-          var h;
-          if (typeof url === 'string' && url.indexOf('proc:') === 0) h = bed(url.slice(5), vol);
-          else { h = new Audio(url); h.loop = true; h.volume = vol || 0.4; h.play(); }
-          if (h) { beds.push(h); applyMute(h, muted); }
-          return h;
+          if (!url || url === musicUrl) return musicBed;
+          var old = musicBed, tv = vol != null ? vol : 0.5;
+          var nu = startBedHandle(url, 0); if (!nu) return musicBed;
+          musicBed = nu; musicUrl = url;
+          var step = 0, steps = 16;
+          var id = setInterval(function () {
+            step++; var k = step / steps;
+            try { if (nu.volume != null) nu.volume = Math.min(tv, tv * k); } catch (e) {}
+            try { if (old && old.volume != null) old.volume = Math.max(0, (old._v0 || 0.5) * (1 - k)); } catch (e) {}
+            if (step >= steps) { clearInterval(id); try { if (old && old.pause) old.pause(); } catch (e) {} var i = beds.indexOf(old); if (i >= 0) beds.splice(i, 1); }
+          }, 45);
+          return nu;
         } catch (e) {}
       },
+      currentMusic: function () { return musicUrl; },
       setMuted: function (m) { muted = !!m; beds.forEach(function (h) { applyMute(h, muted); }); },
       isMuted: function () { return muted; }
     };
   })();
+
+  // PER-LEVEL MUSIC resolver — the one place every archetype asks "what track for
+  // level i?". Precedence: the level's own `music` → theme `musicByLevel[i]` →
+  // the single theme `music.url`. So a game gets a distinct score per level by
+  // declaring either levels[i].music or theme.musicByLevel (else it loops one bed).
+  Studio.levelMusic = function (TH, LEVELS, i) {
+    var s = (LEVELS && LEVELS[i]) || {};
+    var t = s.music || (TH.musicByLevel && TH.musicByLevel[i]) || (TH.music && TH.music.url) || null;
+    return typeof t === 'string' ? t : (t && t.url) || null;
+  };
 
   // ---------------------------------------------------------------------- Cam
   Studio.Cam = {
@@ -1558,6 +1589,7 @@
         player.setVelocity(0, 0);
         player.setPosition(spawn.x, spawn.y);
         levelStartFrame = frame; coinsAtLevelStart = coins;
+        if (bedOn) Studio.Audio.switchMusic(Studio.levelMusic(TH, LEVELS, i), TH.music && TH.music.vol != null ? TH.music.vol : 0.55); // per-stage score
         toast(fmt(TH.toasts && TH.toasts.level || 'STAGE {i} · {name}', i, spec.name));
       }
 
@@ -1639,7 +1671,7 @@
 
           var startBed = function () {
             if (bedOn || !TH.music) return; bedOn = true;
-            var au = Studio.Audio.music(TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55);
+            var au = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55);
             if (au && au.addEventListener && TH.music.fallback) au.addEventListener('error', function () { Studio.Audio.music(TH.music.fallback, 0.3); });
             else if (!au && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3);
           };
@@ -1875,6 +1907,7 @@
         if (bgImg) { bgImg.setTexture(scene.textures.exists('bg_' + i) ? 'bg_' + i : 'bg_0'); }
         if (s.boss) { /* boss spawns when the boss wave starts */ }
         levelStartFrame = frame;
+        if (bedOn) Studio.Audio.switchMusic(Studio.levelMusic(TH, LEVELS, i), TH.music && TH.music.vol != null ? TH.music.vol : 0.55); // per-veil score
         ship.x = W / 2; ship.y = SHIP_Y; hp = 3;
         toast((TH.toasts && TH.toasts.level || 'VEIL {i} · {name}').replace('{i}', i + 1).replace('{name}', s.name || ''));
       }
@@ -1951,7 +1984,7 @@
           this.cursors = this.input.keyboard.createCursorKeys();
           touch = Studio.Touch.create(this, { theme: TH.touch || null });
 
-          var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
+          var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
           this.input.once('pointerdown', startBed); if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
 
           Studio.Shell.create(this, {
@@ -2179,6 +2212,7 @@
         garageHp = garageMax = s.garageHp || 1000; fortressHp = fortressMax = s.fortressHp || 1000;
         if (bgImg) bgImg.setTexture(scene.textures.exists('bg_' + i) ? 'bg_' + i : 'bg_0');
         levelStartFrame = frame;
+        if (bedOn) Studio.Audio.switchMusic(Studio.levelMusic(TH, LEVELS, i), TH.music && TH.music.vol != null ? TH.music.vol : 0.55); // per-ground score
         // clear unit sprites
         if (uLayer) uLayer.removeAll(true);
         toast((TH.toasts && TH.toasts.level || 'GROUND {i} · {name}').replace('{i}', i + 1).replace('{name}', s.name || ''));
@@ -2334,7 +2368,7 @@
           this.cursors = this.input.keyboard.createCursorKeys();
           this.input.keyboard.on('keydown', function (e) { if (mode !== 'play') return; if (e.key === '1') build('p', 'scout', selLane); else if (e.key === '2') build('p', 'brawler', selLane); else if (e.key === '3') build('p', 'gunner', selLane); else if (e.key === '4') build('p', 'depot', selLane); else if (e.key === 'ArrowLeft') selLane = Math.max(0, selLane - 1); else if (e.key === 'ArrowRight') selLane = Math.min(2, selLane + 1); });
 
-          var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
+          var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
           this.input.once('pointerdown', startBed); if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
 
           Studio.Shell.create(this, {
