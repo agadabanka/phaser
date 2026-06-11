@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**38 entries** across 19 phases · **77 systems** · **167 edges** in the graph.
+**39 entries** across 20 phases · **77 systems** · **167 edges** in the graph.
 
 ---
 
@@ -386,6 +386,17 @@
 - **Systems:** game-engine hub, Studio.Game.boot, Playtest Shell
 - **Validator:** e2e: real browser tap → issue with embedded dot-screenshot (roadwar-iso#5, then cleaned); /diary.html images load on all 5 live games; gate 9005 unchanged; ci --fast green; studio issues correctly RED (20 open)
 - **Artifacts:** `sdk/studio.js (Shell tap-to-annotate)`, `game-template/server.js (shot upload + /diary.html)`, `tools/eval/issues.mjs`
+
+## Feedback
+
+### Cleared the playtest backlog (19/20) — engine-level fixes + a CI-ratchet save of nimbus
+`2026-06-11` · 🚀 shipped
+
+- **What:** Worked the 20 open playtest issues the issues-health validator surfaced. Closed 19. Most were ENGINE/template fixes (so they fix every game): the shooter POOL-REVIVE bug — pool-recycled enemies weren't re-enabling their physics bodies, so 'bullets went through ships' (proof: deterministic gate score 3900→6400 at the SAME frame); POWERUPS (spread/rapid/SWARM wingmen); formation variety; ship glow/bank/thruster; no JUMP on auto-fire (Touch button option); RTS one-click lane deploy; iso garage-behind-units + lane guides; starsweeper's 5 (verified live by a sub-agent). A second sub-agent's nimbus pass hit its session limit and left an orphaned WIP commit that made nimbus's levels unwinnable — the CI RATCHET caught it (nimbus red, all others green). I salvaged it: kept the agent's 5 generated backdrops + 5 per-level Lyria tracks, reverted only the broken levels.js to the green original, wired the backdrops (bg keys) and verified per-level music — closing nimbus #1/#2/#5; widened enemy patrol for #3. nimbus #4 (too short) is left HONESTLY OPEN: hand-lengthening provably breaks the win-by-construction (autopilot dies at spawn), so it needs a gate-checked regeneration, not a hand-edit — and faking it closed would betray the validator.
+- **Why:** The validator made the backlog visible; honouring it means fixing in the engine where possible (one fix, all games) AND not gaming the metric — a genuinely-unfixed issue stays open. The episode also proved the CI ratchet's worth: a sub-agent's half-done work would have silently shipped a broken game; the ratchet turned it red and the green-original was recoverable.
+- **Systems:** Studio.Shooter, Studio.RTS, Studio.IsoRTS, Studio.Game.boot, game-engine hub, 0-death gate
+- **Validator:** full CI GREEN (5/5 archetypes); 19/20 playtest issues closed with evidence; nimbus gate 2426f after salvage; #4 honestly open
+- **Artifacts:** `sdk/studio.js`, `games/nimbus/ (backdrops+music+patrol)`, `tools/eval/issues.mjs`
 
 ---
 
