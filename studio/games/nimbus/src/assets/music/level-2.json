@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/level-2.mp3",
+  "prompt": "Looping instrumental background music for a windswept sky level in a cloud-climbing platformer: breezy and airy, fluttering flutes and light woodwind runs like gusts of wind, whooshing soft pads, gentle wind-chime accents, playful weightless momentum, no vocals, seamless loop, light flowing tempo.",
+  "generatedAt": "2026-06-11T15:52:43.207Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0699,
+  "peak": 0.3577,
+  "crossfadeSec": 1.6
+}

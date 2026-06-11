@@ -24,7 +24,12 @@
       kitFiles: {
         kit_cloud: 'assets/kit/kit_cloud.jpg', kit_mist: 'assets/kit/kit_mist.jpg',
         kit_crystal: 'assets/kit/kit_crystal.jpg', kit_storm: 'assets/kit/kit_storm.jpg',
-        kit_coin: 'assets/kit/kit_coin.png', kit_spring: 'assets/kit/kit_spring.png', kit_goal: 'assets/kit/kit_goal.png'
+        kit_coin: 'assets/kit/kit_coin.png', kit_spring: 'assets/kit/kit_spring.png', kit_goal: 'assets/kit/kit_goal.png',
+        // per-level painted skies (issues #1/#2) — kitFiles doubles as the
+        // generic image loader; each level declares its key via spec.bg and
+        // the onLevelLoaded hook below swaps the backdrop.
+        bg_lv1: 'assets/backdrop-1.jpg', bg_lv2: 'assets/backdrop-2.jpg', bg_lv3: 'assets/backdrop-3.jpg',
+        bg_lv4: 'assets/backdrop-4.jpg', bg_lv5: 'assets/backdrop-5.jpg'
       },
       matTex: { cloud: 'kit_cloud', mist: 'kit_mist', crystal: 'kit_crystal', _default: 'kit_cloud', _fragile: 'kit_mist' },
       hazardTex: 'kit_storm', tileScale: 0.4,
@@ -42,13 +47,31 @@
       touch: { base: 0x24355a, baseStroke: 0xbfe8ff, thumb: 0x2a3556, thumbStroke: 0xfff0c8, btn: 0x24355a, btnA: 0.5, btnStroke: 0xbfe8ff, label: '#eaf2ff' },
       hud: { color: '#fff4e0', stroke: '#2a3556' }, stageWord: 'cloud', stagePrefix: 'C',
       music: { url: 'assets/music/sky.mp3', vol: 0.6, fallback: 'proc:cave' },
+      // a distinct Lyria score per cloud (issue #5) — the SDK cross-fades on
+      // level change via Studio.levelMusic; sky.mp3 stays the menu/fallback bed.
+      musicByLevel: [
+        'assets/music/level-1.mp3', 'assets/music/level-2.mp3', 'assets/music/level-3.mp3',
+        'assets/music/level-4.mp3', 'assets/music/level-5.mp3'
+      ],
       menu: { logo: 'assets/menu/logo.png', shots: 'assets/menu/level-{i}.jpg' },
       toasts: { level: 'CLOUD {i}  ·  {name}', win: 'THE SUN BELL RINGS' },
       vxHeadroom: 130
     },
     hooks: {
-      // drifting foreground cloud-wisps: a slow parallax mote field for depth
+      // per-level painted sky (issues #1/#2): each level's spec.bg names a
+      // backdrop texture (loaded via kitFiles); it draws OVER the shared
+      // bg_main at depth -99 and lives in h.decor so loadLevel tears it down.
+      // spec.bgTint casts the level's mood (golden dawn -> storm slate).
+      // Plus the original drifting foreground cloud-wisps for depth.
       onLevelLoaded: function (scene, world, spec, h) {
+        try {
+          if (spec.bg && scene.textures.exists(spec.bg)) {
+            var bg = scene.add.image(480, 270, spec.bg)
+              .setScrollFactor(0).setDepth(-99).setDisplaySize(960, 540);
+            if (spec.bgTint != null) bg.setTint(spec.bgTint);
+            h.decor.push(bg);
+          }
+        } catch (e) {}
         try {
           var drift = scene.add.particles(0, 0, h.particle, {
             x: { min: 0, max: spec.width }, y: { min: 0, max: spec.height },

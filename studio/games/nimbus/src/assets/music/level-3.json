@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/level-3.mp3",
+  "prompt": "Looping instrumental background music for a misty violet twilight level in a sky-climbing platformer: mysterious and hushed, ethereal wordless choir pads, soft music-box melody, distant glass chimes, slow dreamy veiled atmosphere with quiet wonder, no vocals besides airy choir, seamless loop, slow floating tempo.",
+  "generatedAt": "2026-06-11T15:53:37.798Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0597,
+  "peak": 0.4246,
+  "crossfadeSec": 1.6
+}

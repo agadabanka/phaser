@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/level-5.mp3",
+  "prompt": "Looping instrumental background music for the radiant golden summit finale of a sky-climbing platformer: triumphant and serene, soaring warm strings, glowing bell tolls and hand chimes like a great sun bell, gentle brass swells, celebratory ascent to the light, no vocals, seamless loop, uplifting steady tempo.",
+  "generatedAt": "2026-06-11T15:55:27.764Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0687,
+  "peak": 0.2681,
+  "crossfadeSec": 1.6
+}
