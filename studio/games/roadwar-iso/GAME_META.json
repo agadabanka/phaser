@@ -57,5 +57,9 @@
     "tensionFinale": "BRUTAL",
     "strategicDiversity": "89%",
     "fun": 91.7
+  },
+  "railway": {
+    "projectId": "d569a498-60a3-47b7-8534-13b028d8d01c",
+    "serviceId": "9ef68802-ddb1-4dcc-9343-db058a319100"
   }
 }

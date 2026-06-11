@@ -2626,7 +2626,9 @@
         var st = tuned(type), id = uid++, y = side === 'p' ? GAR_Y - 18 : FORT_Y + 18;
         var tex = (side === 'p' ? 'car_' : 'enemy_') + type;
         var spr = scene.add.image(0, 0, scene.textures.exists(tex) ? tex : (side === 'p' ? 'car_fallback' : 'enemy_fallback'));
-        var base = (type === 'warlord' ? 0.7 : 0.4) * (44 / Math.max(1, spr.height));
+        // size cars to a readable on-screen height (the iso depth scale `sc` then
+        // makes near cars bigger, far cars smaller). Was 0.4*44 ≈ 18px — far too tiny.
+        var base = (type === 'warlord' ? 104 : 58) / Math.max(1, spr.height);
         if (side === 'e') spr.setFlipX(true);
         var u = { id: id, side: side, type: type, lx: lx, y: y, hp: st.hp, maxHp: st.hp, dmg: st.dmg, range: st.range, speed: st.speed, cd: 0, atkCd: st.cd, r: st.r, spr: spr, base: base, alive: true };
         place(spr, lx, y, base); if (fieldLayer) fieldLayer.add(spr); units.push(u);

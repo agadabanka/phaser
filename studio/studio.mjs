@@ -111,6 +111,18 @@ switch (cmd) {
     const r = spawnSync('git', ['push', '--force', 'https://x-access-token:' + tok + '@github.com/' + repo + '.git', sha + ':refs/heads/main'], { cwd: root, stdio: 'inherit' });
     process.exitCode = r.status ?? 1;
     if (r.status === 0) console.log('✅ https://github.com/' + repo);
+    // 3) DEPLOY VIA GITHUB — if this game has a Railway service, connect it to the
+    // repo (idempotent) so this push (and every future one) auto-deploys from
+    // GitHub, not a CLI upload. The service must already exist (first deploy).
+    const rwy = meta.railway;
+    if (r.status === 0 && rwy && rwy.serviceId && process.env.RAILWAY_TOKEN) {
+      const q = JSON.stringify({ query: `mutation { serviceConnect(id: "${rwy.serviceId}", input: { repo: "${repo}", branch: "main" }) { id } }` });
+      const cr = spawnSync('curl', ['-s', '-X', 'POST', 'https://backboard.railway.app/graphql/v2', '-H', 'Authorization: Bearer ' + process.env.RAILWAY_TOKEN, '-H', 'Content-Type: application/json', '-d', q], { encoding: 'utf8' });
+      if ((cr.stdout || '').includes('serviceConnect')) console.log('🚂 Railway service connected to ' + repo + ' — deploying via GitHub on push.');
+      else console.log('⚠ could not connect Railway service (deploy via GitHub): ' + (cr.stdout || '').slice(0, 120));
+    } else if (r.status === 0 && !rwy) {
+      console.log('ℹ no GAME_META.railway ids — run the first deploy to create the service, then publish auto-connects it (deploy via GitHub).');
+    }
     break;
   }
   default:
