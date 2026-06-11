@@ -144,7 +144,47 @@ function lintShooter(L, i) {
   check(waves.length >= 1, null, `${tag}: no waves`);
   if (i === LEVELS.length - 1) check(waves.some(w => w.boss), null, `${tag}: final veil has no boss wave`);
 }
-LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
+
+// ---------------------------------------------------------------- rts
+function lintRts(L, i) {
+  const tag = `G${i + 1} ${L.name || ''}`.trim();
+  const U = R.unitStats || {}, fCd = R.fortressTurretCd || 0.55, gCd = R.garageTurretCd || 0.6;
+  const rally = L.rally != null ? L.rally : 1, bt = L.autoBuild || 'brawler';
+  const ab = U[bt];
+  check(!!ab, null, `${tag}: autoBuild "${bt}" not a known unit (${Object.keys(U).join('/')})`);
+  if (R.rallyLaneRequired) check(rally >= 0 && rally <= 2, null, `${tag}: rally lane ${rally} out of range 0..2`);
+  check(Array.isArray(L.schedule), null, `${tag}: schedule must be a finite array (the enemy must run out so the deathball snowballs)`);
+  check((L.income || 0) > 0, null, `${tag}: income must be > 0`);
+  check((L.startScrap || 0) >= (ab ? ab.cost : 1e9), null, `${tag}: startScrap ${L.startScrap} < first autoBuild cost ${ab && ab.cost} (autopilot can't open)`);
+  // ACCUMULATION bound — player builds rally units faster than the fortress turret removes them
+  if (ab) {
+    const ft = L.fortressTurret || { dmg: 16 };
+    const buildRate = (L.income || 0) / ab.cost;                       // units/sec the autopilot adds
+    const killRate = (ft.dmg / fCd) / ab.hp;                            // units/sec the fortress turret removes
+    check(buildRate > killRate, `${tag}: deathball snowballs (build ${buildRate.toFixed(2)} > fortress-kill ${killRate.toFixed(2)} u/s)`, `${tag}: fortress out-removes the rally (build ${buildRate.toFixed(2)} ≤ kill ${killRate.toFixed(2)} u/s) — raise income, drop ${bt} cost, or weaken fortressTurret`);
+  }
+  // SIDE-LEAK bound — every off-rally unit must be a scout (the deathball never
+  // meets it), and the garage gun (focused, since the rally holds the main lane)
+  // must clear each before the CUMULATIVE chip exhausts the garage. A leaked
+  // scout reaches the base and is shot at distance-0 every gCd; it dies after
+  // ceil(hp/dmg) shots, landing floor(killTime/scout.cd) attacks of scout.dmg.
+  const allowed = new Set(R.sideLaneUnitsAllowed || ['scout']);
+  const gt = L.garageTurret || { range: 150, dmg: 14 };
+  let leakDmg = 0, sideN = 0;
+  (L.schedule || []).forEach((ev) => {
+    if (ev.lane == null || ev.lane === rally) return;                   // on-rally meets the deathball head-on
+    sideN++;
+    check(allowed.has(ev.type), null, `${tag}: side-lane unit "${ev.type}"@lane${ev.lane} not in {${[...allowed].join(',')}} (the deathball never meets it; only a scout the base gun can clear is safe)`);
+    const su = U[ev.type]; if (!su) return;
+    const killShots = Math.ceil(su.hp / gt.dmg), killTime = killShots * gCd;
+    leakDmg += Math.floor(killTime / su.cd) * su.dmg;                   // garage HP this leaked scout chips before dying
+  });
+  if (sideN) {
+    const budget = (R.garageLeakBudgetFrac || 0.35) * (L.garageHp || 1000);
+    check(leakDmg <= budget, `${tag}: side leaks survivable (${leakDmg} ≤ ${Math.round(budget)} garage budget, ${sideN} scout(s))`, `${tag}: side leaks chip ${leakDmg} > ${Math.round(budget)} garage budget — widen garageTurret.dmg, fewer side scouts, or more garageHp`);
+  }
+}
+LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : archetype === 'rts' ? lintRts(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
 
 const pass = ok === checks;
 const score = +(100 * (checks ? ok / checks : 0)).toFixed(1);

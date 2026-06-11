@@ -2,10 +2,7 @@
   "_comment": "RFC-001 §3: the studio's RULES as first-class data. The geometry contract that keeps levels AI-completable-by-construction (per archetype), the judge thresholds, and the movement envelope the contracts assume. Read by tools/level-lint (the cheap static gate that runs before the expensive browser gate) and quotable by docs/agents. Pixels unless noted.",
   "movement": {
     "_": "what the Studio.Platformer tune actually delivers — the envelope every geometry rule is derived from",
-    "fullHop": {
-      "dx": 200,
-      "dyUp": 120
-    },
+    "fullHop": { "dx": 200, "dyUp": 120 },
     "tile": 40
   },
   "archetypes": {
@@ -39,6 +36,24 @@
       "shipHalf": 16,
       "curtainBound": "sweepSpeed*fallTime < gapW/2 - shipHalf - 6 ; sweepSpeed = amp*2PI/period ; fallTime = shipY(470)/bulletSpeed",
       "formationsNonDeadly": true
+    },
+    "rts": {
+      "_": "car lane-push RTS (Roadwar). Garage (you, bottom) vs fortress (top) across 3 lanes; you spend auto-income SCRAP to BUILD cars that drive up and brawl. WINNABLE-BY-CONSTRUCTION: the autopilot goes all-in on the rally lane with autoBuild, so two static facts guarantee a 0-death win.",
+      "incomeBoundFrac": 0.9,
+      "sideLaneUnitsAllowed": ["scout"],
+      "rallyLaneRequired": true,
+      "scheduleFinite": true,
+      "garageTurretDefendsAllLanes": true,
+      "garageLeakBudgetFrac": 0.35,
+      "winBound": "ACCUMULATION: income/autoBuild.cost > fortressTurret.dmg/(fortressTurretCd*autoBuild.hp) — the player adds rally units faster than the fortress turret removes them, so the deathball grows without bound and the (finite-schedule) fortress falls. SIDE-LEAK: a leaked off-rally scout reaches the base and is shot at distance-0 every garageTurretCd, dying after ceil(hp/dmg) shots having landed floor(killTime/scout.cd) attacks; the CUMULATIVE chip of all side scouts must stay under garageLeakBudgetFrac*garageHp.",
+      "fortressTurretCd": 0.55,
+      "garageTurretCd": 0.6,
+      "unitStats": {
+        "scout": { "cost": 20, "hp": 42, "dmg": 6, "cd": 0.5, "speed": 96 },
+        "brawler": { "cost": 46, "hp": 130, "dmg": 13, "cd": 0.7, "speed": 60 },
+        "gunner": { "cost": 36, "hp": 54, "dmg": 9, "cd": 0.55, "speed": 74 }
+      },
+      "field": { "garageY": 492, "fortressY": 64, "lanes": [260, 480, 700] }
     }
   },
   "thresholds": {
