@@ -123,7 +123,7 @@ window.LEVELS = [
       {
         "x": 480,
         "y": 896,
-        "patrol": 24
+        "patrol": 58
       }
     ],
     "coins": [
@@ -314,12 +314,12 @@ window.LEVELS = [
       {
         "x": 480,
         "y": 1026,
-        "patrol": 24
+        "patrol": 58
       },
       {
         "x": 640,
         "y": 756,
-        "patrol": 24
+        "patrol": 58
       }
     ],
     "coins": [
@@ -530,12 +530,12 @@ window.LEVELS = [
       {
         "x": 480,
         "y": 1026,
-        "patrol": 24
+        "patrol": 58
       },
       {
         "x": 640,
         "y": 756,
-        "patrol": 24
+        "patrol": 58
       }
     ],
     "coins": [
@@ -758,12 +758,12 @@ window.LEVELS = [
       {
         "x": 480,
         "y": 1026,
-        "patrol": 24
+        "patrol": 58
       },
       {
         "x": 640,
         "y": 756,
-        "patrol": 24
+        "patrol": 58
       }
     ],
     "coins": [
@@ -974,12 +974,12 @@ window.LEVELS = [
       {
         "x": 480,
         "y": 1046,
-        "patrol": 24
+        "patrol": 58
       },
       {
         "x": 640,
         "y": 776,
-        "patrol": 24
+        "patrol": 58
       }
     ],
     "coins": [
