@@ -1,13 +1,13 @@
 {
   "name": "Roadwar Iso",
-  "tagline": "Build your convoy, crush the warlord — an isometric 2.5D car RTS.",
+  "tagline": "Build your convoy, crush the warlord \u2014 an isometric 2.5D car RTS.",
   "hero": "a convoy of toon battle-cars, in iso",
-  "verb": "deploy · rally · ram",
+  "verb": "deploy \u00b7 rally \u00b7 ram",
   "worlds": 1,
   "levelCount": 5,
-  "controls": "click the field to deploy · 1/2/3 pick a car · 4 refinery",
+  "controls": "click the field to deploy \u00b7 1/2/3 pick a car \u00b7 4 refinery",
   "art": "toon cel-shaded ISOMETRIC top-down cars (Gemini)",
-  "music": "Lyria — a battle anthem per ground",
+  "music": "Lyria \u2014 a battle anthem per ground",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",
@@ -24,21 +24,38 @@
   "builder": "/",
   "designLens": "/",
   "scaffolded_from": "agadabanka/phaser-private",
-  "url": null,
-  "gate": "pending",
+  "url": "https://roadwar-iso-production.up.railway.app",
+  "gate": "0-death pass (webgl+canvas, det)",
   "stages": {
     "scaffold": true,
     "identity": true,
     "levels": true,
-    "gate": false,
-    "feel": false,
+    "gate": true,
+    "feel": true,
     "hero": true,
     "art": true,
     "music": true,
-    "deploy": false
+    "deploy": true,
+    "repo": true
   },
-  "menu": { "logo": "assets/menu/logo.png" },
+  "menu": {
+    "logo": "assets/menu/logo.png"
+  },
   "slug": "roadwar-iso",
   "repo": "agadabanka/roadwar-iso",
-  "archetype": "isorts"
+  "archetype": "isorts",
+  "scorecard": {
+    "date": "2026-06-11",
+    "gate": "0-death webgl+canvas (9005, det)",
+    "tensionCurve": [
+      0.34,
+      0.38,
+      0.47,
+      0.46,
+      0.71
+    ],
+    "tensionFinale": "BRUTAL",
+    "strategicDiversity": "89%",
+    "fun": 91.7
+  }
 }
