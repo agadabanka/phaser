@@ -1,5 +1,7 @@
 # Ember Depths — Diary
 
+![Ember Depths — the themed caverns](src/diary-shots/depths.png)
+
 A lava-cave platformer built on the Studio SDK (Phaser **4.1.0**), made to show off the
 Phaser-4 GPU FX + particle surfaces the studio's older Phaser-3 games never touched.
 

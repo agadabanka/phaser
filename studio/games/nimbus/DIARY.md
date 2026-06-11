@@ -1,5 +1,7 @@
 # Studio Phaser 4 Template — Diary
 
+![Nimbus Climb — the vertical shelf run](src/diary-shots/climb.png)
+
 ### Born on Phaser 4
 Scaffolded from `agadabanka/phaser-private` (Phaser **4.1.0**) on the Studio SDK —
 the first base in the family to run Phaser 4 instead of vendored Phaser 3.

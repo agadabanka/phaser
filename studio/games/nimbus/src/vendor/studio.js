@@ -1189,6 +1189,56 @@
       var ta = panel.querySelector('[data-text]'), status = panel.querySelector('[data-status]'),
           list = panel.querySelector('[data-list]'), ctxEl = panel.querySelector('[data-ctx]');
 
+      // ---- tap-to-annotate: freeze, capture the canvas, mark the tapped spot ----
+      // The screenshot (with a dot drawn where the player tapped) rides along with
+      // the note → the server uploads it to the repo and embeds it in the issue.
+      var pendingShot = null, pendingTap = null, dotEl = null;
+      function captureShot(tapNorm) {
+        try {
+          var cv = scene.sys.game.canvas;
+          var snap = document.createElement('canvas'); snap.width = cv.width; snap.height = cv.height;
+          var g2 = snap.getContext('2d'); g2.drawImage(cv, 0, 0);
+          if (tapNorm) {
+            var px = tapNorm.x * snap.width, py = tapNorm.y * snap.height;
+            g2.lineWidth = 6; g2.strokeStyle = '#ffffff'; g2.beginPath(); g2.arc(px, py, 20, 0, Math.PI * 2); g2.stroke();
+            g2.lineWidth = 3.5; g2.strokeStyle = '#ff3b30'; g2.beginPath(); g2.arc(px, py, 20, 0, Math.PI * 2); g2.stroke();
+            g2.fillStyle = '#ff3b30'; g2.beginPath(); g2.arc(px, py, 5, 0, Math.PI * 2); g2.fill();
+          }
+          return snap.toDataURL('image/jpeg', 0.78);
+        } catch (e) { return null; }
+      }
+      function showDot(clientX, clientY) {
+        clearDot();
+        dotEl = document.createElement('div');
+        dotEl.style.cssText = 'position:fixed;left:' + (clientX - 14) + 'px;top:' + (clientY - 14) + 'px;width:28px;height:28px;border-radius:50%;border:3px solid #ff3b30;box-shadow:0 0 0 3px #fff,0 0 14px rgba(255,59,48,.8);z-index:998;pointer-events:none;';
+        var core = document.createElement('div');
+        core.style.cssText = 'position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#ff3b30;';
+        dotEl.appendChild(core); document.body.appendChild(dotEl);
+      }
+      function clearDot() { if (dotEl) { try { dotEl.remove(); } catch (e) {} dotEl = null; } }
+      var marker = document.createElement('div');  // the "tap the spot" layer
+      marker.style.cssText = 'position:fixed;inset:0;z-index:997;display:none;cursor:crosshair;';
+      var hint = document.createElement('div');
+      hint.innerHTML = '📍 tap where the issue is &nbsp;<button data-skip style="border:1px solid ' + th.border + ';background:' + th.bg + ';color:' + th.text + ';border-radius:8px;padding:4px 12px;font-family:' + FONT + ';font-size:13px;cursor:pointer;">skip — just write</button>';
+      hint.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:' + th.bg + ';border:1px solid ' + th.border + ';border-radius:12px;padding:8px 14px;color:' + th.text + ';font-family:' + FONT + ';font-size:14px;z-index:1001;display:none;backdrop-filter:blur(3px);';
+      document.body.appendChild(marker); document.body.appendChild(hint);
+      var marking = false;
+      function startMark() {
+        marking = true; pausedByPanel = !paused; setPaused(true); veil.style.display = 'none';
+        marker.style.display = 'block'; hint.style.display = 'block';
+      }
+      function endMark() { marking = false; marker.style.display = 'none'; hint.style.display = 'none'; }
+      marker.onclick = function (e) {
+        var cv = scene.sys.game.canvas, r = cv.getBoundingClientRect();
+        var nx = Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width)));
+        var ny = Math.max(0, Math.min(1, (e.clientY - r.top) / Math.max(1, r.height)));
+        pendingTap = { x: +nx.toFixed(4), y: +ny.toFixed(4) };
+        pendingShot = captureShot(pendingTap);
+        showDot(e.clientX, e.clientY);
+        endMark(); openPanel(true);
+      };
+      hint.querySelector('[data-skip]').onclick = function () { pendingTap = null; pendingShot = captureShot(null); endMark(); openPanel(true); };
+
       function refreshList() {
         fetch('/api/notes').then(function (r) { return r.json(); }).then(function (ns) {
           var last = (ns || []).slice(-4).reverse();
@@ -1198,11 +1248,12 @@
         }).catch(function () { list.innerHTML = '<em style="opacity:.6">notes API offline (static host)</em>'; });
       }
       var savedCaps = null;
-      function openPanel() {
-        panelOpen = true; pausedByPanel = !paused; setPaused(true);
+      function openPanel(fromMark) {
+        panelOpen = true;
+        if (!fromMark) { pausedByPanel = !paused; setPaused(true); }
         veil.style.display = 'none';
         var c = opt.context ? opt.context() : {};
-        ctxEl.textContent = c.where ? '· ' + c.where : '';
+        ctxEl.textContent = (c.where ? '· ' + c.where : '') + (pendingShot ? (pendingTap ? ' · 📍 spot marked' : ' · 📸 screenshot attached') : '');
         panel.style.display = 'block'; refreshList();
         // type freely: disable the plugin AND release Phaser's key CAPTURES —
         // captured codes (Space, arrows from createCursorKeys) are preventDefault'd
@@ -1217,8 +1268,10 @@
         setTimeout(function () { ta.focus(); }, 0);
       }
       function closePanel() {
-        if (!panelOpen) return;
+        if (marking) endMark();
+        if (!panelOpen) { clearDot(); pendingShot = pendingTap = null; if (pausedByPanel) setPaused(false); return; }
         panelOpen = false; panel.style.display = 'none';
+        clearDot(); pendingShot = pendingTap = null;
         try {
           var kb = scene.input.keyboard;
           kb.enabled = true;
@@ -1227,14 +1280,19 @@
         } catch (e) {}
         if (pausedByPanel) setPaused(false); else veil.style.display = paused ? 'flex' : 'none';
       }
-      bNotes.onclick = function () { panelOpen ? closePanel() : openPanel(); };
+      // 📝 → freeze + "tap the spot" → dot → composer (the dot + screenshot ride
+      // with the note). Clicking 📝 again anywhere in the flow cancels/closes.
+      bNotes.onclick = function () { (panelOpen || marking) ? closePanel() : startMark(); };
       panel.querySelector('[data-save]').onclick = function () {
         var text = (ta.value || '').trim();
         if (!text) { status.textContent = 'write something first'; return; }
         var c = opt.context ? opt.context() : {};
-        status.textContent = 'saving…';
-        fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ text: text, ts: new Date().toISOString() }, c)) })
-          .then(function (r) { if (!r.ok) throw 0; status.textContent = 'saved ✓'; ta.value = ''; refreshList(); })
+        status.textContent = pendingShot ? 'saving (+screenshot)…' : 'saving…';
+        var payload = Object.assign({ text: text, ts: new Date().toISOString() }, c);
+        if (pendingShot) { payload.shot = pendingShot; if (pendingTap) payload.tap = pendingTap; }
+        fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+          .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+          .then(function (j) { status.textContent = j && j.issue ? 'saved ✓ → ' + j.issue : 'saved ✓'; ta.value = ''; pendingShot = pendingTap = null; clearDot(); refreshList(); })
           .catch(function () { status.textContent = 'save failed — notes API offline?'; });
       };
 
@@ -1759,7 +1817,7 @@
           Studio.Shell.create(this, {
             theme: TH.shell || null,
             links: (function () {
-              var L = [{ label: '📖 DIARY', href: '/api/diary' }];
+              var L = [{ label: '📖 DIARY', href: '/diary.html' }];
               if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); }
               if (cfg.engineUrl) L.push({ label: '⚙️ ENGINE', href: cfg.engineUrl });
               return L;
@@ -2067,7 +2125,7 @@
 
           Studio.Shell.create(this, {
             theme: TH.shell || null,
-            links: (function () { var L = [{ label: '📖 DIARY', href: '/api/diary' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } if (cfg.engineUrl) L.push({ label: '⚙️ ENGINE', href: cfg.engineUrl }); return L; })(),
+            links: (function () { var L = [{ label: '📖 DIARY', href: '/diary.html' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } if (cfg.engineUrl) L.push({ label: '⚙️ ENGINE', href: cfg.engineUrl }); return L; })(),
             context: function () { var s = spec(); return { where: 'V' + (levelIndex + 1) + ' ' + (s.name || '') + ' wave ' + (waveIdx + 1), level: levelIndex + 1, levelName: s.name || '', wave: waveIdx + 1, score: score, hp: hp, deaths: deaths, won: won, game: slug }; },
             onRestart: function () { startGame(0); }
           });
@@ -2472,7 +2530,7 @@
 
           Studio.Shell.create(this, {
             theme: TH.shell || null,
-            links: (function () { var L = [{ label: '📖 DIARY', href: '/api/diary' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } return L; })(),
+            links: (function () { var L = [{ label: '📖 DIARY', href: '/diary.html' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } return L; })(),
             context: function () { var s = spec(); return { where: 'G' + (levelIndex + 1) + ' ' + (s.name || ''), level: levelIndex + 1, levelName: s.name || '', scrap: Math.round(scrap), fortressHp: Math.round(fortressHp), garageHp: Math.round(garageHp), won: won, deaths: deaths, game: slug }; },
             onRestart: function () { startGame(0); }
           });
@@ -2626,7 +2684,9 @@
         var st = tuned(type), id = uid++, y = side === 'p' ? GAR_Y - 18 : FORT_Y + 18;
         var tex = (side === 'p' ? 'car_' : 'enemy_') + type;
         var spr = scene.add.image(0, 0, scene.textures.exists(tex) ? tex : (side === 'p' ? 'car_fallback' : 'enemy_fallback'));
-        var base = (type === 'warlord' ? 0.7 : 0.4) * (44 / Math.max(1, spr.height));
+        // size cars to a readable on-screen height (the iso depth scale `sc` then
+        // makes near cars bigger, far cars smaller). Was 0.4*44 ≈ 18px — far too tiny.
+        var base = (type === 'warlord' ? 104 : 58) / Math.max(1, spr.height);
         if (side === 'e') spr.setFlipX(true);
         var u = { id: id, side: side, type: type, lx: lx, y: y, hp: st.hp, maxHp: st.hp, dmg: st.dmg, range: st.range, speed: st.speed, cd: 0, atkCd: st.cd, r: st.r, spr: spr, base: base, alive: true };
         place(spr, lx, y, base); if (fieldLayer) fieldLayer.add(spr); units.push(u);
@@ -2735,7 +2795,7 @@
 
           Studio.Shell.create(this, {
             theme: TH.shell || null,
-            links: (function () { var L = [{ label: '📖 DIARY', href: '/api/diary' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } return L; })(),
+            links: (function () { var L = [{ label: '📖 DIARY', href: '/diary.html' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } return L; })(),
             context: function () { var s = spec(); return { where: 'G' + (levelIndex + 1) + ' ' + (s.name || ''), level: levelIndex + 1, scrap: Math.round(scrap), fortressHp: Math.round(fortressHp), garageHp: Math.round(garageHp), won: won, deaths: deaths, game: slug }; },
             onRestart: function () { startGame(0); }
           });

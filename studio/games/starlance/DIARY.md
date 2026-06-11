@@ -1,5 +1,7 @@
 # Studio Phaser 4 Template — Diary
 
+![Starlance in flight — the sweeping-gap curtain](src/diary-shots/flight.png)
+
 ### Born on Phaser 4
 Scaffolded from `agadabanka/phaser-private` (Phaser **4.1.0**) on the Studio SDK —
 the first base in the family to run Phaser 4 instead of vendored Phaser 3.

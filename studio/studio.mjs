@@ -15,6 +15,7 @@
  *   studio balance <game> [--dry]    auto-tune per-level `difficulty` to a rising tension curve (the floor stays winnable)
  *   studio check <game>              EVERY applicable validator -> scorecard (--validate-all)
  *   studio ci [--fast]               THE REGRESSION RATCHET — re-vendor the SDK into every game + gate them all
+ *   studio issues                    FEEDBACK validator — fails while ANY game the engine built has an open playtest issue
  *   studio ship <game>               railway up from the game dir
  *   studio publish <game> [--public] ENSURE the game's GitHub repo exists (private
  *                                    by default) + push it — every game IS a repo
@@ -55,6 +56,7 @@ switch (cmd) {
   case 'next': run(path.join(STUDIO, 'orchestrator', 'conductor.mjs'), [gameDir(args[0])]); break;
   case 'check': run(path.join(STUDIO, 'orchestrator', 'conductor.mjs'), [gameDir(args[0]), '--validate-all']); break;
   case 'ci': run(path.join(STUDIO, 'tools', 'ci', 'run.mjs'), args); break;
+  case 'issues': run(path.join(STUDIO, 'tools', 'eval', 'issues.mjs'), args.slice(1)); break;
   case 'run': run(path.join(STUDIO, 'lego', 'dispatch.mjs'), args); break;
   case 'lint': run(path.join(STUDIO, 'tools', 'level-lint', 'validate.mjs'), ['--game', gameDir(args[0])]); break;
   case 'gate': { const g = gameDir(args[0]); run(path.join(g, 'eval.mjs'), [], { cwd: g }); break; }

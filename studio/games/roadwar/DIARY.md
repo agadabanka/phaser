@@ -1,5 +1,7 @@
 # Roadwar — build diary
 
+![the Roadwar menu — wordmark, toon desert, the five grounds](src/diary-shots/menu.png)
+
 A toon-shaded, car-themed **RTS** — the fourth archetype on the Studio/Phaser-4
 engine (after the runner, the vertical climber, and the shooter). Five grounds:
 your **garage** (bottom) vs a warlord **fortress** (top) across three lanes.
@@ -47,6 +49,8 @@ tweaks:
   (introduce→develop→twist→master): G1 basics · G2 a gunner standoff · G3 flank
   pincers · G4 brawler walls · **G5 the Warlord boss**.
 - Intensity **escalates 9 → 22 → 22 → 32 → 45** to the boss finale.
+
+![mid-battle on the lanes — the convoy pushing the fortress](src/diary-shots/battle.png)
 
 ## Scorecard
 - **Gate:** GREEN — webgl + canvas, frame-identical (9801), 0 deaths, all five
