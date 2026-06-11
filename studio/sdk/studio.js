@@ -2227,11 +2227,14 @@
           if (u.spr) u.spr.setPosition(u.x, u.y);
           if (u.hp <= 0) { u.alive = false; if (u.spr) { Studio.Juice.burst(scene, u.x, u.y, { texture: 'spark', n: 12, tint: u.side === 'p' ? 0x6ad6ff : 0xff5a3c, life: 420, spMax: 160 }); u.spr.destroy(); } }
         }
-        // HQ turrets (defend nearest enemy unit within range)
+        // HQ turrets — defend ALL THREE lanes (target nearest enemy by APPROACH
+        // distance along the lane, |y-hqY|, not euclidean-from-centre). This is
+        // what makes side-lane leaks safe and the autopilot win-by-construction:
+        // a unit the rally deathball never meets is still cleared by the base gun.
         gTurretCd -= dt; fTurretCd -= dt;
-        var gT = nearestUnitNear('e', 480, GAR_Y, spec().garageTurret ? spec().garageTurret.range : 150);
+        var gT = nearestApproaching('e', GAR_Y, spec().garageTurret ? spec().garageTurret.range : 150);
         if (gT && gTurretCd <= 0) { gTurretCd = 0.6; gT.hp -= (spec().garageTurret ? spec().garageTurret.dmg : 14); spawnBullet({ x: 480, y: GAR_Y - 10, range: 200, side: 'p' }, gT); }
-        var fT = nearestUnitNear('p', 480, FORT_Y, spec().fortressTurret ? spec().fortressTurret.range : 160);
+        var fT = nearestApproaching('p', FORT_Y, spec().fortressTurret ? spec().fortressTurret.range : 160);
         if (fT && fTurretCd <= 0) { fTurretCd = 0.55; fT.hp -= (spec().fortressTurret ? spec().fortressTurret.dmg : 16); spawnBullet({ x: 480, y: FORT_Y + 10, range: 200, side: 'e' }, fT); }
         // bullets
         for (var b = bullets.length - 1; b >= 0; b--) { var bl = bullets[b]; bl.t -= dt; if (bl.spr) bl.spr.setPosition(bl.x + (bl.tx - bl.x) * (1 - bl.t / bl.life), bl.y + (bl.ty - bl.y) * (1 - bl.t / bl.life)); if (bl.t <= 0) { try { bl.spr.destroy(); } catch (e) {} bullets.splice(b, 1); } }
@@ -2242,6 +2245,12 @@
       function nearestUnitNear(side, x, y, range) {
         var best = null, bd = range || 150;
         for (var i = 0; i < units.length; i++) { var u = units[i]; if (!u.alive || u.side !== side) continue; var d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u; } }
+        return best;
+      }
+      // nearest enemy by APPROACH along the lane (covers all 3 lanes equally)
+      function nearestApproaching(side, hqY, range) {
+        var best = null, bd = range || 150;
+        for (var i = 0; i < units.length; i++) { var u = units[i]; if (!u.alive || u.side !== side) continue; var d = Math.abs(u.y - hqY); if (d < bd) { bd = d; best = u; } }
         return best;
       }
       function spawnBullet(from, to) {
