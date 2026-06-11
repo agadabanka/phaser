@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/ground-2.mp3",
+  "prompt": "Looping instrumental gritty GARAGE-ROCK battle theme for a JUNKYARD toon car-combat level: dirty distorted guitars, clanging percussion, gritty bass groove, scrappy and mechanical, no vocals, seamless loop, mid-tempo.",
+  "generatedAt": "2026-06-11T01:37:09.035Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0694,
+  "peak": 0.6485,
+  "crossfadeSec": 1.6
+}

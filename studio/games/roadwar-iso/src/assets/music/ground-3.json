@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/ground-3.mp3",
+  "prompt": "Looping instrumental NEON SYNTHWAVE-ROCK battle theme for a NIGHT NEON-CITY toon car-combat level: pulsing analog synth bass, bright neon arpeggios over rock drums and electric guitar, slick and propulsive, no vocals, seamless loop, driving tempo.",
+  "generatedAt": "2026-06-11T01:37:59.821Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0697,
+  "peak": 0.5945,
+  "crossfadeSec": 1.6
+}
