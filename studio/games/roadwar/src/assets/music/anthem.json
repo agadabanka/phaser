@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/anthem.mp3",
+  "prompt": "Looping instrumental battle anthem for a toon car-combat RTS called \"Roadwar\": punchy surf-rock guitars, driving rock drums, brass stabs, heroic and rowdy, cartoon-action energy, no vocals, seamless loop, steady mid-tempo.",
+  "generatedAt": "2026-06-11T00:14:04.170Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0695,
+  "peak": 0.3819,
+  "crossfadeSec": 1.6
+}

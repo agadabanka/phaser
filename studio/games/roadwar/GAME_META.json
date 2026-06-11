@@ -1,0 +1,41 @@
+{
+  "name": "Roadwar",
+  "tagline": "Build your convoy, crush the warlord — a toon car RTS across five battlegrounds.",
+  "hero": "a convoy of toon battle-cars",
+  "verb": "build · rally · ram",
+  "worlds": 1,
+  "levelCount": 5,
+  "controls": "click a lane · build cars (1/2/3) · auto-rally (joystick n/a)",
+  "art": "toon cel-shaded top-down cars (Gemini)",
+  "music": "Lyria — a battle anthem per ground",
+  "engine": "studio-phaser4",
+  "renderer": "webgl-canvas",
+  "phaserVersion": "4.1.0",
+  "physics": "arcade",
+  "capabilities": [
+    "rts",
+    "lane-push",
+    "deterministic-eval",
+    "filters",
+    "particles"
+  ],
+  "builder": "/",
+  "designLens": "/",
+  "scaffolded_from": "agadabanka/phaser-private",
+  "url": null,
+  "gate": "pending",
+  "stages": {
+    "scaffold": true,
+    "identity": true,
+    "levels": false,
+    "gate": false,
+    "feel": false,
+    "hero": false,
+    "art": false,
+    "music": false,
+    "deploy": false
+  },
+  "slug": "roadwar",
+  "repo": "agadabanka/roadwar",
+  "archetype": "rts"
+}
