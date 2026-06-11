@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**36 entries** across 18 phases · **77 systems** · **167 edges** in the graph.
+**37 entries** across 19 phases · **77 systems** · **167 edges** in the graph.
 
 ---
 
@@ -366,6 +366,17 @@
 - **Systems:** Studio.Game.boot, Studio.RTS, Studio.IsoRTS, 0-death gate, rules.json + level-lint, game-engine hub
 - **Validator:** studio ci GREEN — 5/5 games, 4 archetypes, deterministic 0-death on the current SDK; CI workflow on push/PR
 - **Artifacts:** `tools/ci/run.mjs`, `.github/workflows/engine-ci.yml`, `tools/level-lint/validate.mjs (isorts)`
+
+## Platform
+
+### Deploy-via-GitHub + bulletproof notes→issues (template + every game), and the iso tiny-car fix
+`2026-06-11` · 🚀 shipped
+
+- **What:** Two playtest notes exposed two real gaps. (1) DEPLOY VIA GITHUB: games were shipped with `railway up` (a CLI upload of local files), so the Railway service had NO connected repo — unlike the-platformer/deepfin which deploy from GitHub. Fixed: `studio publish` now also runs Railway `serviceConnect` (using GAME_META.railway ids) so a push auto-deploys from GitHub; every studio game (roadwar, roadwar-iso, starlance, ember, nimbus) is now repo-connected and deploys on push, no more local uploads. (2) NOTES→ISSUES made BULLETPROOF in the TEMPLATE (so all games inherit): fileIssue now RETRIES, LOGS every failure (was a silent `catch{return null}`), surfaces the error to the client, and a BACKFILL re-files any saved note still missing an issue — on startup, every 5 min, and via POST /api/notes/reconcile. So a note ALWAYS eventually registers in the repo. (3) Fixed the iso TINY-CARS note (roadwar-iso#1): cars were ~18px (0.4×44) — enlarged to ~58px base (warlord ~104px); gate still 0-death (9005). All shipped via GitHub; note #1 closed.
+- **Why:** Playtest feedback is the engine's outer loop — but only if a note reliably becomes a tracked issue and a fix reliably reaches the live game. Both links were leaky (silent filing failures; CLI uploads disconnected from the repo). Putting the fixes in the TEMPLATE + the publish pipeline means every current and future game gets durable notes→issues and GitHub-sourced deploys for free.
+- **Systems:** game-engine hub, Studio.Game.boot, Studio.IsoRTS, Roadwar Iso
+- **Validator:** all 5 games serve the robust server (config.repo) + deploy via GitHub (serviceConnect); notes→issues verified (issues filed); iso gate 0-death 9005
+- **Artifacts:** `game-template/server.js`, `studio.mjs (publish→serviceConnect)`, `sdk/studio.js (iso car scale)`
 
 ---
 
