@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**35 entries** across 18 phases · **76 systems** · **163 edges** in the graph.
+**36 entries** across 18 phases · **77 systems** · **167 edges** in the graph.
 
 ---
 
@@ -358,6 +358,15 @@
 - **Validator:** both gates GREEN 0-death (floor); strategy-sweep tension 0.06→0.47 mean, curve 0.34→0.71 rising; diversity 89%
 - **Artifacts:** `sdk/studio.js (Studio.rtsPressure)`, `tools/eval/pressure.mjs`, `tools/eval/rts-core.mjs`, `tools/eval/strategies.mjs`, `tools/eval/balance.mjs`
 
+### The regression ratchet: an engine CI that gates every game on each SDK change
+`2026-06-11` · 🚀 shipped
+
+- **What:** Closed the #1 gap from the evolution review — the engine now DEFENDS ITSELF. tools/ci/run.mjs (studio ci) is the engine's own test suite: it re-vendors the CURRENT sdk/studio.js into EVERY game and re-runs that game's deterministic 0-death gate (+ lint) across all four archetypes, going red if any shipped game breaks. A GitHub Actions workflow (.github/workflows/engine-ci.yml) runs it automatically on any change to sdk/, games/, tools/, or rules.json. On its very first run the ratchet earned its keep: it caught THREE games (ember, nimbus, starlance) carrying a STALE vendored SDK (silent drift) and an isorts LINT GAP (the static gate didn't know the new archetype) — both fixed (re-vendor sync; lint now routes isorts→lintRts with an lx-aware side-leak + an isorts rules block). The full sweep is GREEN: all 5 games (platformer/vertical/shooter/rts/isorts) gate deterministic 0-death on the current SDK — proving this session's shared-SDK changes (Cam, Audio/switchMusic, Juice, levelMusic, rtsPressure) broke nothing, which any single game's gate could not have shown.
+- **Why:** The evolution review named robustness, not capability, as the real gap: an SDK change could silently break a shipped game because each gate was run by hand (and this session's container reset showed how fragile un-CI'd state is). The ratchet turns the engine's DISCIPLINE into AUTOMATION — the last step from 'evolves with every game' to 'can't help but evolve safely'. It's also the engine extracting a building block from its own needs, not a game's.
+- **Systems:** Studio.Game.boot, Studio.RTS, Studio.IsoRTS, 0-death gate, rules.json + level-lint, game-engine hub
+- **Validator:** studio ci GREEN — 5/5 games, 4 archetypes, deterministic 0-death on the current SDK; CI workflow on push/PR
+- **Artifacts:** `tools/ci/run.mjs`, `.github/workflows/engine-ci.yml`, `tools/level-lint/validate.mjs (isorts)`
+
 ---
 
 ## Flows — the order systems are called
@@ -502,6 +511,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Design Lens** | sdk | — | MDA + Jesse Schell's lenses as a tool: traces each weak Feel component to the lens that asks why + a concrete per-archetype mechanic fix; judges per-level quality AND campaign intensity escalation. |
 | **Strategy Sweep** | tool | — | Runs many AI playstyles through a level → strategic diversity + tension + balance. A different kind of eval than the binary 0-death gate. |
 | **Auto-Balancer** | tool | — | studio balance — auto-tunes per-level difficulty to a rising tension curve, floored by winnability, checked by the strategy-sweep. |
+| **Engine CI** | tool | 5/5 games green | The regression ratchet: re-vendors the current SDK into every game and gates them all on each SDK change. The engine defends itself. |
 
 ### 6. Feedback
 

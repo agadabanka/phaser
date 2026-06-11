@@ -858,6 +858,30 @@
     "tools/eval/balance.mjs"
    ],
    "commit": null
+  },
+  {
+   "id": "e36",
+   "date": "2026-06-11",
+   "phase": "Engine",
+   "title": "The regression ratchet: an engine CI that gates every game on each SDK change",
+   "what": "Closed the #1 gap from the evolution review — the engine now DEFENDS ITSELF. tools/ci/run.mjs (studio ci) is the engine's own test suite: it re-vendors the CURRENT sdk/studio.js into EVERY game and re-runs that game's deterministic 0-death gate (+ lint) across all four archetypes, going red if any shipped game breaks. A GitHub Actions workflow (.github/workflows/engine-ci.yml) runs it automatically on any change to sdk/, games/, tools/, or rules.json. On its very first run the ratchet earned its keep: it caught THREE games (ember, nimbus, starlance) carrying a STALE vendored SDK (silent drift) and an isorts LINT GAP (the static gate didn't know the new archetype) — both fixed (re-vendor sync; lint now routes isorts→lintRts with an lx-aware side-leak + an isorts rules block). The full sweep is GREEN: all 5 games (platformer/vertical/shooter/rts/isorts) gate deterministic 0-death on the current SDK — proving this session's shared-SDK changes (Cam, Audio/switchMusic, Juice, levelMusic, rtsPressure) broke nothing, which any single game's gate could not have shown.",
+   "why": "The evolution review named robustness, not capability, as the real gap: an SDK change could silently break a shipped game because each gate was run by hand (and this session's container reset showed how fragile un-CI'd state is). The ratchet turns the engine's DISCIPLINE into AUTOMATION — the last step from 'evolves with every game' to 'can't help but evolve safely'. It's also the engine extracting a building block from its own needs, not a game's.",
+   "systems": [
+    "game-runtime",
+    "rts",
+    "isorts",
+    "gate",
+    "rules",
+    "hub"
+   ],
+   "validator": "studio ci GREEN — 5/5 games, 4 archetypes, deterministic 0-death on the current SDK; CI workflow on push/PR",
+   "status": "shipped",
+   "artifacts": [
+    "tools/ci/run.mjs",
+    ".github/workflows/engine-ci.yml",
+    "tools/level-lint/validate.mjs (isorts)"
+   ],
+   "commit": null
   }
  ],
  "graph": {
@@ -1456,6 +1480,14 @@
     "tier": "evaluation",
     "validator": null,
     "desc": "studio balance — auto-tunes per-level difficulty to a rising tension curve, floored by winnability, checked by the strategy-sweep."
+   },
+   {
+    "id": "engine-ci",
+    "kind": "tool",
+    "label": "Engine CI",
+    "tier": "evaluation",
+    "validator": "5/5 games green",
+    "desc": "The regression ratchet: re-vendors the current SDK into every game and gates them all on each SDK change. The engine defends itself."
    }
   ],
   "edges": [
@@ -2274,6 +2306,26 @@
     "from": "roadwar-iso",
     "to": "balance",
     "rel": "tuned-by"
+   },
+   {
+    "from": "engine-ci",
+    "to": "gate",
+    "rel": "builds-on"
+   },
+   {
+    "from": "engine-ci",
+    "to": "sdk",
+    "rel": "validates"
+   },
+   {
+    "from": "roadwar",
+    "to": "engine-ci",
+    "rel": "validated-by"
+   },
+   {
+    "from": "roadwar-iso",
+    "to": "engine-ci",
+    "rel": "validated-by"
    }
   ]
  },
