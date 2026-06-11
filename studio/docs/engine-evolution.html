@@ -1,0 +1,152 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #e8e2d4; background: #14110c; }
+  .page { width: 210mm; min-height: 297mm; padding: 20mm 18mm; position: relative; page-break-after: always; background:
+      radial-gradient(1200px 500px at 80% -8%, rgba(255,180,70,.08), transparent 60%), #14110c; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 30pt; line-height: 1.1; margin: 0 0 6pt; color: #ffd98a; letter-spacing: .3px; }
+  h2 { font-size: 16pt; color: #ffcf72; margin: 22pt 0 8pt; border-bottom: 1px solid #4a3c22; padding-bottom: 4pt; }
+  h3 { font-size: 12.5pt; color: #ffe7a8; margin: 12pt 0 4pt; }
+  p, li { font-size: 10.5pt; line-height: 1.5; color: #ded7c6; }
+  .lead { font-size: 12.5pt; color: #efe7d2; line-height: 1.55; }
+  .tag { display: inline-block; font-size: 8pt; letter-spacing: 2px; text-transform: uppercase; color: #14110c; background: #ffcf72; padding: 3px 9px; border-radius: 3px; font-family: Georgia; }
+  .muted { color: #9a9078; font-size: 9pt; }
+  .accent { color: #ffd98a; }
+  .grid { display: grid; gap: 8pt; }
+  .card { background: #1c1810; border: 1px solid #3a3220; border-radius: 7px; padding: 11pt 13pt; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+  th, td { text-align: left; padding: 6pt 7pt; font-size: 9.4pt; vertical-align: top; border-bottom: 1px solid #2e281a; }
+  th { color: #ffcf72; font-size: 8.5pt; letter-spacing: .5px; text-transform: uppercase; }
+  td.g { color: #ffe7a8; font-weight: bold; white-space: nowrap; }
+  .pill { display: inline-block; font-size: 8pt; padding: 1.5px 7px; border-radius: 10px; border: 1px solid #4a3c22; color: #ffd98a; margin: 1px 2px 1px 0; }
+  .flow { display: flex; align-items: stretch; gap: 0; margin: 10pt 0; }
+  .step { flex: 1; background: #1c1810; border: 1px solid #3a3220; border-radius: 7px; padding: 9pt; text-align: center; position: relative; }
+  .step b { color: #ffd98a; font-size: 10pt; } .step span { font-size: 8.2pt; color: #b8af98; display:block; margin-top:3px;}
+  .arrow { display: flex; align-items: center; color: #ffcf72; font-size: 16pt; padding: 0 5pt; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 11pt; }
+  .ok::before { content: "▲ "; color: #6fcf7a; } .gap::before { content: "△ "; color: #ffb04a; }
+  .foot { position: absolute; bottom: 12mm; left: 18mm; right: 18mm; display: flex; justify-content: space-between; font-size: 8pt; color: #6a6250; border-top: 1px solid #2e281a; padding-top: 5pt; }
+  ul { margin: 4pt 0 4pt 0; padding-left: 16pt; } li { margin: 3pt 0; }
+  .big { font-size: 40pt; color: #ffd98a; font-weight: bold; line-height: 1; }
+  .statline { display:flex; gap: 18pt; margin: 10pt 0; }
+  .stat b { display:block; font-size: 22pt; color:#ffd98a; line-height:1; } .stat span { font-size: 8.5pt; color:#9a9078; }
+</style></head><body>
+
+<!-- COVER -->
+<div class="page">
+  <span class="tag">Studio · Game Engine</span>
+  <h1 style="margin-top:26pt">The Ever-Evolving<br>Game Engine</h1>
+  <p class="lead" style="max-width:150mm; margin-top:10pt">How one engine grows <span class="accent">with every game</span> — the mechanism, the evidence after nine games, an honest scorecard, and the gaps that remain.</p>
+  <div class="statline" style="margin-top:24pt">
+    <div class="stat"><b>9</b><span>games shipped</span></div>
+    <div class="stat"><b>4</b><span>archetypes (genres)</span></div>
+    <div class="stat"><b>6</b><span>automated evals</span></div>
+    <div class="stat"><b>23</b><span>SDK building blocks</span></div>
+  </div>
+  <div class="card" style="margin-top:22pt; max-width:160mm">
+    <h3 style="margin-top:0">The thesis, in one line</h3>
+    <p style="margin-bottom:0">The engine evolves by <span class="accent">extraction</span>: every new game forces a new capability; once a <span class="accent">validator</span> proves it, it is lifted out of the game and into the SDK as a reusable building block. So the engine is strictly more capable after each game — and the next game starts further ahead.</p>
+  </div>
+  <p class="muted" style="margin-top:20pt">A platformer became a shooter became a car-RTS became an isometric RTS — on the <em>same</em> engine, each genre paying its new muscle back into the shared core.</p>
+  <div class="foot"><span>Studio Game Engine — evolution report</span><span>2026-06-11</span></div>
+</div>
+
+<!-- EVIDENCE -->
+<div class="page">
+  <span class="tag">Evidence</span>
+  <h1 style="font-size:22pt; margin-top:10pt">Every game paid muscle back to the engine</h1>
+  <p>Read the right column as the point: each game didn't just ship — it <span class="accent">left the engine more capable</span> for the next one.</p>
+  <table>
+    <tr><th>Game</th><th>Genre / first-of-its-kind</th><th>What it extracted INTO the engine (inherited by all later games)</th></tr>
+    <tr><td class="g">The Platformer<br><span class="muted">Ember · Nimbus · Deepfin · Jazz</span></td><td>2D platformer</td><td>The spine: <b>Studio.Platformer</b>, the deterministic <b>0-death gate</b>, the <b>Feel</b> fun-model, the level DSL, <b>Materials/Contraptions</b>, <b>Juice</b>, the <b>Shell/Save/Audio</b> chrome, the <b>art + Lyria</b> pipelines, the <b>hub</b> + notes→issues.</td></tr>
+    <tr><td class="g">Starlance</td><td>Vertical space shooter — <em>1st non-platformer</em></td><td><b>Studio.Shooter</b> (a 2nd archetype) — proof the engine generalises past platformers. The <b>bullet-curtain survivability contract</b> (rules + lint) as a reusable “winnable-by-construction” pattern.</td></tr>
+    <tr><td class="g">Roadwar</td><td>Toon car <b>RTS</b> — <em>1st strategy game</em></td><td><b>Studio.RTS</b> (3rd archetype) · a buildable <b>economy</b> (Refinery) · the <b>Design Lens</b> (MDA + Schell fun-maximiser) · <b>per-level music</b> · richer <b>Juice</b> (explosions, rings, muzzle, pop-text) · the <b>win-by-construction economic bounds</b>.</td></tr>
+    <tr><td class="g">Roadwar Iso</td><td><b>Isometric</b> 2.5D RTS — <em>1st 3D-look game</em></td><td><b>Studio.Iso</b> (a reusable perspective projector for <em>any</em> iso game) · <b>Studio.IsoRTS</b> (4th archetype, a continuous front) · the <b>systematic tension model</b> (rtsPressure) · the <b>Strategy-Sweep</b> + <b>Auto-Balancer</b> evals.</td></tr>
+  </table>
+
+  <h2>The shape of the growth</h2>
+  <div class="two">
+    <div class="card"><h3 style="margin-top:0">Archetypes: 1 → 4</h3><p style="margin-bottom:4pt">One genre at the start; four today, all on one runtime + one eval contract.</p><span class="pill">Platformer</span><span class="pill">Shooter</span><span class="pill">RTS</span><span class="pill">IsoRTS</span></div>
+    <div class="card"><h3 style="margin-top:0">Evals: 1 → 6</h3><p style="margin-bottom:4pt">The gate was the only judge; now a whole bench grades each game.</p><span class="pill">gate (0-death)</span><span class="pill">lint</span><span class="pill">feel</span><span class="pill">lens (fun)</span><span class="pill">strategies</span><span class="pill">balance</span></div>
+  </div>
+  <div class="foot"><span>Studio Game Engine — evolution report</span><span>2 / 5</span></div>
+</div>
+
+<!-- MECHANISM -->
+<div class="page">
+  <span class="tag">The Mechanism</span>
+  <h1 style="font-size:22pt; margin-top:10pt">How it actually self-evolves</h1>
+  <p>Three forces turn “I shipped a game” into “the engine got better.” Nothing here is automatic magic — it’s a discipline the build follows every time.</p>
+
+  <div class="flow">
+    <div class="step"><b>1 · Need</b><span>A new game wants something the engine can’t do yet (a genre, a mechanic, a feeling).</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>2 · Build</b><span>Make it in the game — bespoke at first is fine.</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>3 · Extract</b><span>Lift the reusable core out of the game and INTO the SDK as a building block.</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>4 · Validate</b><span>Write the checker. It isn’t “in the engine” until a validator guards it.</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>5 · Remember</b><span>Diary + sysmap record it; the next game inherits it for free.</span></div>
+  </div>
+
+  <h2>The three pillars</h2>
+  <h3>① Extraction — games are the engine’s R&amp;D</h3>
+  <p>The engine never grows in the abstract; it grows because a <em>real game</em> needed it. Roadwar needed an economy → the Refinery became an SDK system. Roadwar Iso needed an isometric view → <b>Studio.Iso</b> became a projector any future iso game uses. The game is the experiment; the building block is the result.</p>
+  <h3>② The validator ratchet — quality only goes up</h3>
+  <p>A capability is only “in the engine” once it has an automated judge: determinism has the <b>gate</b>, geometry the <b>lint</b>, fun the <b>Feel</b> model and the <b>Design Lens</b>, challenge the <b>Strategy-Sweep</b>, difficulty the <b>Auto-Balancer</b>. Because every block ships with its checker, the engine can’t silently regress on that block — the ratchet only turns one way.</p>
+  <h3>③ Memory — the engine records its own growth</h3>
+  <p>The <b>diary</b> (35 entries) and the interactive <b>sysmap</b> are the engine’s long-term memory: the graph of building blocks, who depends on whom, and why each exists. New work reads this, so the engine compounds instead of repeating itself.</p>
+
+  <div class="card" style="margin-top:14pt"><p style="margin:0"><span class="accent">Why this matters:</span> the same loop just produced its sharpest example — the steer “0-death is a weak signal, make it systematic” turned into <b>three</b> permanent engine assets (a pressure model, a strategy-sweep eval, an auto-balancer) that every future RTS inherits. The feedback didn’t fix a level; it grew the engine.</p></div>
+  <div class="foot"><span>Studio Game Engine — evolution report</span><span>3 / 5</span></div>
+</div>
+
+<!-- SCORECARD -->
+<div class="page">
+  <span class="tag">Are we there yet?</span>
+  <h1 style="font-size:22pt; margin-top:10pt">An honest scorecard</h1>
+  <p class="lead">Mostly yes on the <em>mechanism</em>; not yet on <em>robustness</em>. The engine demonstrably evolves with every game — but it still leans on discipline where it should lean on automation.</p>
+
+  <h2 style="color:#7fd08a; border-color:#2f4a30">What’s genuinely strong</h2>
+  <ul>
+    <li class="ok"><b>Multi-genre on one core.</b> Four archetypes share one runtime, one boot, one eval contract, one chrome. The “is it an engine or a platform?” question is answered.</li>
+    <li class="ok"><b>The extraction habit is real.</b> Every recent game left ≥1 reusable block behind (Iso projector, pressure model, the eval tools).</li>
+    <li class="ok"><b>The validator ratchet works.</b> Fun, challenge, determinism, geometry and difficulty all have automated judges — feedback becomes tooling, not vibes.</li>
+    <li class="ok"><b>Data-only games.</b> A game is levels + theme; the runtime lives in the SDK, so engine upgrades reach old games.</li>
+  </ul>
+
+  <h2 style="color:#ffb04a; border-color:#4a3c22">The real gaps (and how to close them)</h2>
+  <div class="grid">
+    <div class="card"><h3 class="gap" style="margin-top:0">No regression net</h3><p style="margin:0">An SDK change can silently break a shipped game; today each gate is run by hand. <span class="accent">Fix:</span> a CI ratchet that runs <em>every</em> game’s gate + lint on any SDK commit — the engine’s own test suite. (This session’s container reset showed how fragile un-CI’d state is.)</p></div>
+    <div class="card"><h3 class="gap" style="margin-top:0">Faithfulness by duplication</h3><p style="margin:0">The pure-Node sims mirror the SDK combat by hand (the gate catches drift). <span class="accent">Fix:</span> single-source the core so the simulator and the runtime are literally the same code.</p></div>
+    <div class="card"><h3 class="gap" style="margin-top:0">Genre-locked evals</h3><p style="margin:0">Strategy-sweep + balance are RTS-only; platformers/shooters have no depth/tension eval. <span class="accent">Fix:</span> a pluggable “design-pass” interface so each archetype supplies its own depth metric behind one command.</p></div>
+    <div class="card"><h3 class="gap" style="margin-top:0">Unversioned SDK</h3><p style="margin:0">The SDK is vendored (copied) per game; copies can drift. <span class="accent">Fix:</span> semver + a capabilities manifest, so a game declares the engine version it needs and upgrades are intentional.</p></div>
+    <div class="card"><h3 class="gap" style="margin-top:0">Fragile ship pipeline</h3><p style="margin:0">Deploys hit CLI crashes + manual workarounds (seen today). <span class="accent">Fix:</span> bake the known-good deploy path into <code>studio ship</code> so it’s idempotent and self-healing.</p></div>
+    <div class="card"><h3 class="gap" style="margin-top:0">Fun model is two-piece</h3><p style="margin:0">Geometry-Feel + a polish patch, per archetype. <span class="accent">Fix:</span> one principled fun model that credits design + production uniformly across genres.</p></div>
+  </div>
+
+  <h2>The next extraction</h2>
+  <p>Following the engine’s own logic, the highest-leverage next move isn’t a new game — it’s extracting the <span class="accent">CI ratchet</span> (gaps #1/#2): make the engine guard <em>all</em> its games automatically. After that, generalise the design-pass evals so every genre, not just the RTS, gets the fun + depth bench. That is the engine becoming self-defending — the truest sign it’s “ever-evolving.”</p>
+  <div class="foot"><span>Studio Game Engine — evolution report</span><span>4 / 5</span></div>
+</div>
+
+<!-- CLOSE -->
+<div class="page">
+  <span class="tag">In short</span>
+  <h1 style="font-size:22pt; margin-top:10pt">Is it ever-evolving? Yes — by design, not by luck</h1>
+  <div class="card"><p style="margin:0" class="lead">The engine grows because the <b>build loop forces it to</b>: a game can’t ship without exercising the engine, and the discipline is to <b>extract + validate + remember</b> whatever was new. Nine games in, that loop has turned one platformer into a four-genre engine with a six-tool eval bench — and just demonstrated it again, turning a single piece of feedback into three permanent building blocks.</p></div>
+  <h2>What “done” would look like</h2>
+  <ul>
+    <li>Every SDK commit auto-runs all nine games’ gates (the engine defends itself).</li>
+    <li>One <code>studio design-pass</code> works for every archetype (fun + genre-appropriate depth).</li>
+    <li>One simulator core, shared by runtime + evals (no hand-mirroring).</li>
+    <li>A versioned SDK with a capabilities manifest; deploys idempotent.</li>
+  </ul>
+  <p>None of these are new genres or art — they’re the engine turning its <em>discipline</em> into <em>automation</em>. That’s the last gap between “evolves with every game” (true today) and “can’t help but evolve safely with every game” (the goal).</p>
+  <div class="card" style="margin-top:16pt; background:#1a1810"><p style="margin:0"><span class="accent">Live proof, today:</span> Roadwar Iso — the 9th game, the 4th genre — shipped at <em>roadwar-iso-production.up.railway.app</em>, gate-green and auto-balanced to a rising tension curve, built almost entirely from blocks earlier games left behind.</p></div>
+  <div class="foot"><span>Studio Game Engine — evolution report</span><span>5 / 5</span></div>
+</div>
+
+</body></html>
