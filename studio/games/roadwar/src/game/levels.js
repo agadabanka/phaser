@@ -31,7 +31,7 @@ window.LEVELS = [
   {
     // G2 — DEVELOP: ranged GUNNERS are the signature (a standoff to break).
     name: 'The Junkyard', sky: 0x24281a, income: 18, startScrap: 60, garageHp: 980, fortressHp: 900,
-    rally: 1, autoBuild: 'brawler', fortressTurret: { range: 155, dmg: 12 }, garageTurret: { range: 158, dmg: 13 },
+    rally: 1, autoBuild: 'brawler', autoEcon: 1, fortressTurret: { range: 155, dmg: 12 }, garageTurret: { range: 158, dmg: 13 },
     schedule: [
       { t: 1, type: 'gunner', lane: 1 }, { t: 2, type: 'scout', lane: 1 },                              // hook
       { t: 9, type: 'gunner', lane: 1 }, { t: 10, type: 'brawler', lane: 1 }, { t: 11, type: 'gunner', lane: 1 }, // wave: ranged wall
@@ -42,7 +42,7 @@ window.LEVELS = [
   {
     // G3 — TWIST: FLANK rushes (the react-NOW surprise). A pincer down the sides.
     name: 'Neon Strip', sky: 0x161038, income: 20, startScrap: 72, garageHp: 1020, fortressHp: 1080,
-    rally: 1, autoBuild: 'brawler', fortressTurret: { range: 160, dmg: 14 }, garageTurret: { range: 166, dmg: 14 },
+    rally: 1, autoBuild: 'brawler', autoEcon: 2, fortressTurret: { range: 160, dmg: 14 }, garageTurret: { range: 166, dmg: 14 },
     schedule: [
       { t: 1, type: 'brawler', lane: 1 }, { t: 2, type: 'scout', lane: 0 },                             // hook + first flank
       { t: 9, type: 'scout', lane: 0 }, { t: 10, type: 'scout', lane: 2 }, { t: 11, type: 'brawler', lane: 1 }, // pincer wave
@@ -53,7 +53,7 @@ window.LEVELS = [
   {
     // G4 — DEVELOP harder: BRAWLER WALLS (heavy armor columns to out-grind).
     name: 'Red Canyon', sky: 0x301410, income: 22, startScrap: 84, garageHp: 1080, fortressHp: 1320,
-    rally: 1, autoBuild: 'brawler', fortressTurret: { range: 165, dmg: 16 }, garageTurret: { range: 174, dmg: 16 },
+    rally: 1, autoBuild: 'brawler', autoEcon: 2, fortressTurret: { range: 165, dmg: 16 }, garageTurret: { range: 174, dmg: 16 },
     schedule: [
       { t: 1, type: 'brawler', lane: 1 }, { t: 2, type: 'brawler', lane: 1 },                           // hook: an armor wall
       { t: 10, type: 'brawler', lane: 1 }, { t: 11, type: 'gunner', lane: 1 }, { t: 12, type: 'brawler', lane: 1 }, // wave
@@ -65,7 +65,7 @@ window.LEVELS = [
     // G5 — MASTER + CLIMAX: everything, capped by the WARLORD boss war-rig. The
     // densest, longest ground — the campaign's macro peak (back-loaded).
     name: "Warlord's Gate", sky: 0x200810, income: 26, startScrap: 100, garageHp: 1180, fortressHp: 1820,
-    rally: 1, autoBuild: 'brawler', fortressTurret: { range: 170, dmg: 18 }, garageTurret: { range: 182, dmg: 18 },
+    rally: 1, autoBuild: 'brawler', autoEcon: 2, fortressTurret: { range: 170, dmg: 18 }, garageTurret: { range: 182, dmg: 18 },
     schedule: [
       { t: 1, type: 'scout', lane: 1 }, { t: 2, type: 'gunner', lane: 1 }, { t: 3, type: 'scout', lane: 0 },        // hook: a light probe
       { t: 10, type: 'brawler', lane: 1 }, { t: 11, type: 'gunner', lane: 1 }, { t: 12, type: 'scout', lane: 2 },   // wave 1

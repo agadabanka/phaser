@@ -22,6 +22,7 @@ const UNIT = {
   gunner:  { cost: 36, hp: 54,  dmg: 9,  range: 140, speed: 74, cd: 0.55, r: 17 },
   warlord: { cost: 999, hp: 620, dmg: 22, range: 46, speed: 42, cd: 0.9, r: 32 }
 };
+const REFINERY = { cost: 55, bonus: 7, max: 4 };
 const QUIET = process.argv.includes('--quiet');
 
 function tuned(spec, type) {
@@ -30,9 +31,10 @@ function tuned(spec, type) {
 }
 
 function runLevel(spec, maxFrames) {
-  let units = [], uid = 0;
+  let units = [], uid = 0, depots = 0;
   let scrap = spec.startScrap != null ? spec.startScrap : 40;
   const income = spec.income || 12;
+  const curIncome = () => income + depots * REFINERY.bonus;
   let garageHp = spec.garageHp || 1000, fortressHp = spec.fortressHp || 1000;
   let clock = 0, frame = 0, schedIdx = 0, gTurretCd = 0, fTurretCd = 0;
   const dt = 1 / 60;
@@ -45,6 +47,7 @@ function runLevel(spec, maxFrames) {
     units.push({ id: uid++, side, type, lane, x: LANES[lane], y, hp: st.hp, maxHp: st.hp, dmg: st.dmg, range: st.range, speed: st.speed, cd: 0, atkCd: st.cd, r: st.r, alive: true });
   }
   function build(side, type, lane) {
+    if (type === 'depot') { if (depots >= REFINERY.max || scrap < REFINERY.cost) return false; scrap -= REFINERY.cost; depots++; return true; }
     if (side === 'p') { const c = tuned(spec, type).cost; if (scrap < c) return false; scrap -= c; }
     spawnUnit(side, type, lane); return true;
   }
@@ -59,7 +62,7 @@ function runLevel(spec, maxFrames) {
     return best;
   }
   function tickWorld() {
-    scrap += income * dt;
+    scrap += curIncome() * dt;
     for (const u of units) {
       if (!u.alive) continue;
       u.cd -= dt;
@@ -88,7 +91,9 @@ function runLevel(spec, maxFrames) {
   let minGarage = garageHp, maxLiveP = 0, maxLiveE = 0, bossSeen = false, bossAliveAtWin = false;
   while (fortressHp > 0 && garageHp > 0 && frame < maxFrames) {
     frame++; clock += dt;
-    // autopilot
+    // autopilot: economy opening (autoEcon refineries) then all-in on the rally
+    const econ = spec.autoEcon || 0; let eg = 0;
+    while (depots < econ && scrap >= REFINERY.cost && eg < 2) { build('p', 'depot', rl); eg++; }
     let guard = 0;
     while (scrap >= tuned(spec, bt).cost && guard < 4) { build('p', bt, rl); guard++; }
     tickWorld();

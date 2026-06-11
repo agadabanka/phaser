@@ -2148,18 +2148,23 @@
         // it down before it reaches the garage (verified 0-death in the sim/gate).
         warlord: { cost: 999, hp: 620, dmg: 22, range: 46, speed: 42, cd: 0.9, r: 32, dps: 24 }
       };
+      // REFINERY — the economy building (coin generation). Spend scrap to raise
+      // income: the army-vs-economy choice that balances how big a convoy you can
+      // field. Deterministic (a flat +bonus/s per refinery, capped).
+      var REFINERY = (cfg.economy && cfg.economy.refinery) || { cost: 55, bonus: 7, max: 4 };
       var save = Studio.Save.load(slug);
 
-      var scene, units = [], uid = 0, scrap = 0, income = 12, garageHp = 1000, fortressHp = 1000, garageMax = 1000, fortressMax = 1000;
+      var scene, units = [], uid = 0, scrap = 0, income = 12, depots = 0, garageHp = 1000, fortressHp = 1000, garageMax = 1000, fortressMax = 1000;
       var levelIndex = 0, clock = 0, frame = 0, won = false, deaths = 0, selLane = 1, buildType = 'brawler';
       var auto = false, schedIdx = 0, bedOn = false, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null, levelStartFrame = 0;
       var gTurretCd = 0, fTurretCd = 0, bullets = [];
       var spec = function () { return LEVELS[levelIndex] || {}; };
 
+      function curIncome() { return income + depots * REFINERY.bonus; }
       function snapshot() {
         return {
           x: 0, y: 0, vx: 0, vy: 0, scrap: Math.round(scrap), coins: Math.round(scrap),
-          garageHp: Math.round(garageHp), fortressHp: Math.round(fortressHp),
+          garageHp: Math.round(garageHp), fortressHp: Math.round(fortressHp), depots: depots, income: +curIncome().toFixed(1),
           units: units.filter(function (u) { return u.alive; }).length,
           deaths: deaths, dead: deaths > 0, won: won, frame: frame, level: levelIndex, maxX: 0
         };
@@ -2169,6 +2174,7 @@
         levelIndex = i; clock = 0; schedIdx = 0; won = false;
         var s = spec();
         units = []; uid = 0; bullets.forEach(function (b) { try { b.spr.destroy(); } catch (e) {} }); bullets = [];
+        depots = 0; if (depotLayer) depotLayer.removeAll(true);
         income = s.income || 12; scrap = s.startScrap != null ? s.startScrap : 40;
         garageHp = garageMax = s.garageHp || 1000; fortressHp = fortressMax = s.fortressHp || 1000;
         if (bgImg) bgImg.setTexture(scene.textures.exists('bg_' + i) ? 'bg_' + i : 'bg_0');
@@ -2178,7 +2184,7 @@
         toast((TH.toasts && TH.toasts.level || 'GROUND {i} · {name}').replace('{i}', i + 1).replace('{name}', s.name || ''));
         hud();
       }
-      var bgImg = null, uLayer = null;
+      var bgImg = null, uLayer = null, depotLayer = null;
 
       function tuned(type) {
         var u = UNIT[type], t = (spec().tune || {})[type] || {};
@@ -2193,8 +2199,21 @@
         units.push({ id: id, side: side, type: type, lane: lane, x: LANES[lane], y: spr.y, hp: st.hp, maxHp: st.hp, dmg: st.dmg, range: st.range, speed: st.speed, cd: 0, atkCd: st.cd, r: st.r, spr: spr, alive: true });
       }
       function build(side, type, lane) {
+        if (type === 'depot') return buildRefinery();
         if (side === 'p') { var c = tuned(type).cost; if (scrap < c) return false; scrap -= c; }
         spawnUnit(side, type, lane); Studio.Audio.sfx('jump'); return true;
+      }
+      // build a REFINERY (income building) — not a combat unit; a row near the garage
+      function buildRefinery() {
+        if (depots >= REFINERY.max || scrap < REFINERY.cost) return false;
+        scrap -= REFINERY.cost; depots++;
+        if (scene && depotLayer) {
+          var dx = 150 - (depots - 1) * 0; var px = 120 + (depots - 1) * 46, py = GAR_Y + 6;
+          var spr = scene.add.image(px, py, scene.textures.exists('depot_art') ? 'depot_art' : 'spark').setDepth(3);
+          spr.setDisplaySize(40, 40); depotLayer.add(spr);
+          Studio.Juice.burst(scene, px, py, { texture: 'spark', n: 8, tint: 0xffcc44, life: 360 });
+        }
+        Studio.Audio.sfx('coin'); hud(); return true;
       }
 
       // deterministic combat + movement (iterate in id order; stable tie-breaks)
@@ -2209,7 +2228,7 @@
         return best ? { o: best, d: bd } : null;
       }
       function tickWorld(dt) {
-        scrap += income * dt;
+        scrap += curIncome() * dt;
         // units
         for (var i = 0; i < units.length; i++) {
           var u = units[i]; if (!u.alive) continue;
@@ -2285,6 +2304,7 @@
           // lane guides
           LANES.forEach(function (lx) { scene.add.rectangle(lx, H / 2, 86, H, 0xffffff, 0.04).setDepth(-80); });
           uLayer = this.add.container(0, 0).setDepth(4);
+          depotLayer = this.add.container(0, 0).setDepth(3);
 
           this.garage = this.add.image(480, GAR_Y + 22, scene.textures.exists('garage_art') ? 'garage_art' : 'garage_fallback').setDepth(3); this.garage.setDisplaySize(220, 92);
           this.fortress = this.add.image(480, FORT_Y - 18, scene.textures.exists('fortress_art') ? 'fortress_art' : 'fortress_fallback').setDepth(3); this.fortress.setDisplaySize(240, 100);
@@ -2296,13 +2316,14 @@
           scene._hud = this.add.text(16, 12, '', { fontFamily: FONT, fontSize: '18px', color: TH.hud && TH.hud.color || '#ffe7a0', stroke: TH.hud && TH.hud.stroke || '#1a1208', strokeThickness: 5 }).setScrollFactor(0).setDepth(100);
           this._fbar = this.add.graphics().setDepth(101); this._gbar = this.add.graphics().setDepth(101);
 
-          // build bar (DOM-free: canvas buttons) — pick lane + unit
+          // build bar (DOM-free: canvas buttons) — units + the REFINERY (economy)
           this._buildUI = this.add.container(0, 0).setDepth(102);
-          var defs = [['scout', '1'], ['brawler', '2'], ['gunner', '3']];
+          var defs = [['scout', '1'], ['brawler', '2'], ['gunner', '3'], ['depot', '4']];
           defs.forEach(function (d, i) {
-            var bx = 360 + i * 120, by = H - 26;
-            var btn = scene.add.rectangle(bx, by, 112, 36, 0x000000, 0.5).setStrokeStyle(2, TH.accent != null ? TH.accent : 0xffcc44).setInteractive({ useHandCursor: true });
-            var lbl = scene.add.text(bx, by, d[1] + ' ' + d[0].toUpperCase() + ' ' + UNIT[d[0]].cost, { fontFamily: FONT, fontSize: '12px', color: '#ffe7a0' }).setOrigin(0.5);
+            var econ = d[0] === 'depot', cost = econ ? REFINERY.cost : UNIT[d[0]].cost;
+            var bx = 312 + i * 116, by = H - 26;
+            var btn = scene.add.rectangle(bx, by, 108, 36, econ ? 0x3a2c08 : 0x000000, econ ? 0.7 : 0.5).setStrokeStyle(2, econ ? 0xffd24a : (TH.accent != null ? TH.accent : 0xffcc44)).setInteractive({ useHandCursor: true });
+            var lbl = scene.add.text(bx, by, d[1] + ' ' + (econ ? 'REFINERY' : d[0].toUpperCase()) + ' ' + cost, { fontFamily: FONT, fontSize: '11px', color: econ ? '#ffd86a' : '#ffe7a0' }).setOrigin(0.5);
             btn.on('pointerdown', function () { buildType = d[0]; build('p', d[0], selLane); });
             scene._buildUI.add(btn); scene._buildUI.add(lbl);
           });
@@ -2311,7 +2332,7 @@
           hud();
 
           this.cursors = this.input.keyboard.createCursorKeys();
-          this.input.keyboard.on('keydown', function (e) { if (mode !== 'play') return; if (e.key === '1') build('p', 'scout', selLane); else if (e.key === '2') build('p', 'brawler', selLane); else if (e.key === '3') build('p', 'gunner', selLane); else if (e.key === 'ArrowLeft') selLane = Math.max(0, selLane - 1); else if (e.key === 'ArrowRight') selLane = Math.min(2, selLane + 1); });
+          this.input.keyboard.on('keydown', function (e) { if (mode !== 'play') return; if (e.key === '1') build('p', 'scout', selLane); else if (e.key === '2') build('p', 'brawler', selLane); else if (e.key === '3') build('p', 'gunner', selLane); else if (e.key === '4') build('p', 'depot', selLane); else if (e.key === 'ArrowLeft') selLane = Math.max(0, selLane - 1); else if (e.key === 'ArrowRight') selLane = Math.min(2, selLane + 1); });
 
           var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
           this.input.once('pointerdown', startBed); if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
@@ -2339,10 +2360,13 @@
           frame++;
           var dt = Math.min((delta || (1000 / 60)) / 1000, 1 / 30); clock += dt;
 
-          // AUTOPILOT: all-in on the rally lane (deterministic macro) — build the
-          // chosen unit whenever affordable; the level guarantees this overwhelms.
+          // AUTOPILOT: a deterministic macro — an optional ECONOMY OPENING (build
+          // autoEcon refineries first, front-loading income) then ALL-IN on the
+          // rally lane. autoEcon defaults to 0, so the army loop stays byte-identical
+          // (the proven win-by-construction); with autoEcon>0 the AI plays economy too.
           if (auto && !won) {
-            var rl = spec().rally != null ? spec().rally : 1, bt = spec().autoBuild || 'brawler';
+            var rl = spec().rally != null ? spec().rally : 1, bt = spec().autoBuild || 'brawler', econ = spec().autoEcon || 0;
+            var eg = 0; while (depots < econ && scrap >= REFINERY.cost && eg < 2) { build('p', 'depot', rl); eg++; }
             var guard = 0;
             while (scrap >= tuned(bt).cost && guard < 4) { build('p', bt, rl); guard++; }
           }
@@ -2364,7 +2388,7 @@
       };
       function hud() {
         if (!scene || !scene._hud) return;
-        scene._hud.setText('⚙ scrap ' + Math.round(scrap) + '   ' + (TH.stageWord || 'ground') + ' ' + (levelIndex + 1) + '/' + LEVELS.length + '   lane ' + (selLane + 1));
+        scene._hud.setText('⚙ scrap ' + Math.round(scrap) + '  (+' + Math.round(curIncome()) + '/s' + (depots ? ' · ' + depots + '⛽' : '') + ')   ' + (TH.stageWord || 'ground') + ' ' + (levelIndex + 1) + '/' + LEVELS.length + '   lane ' + (selLane + 1));
         if (scene._fbar) { scene._fbar.clear(); scene._fbar.fillStyle(0x331018).fillRect(330, 22, 300, 9); scene._fbar.fillStyle(0xff3b6b).fillRect(330, 22, 300 * Math.max(0, fortressHp / fortressMax), 9); }
         if (scene._gbar) { scene._gbar.clear(); scene._gbar.fillStyle(0x06202a).fillRect(330, H - 88, 300, 9); scene._gbar.fillStyle(0x44d6ff).fillRect(330, H - 88, 300 * Math.max(0, garageHp / garageMax), 9); }
         if (scene._laneLabels) scene._laneLabels.forEach(function (t, li) { t.setColor(li === selLane ? '#ffffff' : '#ffe7a0'); });
