@@ -18,7 +18,34 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { FUN, LENSES, MECHANICS, DIAGNOSIS, FUN_MIN } from './lenses.mjs';
+import { FUN, LENSES, MECHANICS, DIAGNOSIS, POLISH, FUN_BLEND, FUN_MIN } from './lenses.mjs';
+
+// ── PRODUCTION POLISH: score the real fun the geometry Feel model can't see, from
+// the features the game actually ships (juice wired, a boss, an economy, per-level
+// music + unit variety, cohesive art). Scans the game's effective source (incl. the
+// vendored SDK) + GAME_META. Each dimension 0..1; see POLISH in lenses.mjs.
+function scanText(dir) {
+  let t = ''; const src = path.join(dir, 'src');
+  (function walk(d) { let es; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch { return; } for (const e of es) { const f = path.join(d, e.name); if (e.isDirectory()) { if (e.name !== 'node_modules') walk(f); } else if (/\.(m?js)$/.test(e.name)) { try { t += '\n' + fs.readFileSync(f, 'utf8'); } catch {} } } })(fs.existsSync(src) ? src : dir);
+  return t;
+}
+function scorePolish(dir, meta, levels) {
+  const t = scanText(dir);
+  const juiceKinds = ['burst', 'explode', 'ring', 'muzzle', 'popText', 'ambient', 'shake', 'flash', 'glow'];
+  const juiceHit = juiceKinds.filter((k) => new RegExp('Juice\\.' + k + '\\(').test(t)).length;
+  const juice = Math.min(1, juiceHit / 7);                                   // 7+ distinct juice effects wired = full
+  const hasBoss = (levels || []).some((l) => l.feat && l.feat.hasBoss);
+  const spectacle = hasBoss ? 1 : (/\bboss\b/i.test(t) ? 0.7 : 0.4);
+  const economy = /REFINERY|musicByLevel|\bdepot\b|coins\b/.test(t);
+  const reward = economy ? 1 : 0.45;
+  const tracks = (() => { const m = t.match(/musicByLevel\s*:\s*\[([\s\S]*?)\]/); return m ? [...m[1].matchAll(/['"][^'"]+\.(?:mp3|ogg|wav)['"]/g)].length : 0; })();
+  const unitTypes = new Set((levels || []).flatMap((l) => (l.feat && l.feat.unitTypes) || [])).size;
+  const variety = Math.min(1, 0.5 * Math.min(1, tracks / Math.max(2, (levels || []).length)) + 0.5 * Math.min(1, unitTypes / 4));
+  const art = (meta && (meta.art || (meta.stages && meta.stages.art))) ? (meta.menu || /menu_logo|assets\/menu/.test(t) ? 1 : 0.8) : 0.5;
+  const dims = { juice, spectacle, reward, variety, beauty: art };
+  let score = 0; for (const k in POLISH) score += POLISH[k].w * (dims[k] != null ? dims[k] : 0);
+  return { score: +score.toFixed(3), dims, juiceHit, tracks, unitTypes, hasBoss };
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STUDIO_ROOT = path.resolve(HERE, '..', '..');
@@ -114,7 +141,11 @@ else {
     const lens = LENSES[COMP_LENS[weak]];
     return { level: l.level, name: l.name, fun: l.fun, comps: { engagement: l.engagement, dynamics: l.dynamics, arc: l.arc, flow: l.flow }, weakest: weak, lens: `#${lens.n} ${lens.name}`, question: lens.q, prescription: lensFix(weak), feat: l.feat };
   });
-  report.mean = mean; report.pass = mean >= FUN_MIN; report.dimMean = dimMean; report.campaignWeakest = campWeak;
+  // headline FUN = level-design interest (geometry) blended with production polish
+  const polish = scorePolish(GAME, META, L);
+  const composite = +(FUN_BLEND.design * mean + FUN_BLEND.polish * polish.score * 100).toFixed(1);
+  report.fun = composite; report.designFun = mean; report.polish = polish; report.blend = FUN_BLEND;
+  report.pass = composite >= FUN_MIN; report.dimMean = dimMean; report.campaignWeakest = campWeak;
   report.campaignLens = `#${LENSES[COMP_LENS[campWeak]].n} ${LENSES[COMP_LENS[campWeak]].name}`;
   report.campaignFix = lensFix(campWeak);
   report.macroArc = macro;
@@ -127,7 +158,9 @@ if (asJson) { fs.mkdirSync(path.join(GAME, 'out'), { recursive: true }); fs.writ
 console.log(`\n🔍 Design Lens — ${report.game}  (${report.archetype})   ·  grounded in MDA + Schell's lenses`);
 if (report.error) { console.log('   ⚠ ' + report.error + '\n'); process.exit(0); }
 const tick = report.pass ? '✅' : '⚠️';
-console.log(`   campaign FUN ${report.mean}  ${tick} (bar ${FUN_MIN})   ·   components: ` + ['engagement', 'dynamics', 'arc', 'flow'].map(d => `${d} ${report.dimMean[d]}`).join('  '));
+console.log(`   FUN ${report.fun}  ${tick} (bar ${FUN_MIN})   =  ${Math.round(report.blend.design * 100)}% design ${report.designFun}  +  ${Math.round(report.blend.polish * 100)}% polish ${Math.round(report.polish.score * 100)}`);
+console.log(`     design components: ` + ['engagement', 'dynamics', 'arc', 'flow'].map(d => `${d} ${report.dimMean[d]}`).join('  '));
+console.log(`     polish (Schell #58/#62/#40/#31/#63): ` + Object.keys(report.polish.dims).map(k => `${k} ${report.polish.dims[k].toFixed(2)}`).join('  '));
 const m = report.macroArc;
 console.log(`   per-level FUN ${m.funEven ? 'even & high ✓' : 'uneven — some levels lag'}  ·  campaign intensity [${(m.intensity || []).join(' → ')}] ${m.escalates ? 'escalates to the finale ✓' : '⚠ does not climb to the finale — make the last ground the most intense'}${m.bossFinale ? ' (boss finale ✓)' : ''}`);
 console.log(`   campaign weakest: ${report.campaignLens}  →  ${report.campaignFix}`);

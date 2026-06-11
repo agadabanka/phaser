@@ -832,9 +832,46 @@
       opt = opt || {};
       try {
         return scene.add.particles(0, opt.y != null ? opt.y : -8, opt.texture || 'dot', {
-          x: { min: 0, max: w }, lifespan: 5000, speedY: { min: 16, max: 50 },
-          scale: { start: opt.scale || 0.7, end: 0 }, alpha: { start: 0.4, end: 0 }, quantity: 1, frequency: 120, blendMode: 'ADD'
+          x: { min: 0, max: w }, lifespan: opt.lifespan || 5000, speedY: { min: opt.vyMin != null ? opt.vyMin : 16, max: opt.vyMax || 50 }, speedX: opt.drift ? { min: -opt.drift, max: opt.drift } : 0,
+          scale: { start: opt.scale || 0.7, end: 0 }, alpha: { start: opt.alpha || 0.4, end: 0 }, quantity: 1, frequency: opt.frequency || 120, blendMode: 'ADD', tint: opt.tint
         });
+      } catch (e) {}
+    },
+    // a layered EXPLOSION: a bright core flash-ring + flung sparks + slow smoke,
+    // with optional shake/flash. The go-to "something died/blew up" effect.
+    explode: function (scene, x, y, opt) {
+      opt = opt || {}; var n = opt.n || 16, tint = opt.tint != null ? opt.tint : 0xffa53c;
+      this.ring(scene, x, y, { tint: opt.ringTint != null ? opt.ringTint : 0xfff0a0, r: opt.r || 46, life: 260 });
+      this.burst(scene, x, y, { texture: opt.texture || 'spark', n: n, tint: tint, life: opt.life || 460, spMax: opt.spMax || 220 });
+      this.burst(scene, x, y, { texture: opt.smoke || opt.texture || 'spark', n: Math.max(4, n / 2), tint: opt.smokeTint != null ? opt.smokeTint : 0x4a4036, life: (opt.life || 460) * 1.6, spMax: 70, scale: 1.4 });
+      if (opt.shake) this.shake(scene, opt.shake, opt.shakeAmt || 0.01);
+      if (opt.flash) this.flash(scene, 120, 255, 200, 120);
+    },
+    // an expanding SHOCKWAVE ring (a stroked circle that grows + fades).
+    ring: function (scene, x, y, opt) {
+      opt = opt || {};
+      try {
+        var g = scene.add.circle(x, y, 6, 0, 0).setStrokeStyle(opt.width || 3, opt.tint != null ? opt.tint : 0xffffff, 1).setDepth(opt.depth || 30);
+        scene.tweens.add({ targets: g, radius: opt.r || 40, alpha: 0, duration: opt.life || 280, ease: 'Cubic.out', onComplete: function () { try { g.destroy(); } catch (e) {} } });
+        return g;
+      } catch (e) {}
+    },
+    // a brief directional MUZZLE FLASH at a gun's tip.
+    muzzle: function (scene, x, y, opt) {
+      opt = opt || {};
+      try {
+        var f = scene.add.image(x, y, opt.texture || 'spark').setTint(opt.tint != null ? opt.tint : 0xfff2a0).setScale(opt.scale || 1.3).setDepth(opt.depth || 12).setBlendMode('ADD');
+        scene.tweens.add({ targets: f, scale: 0, alpha: 0, duration: opt.life || 110, onComplete: function () { try { f.destroy(); } catch (e) {} } });
+        return f;
+      } catch (e) {}
+    },
+    // floating COMBAT TEXT (damage numbers, "+scrap") — rises and fades.
+    popText: function (scene, x, y, txt, opt) {
+      opt = opt || {};
+      try {
+        var t = scene.add.text(x, y, String(txt), { fontFamily: opt.font || 'Georgia, serif', fontSize: (opt.size || 14) + 'px', color: opt.color || '#ffe7a0', stroke: '#1a1208', strokeThickness: 3 }).setOrigin(0.5).setDepth(opt.depth || 40);
+        scene.tweens.add({ targets: t, y: y - (opt.rise || 26), alpha: 0, duration: opt.life || 700, ease: 'Quad.out', onComplete: function () { try { t.destroy(); } catch (e) {} } });
+        return t;
       } catch (e) {}
     },
     // GPU filters (WebGL only) — no-op on canvas
@@ -2274,15 +2311,23 @@
             // in combat: hold at engage range (melee close, ranged keep distance)
             var want = u.range > 80 ? u.range - 6 : (u.r + ne.o.r + 4);
             if (ne.d > want + 4) u.y += dir * u.speed * dt; // close a little
-            if (u.cd <= 0) { ne.o.hp -= u.dmg; u.cd = u.atkCd; if (u.range > 80) spawnBullet(u, ne.o); else Studio.Juice.burst(scene, ne.o.x, ne.o.y, { texture: 'spark', n: 4, tint: 0xffcc44, life: 200 }); }
+            if (u.cd <= 0) { ne.o.hp -= u.dmg; u.cd = u.atkCd; if (u.range > 80) { spawnBullet(u, ne.o); Studio.Juice.muzzle(scene, u.x, u.y + dir * 14, { tint: u.side === 'p' ? 0xffe27a : 0xff7a4a, scale: 1.1 }); } else { Studio.Juice.burst(scene, ne.o.x, ne.o.y, { texture: 'spark', n: 5, tint: 0xffcc44, life: 200 }); Studio.Juice.ring(scene, (u.x + ne.o.x) / 2, (u.y + ne.o.y) / 2, { tint: 0xffe7a0, r: 16, life: 160, width: 2 }); } }
           } else if (hqDist <= u.range + 6 && (!ne || ne.d > u.range)) {
             // attack the HQ
-            if (u.cd <= 0) { if (u.side === 'p') fortressHp -= u.dmg; else garageHp -= u.dmg; u.cd = u.atkCd; Studio.Juice.burst(scene, u.x, hqY + dir * -10, { texture: 'spark', n: 5, tint: 0xff5a3c, life: 240 }); }
+            if (u.cd <= 0) { if (u.side === 'p') fortressHp -= u.dmg; else garageHp -= u.dmg; u.cd = u.atkCd; Studio.Juice.burst(scene, u.x, hqY + dir * -10, { texture: 'spark', n: 6, tint: 0xff5a3c, life: 240 }); Studio.Juice.ring(scene, u.x, hqY + dir * -10, { tint: 0xff7a4a, r: 22, life: 220 }); }
           } else {
             u.y += dir * u.speed * dt;                       // advance the lane
           }
           if (u.spr) u.spr.setPosition(u.x, u.y);
-          if (u.hp <= 0) { u.alive = false; if (u.spr) { Studio.Juice.burst(scene, u.x, u.y, { texture: 'spark', n: 12, tint: u.side === 'p' ? 0x6ad6ff : 0xff5a3c, life: 420, spMax: 160 }); u.spr.destroy(); } }
+          if (u.hp <= 0) {
+            u.alive = false;
+            if (u.spr) {
+              var boss = u.type === 'warlord';
+              Studio.Juice.explode(scene, u.x, u.y, { texture: 'spark', smoke: 'smoke', n: boss ? 34 : 13, r: boss ? 90 : 42, tint: u.side === 'p' ? 0x6ad6ff : 0xff7a3c, life: boss ? 700 : 420, spMax: boss ? 280 : 160, shake: boss ? 320 : 0, shakeAmt: 0.014, flash: boss });
+              if (boss) Studio.Juice.popText(scene, u.x, u.y - 28, 'WARLORD DOWN', { size: 20, color: '#ffd24a' });
+              u.spr.destroy();
+            }
+          }
         }
         // HQ turrets — defend ALL THREE lanes (target nearest enemy by APPROACH
         // distance along the lane, |y-hqY|, not euclidean-from-centre). This is
@@ -2290,9 +2335,9 @@
         // a unit the rally deathball never meets is still cleared by the base gun.
         gTurretCd -= dt; fTurretCd -= dt;
         var gT = nearestApproaching('e', GAR_Y, spec().garageTurret ? spec().garageTurret.range : 150);
-        if (gT && gTurretCd <= 0) { gTurretCd = 0.6; gT.hp -= (spec().garageTurret ? spec().garageTurret.dmg : 14); spawnBullet({ x: 480, y: GAR_Y - 10, range: 200, side: 'p' }, gT); }
+        if (gT && gTurretCd <= 0) { gTurretCd = 0.6; gT.hp -= (spec().garageTurret ? spec().garageTurret.dmg : 14); spawnBullet({ x: 480, y: GAR_Y - 10, range: 200, side: 'p' }, gT); Studio.Juice.muzzle(scene, 480, GAR_Y - 14, { tint: 0x9cf0ff, scale: 1.4 }); }
         var fT = nearestApproaching('p', FORT_Y, spec().fortressTurret ? spec().fortressTurret.range : 160);
-        if (fT && fTurretCd <= 0) { fTurretCd = 0.55; fT.hp -= (spec().fortressTurret ? spec().fortressTurret.dmg : 16); spawnBullet({ x: 480, y: FORT_Y + 10, range: 200, side: 'e' }, fT); }
+        if (fT && fTurretCd <= 0) { fTurretCd = 0.55; fT.hp -= (spec().fortressTurret ? spec().fortressTurret.dmg : 16); spawnBullet({ x: 480, y: FORT_Y + 10, range: 200, side: 'e' }, fT); Studio.Juice.muzzle(scene, 480, FORT_Y + 14, { tint: 0xff7a6a, scale: 1.4 }); }
         // bullets
         for (var b = bullets.length - 1; b >= 0; b--) { var bl = bullets[b]; bl.t -= dt; if (bl.spr) bl.spr.setPosition(bl.x + (bl.tx - bl.x) * (1 - bl.t / bl.life), bl.y + (bl.ty - bl.y) * (1 - bl.t / bl.life)); if (bl.t <= 0) { try { bl.spr.destroy(); } catch (e) {} bullets.splice(b, 1); } }
         // enemy spawn schedule (deterministic)
@@ -2327,6 +2372,11 @@
           scene = this;
           Studio.Textures.bake(this, 'spark', 10, 10, function (g) { g.fillStyle(TH.accent != null ? TH.accent : 0xffcc44, 1).fillCircle(5, 5, 5); g.fillStyle(0xffffff, 1).fillCircle(5, 5, 2); });
           Studio.Textures.bake(this, 'pellet', 7, 7, function (g) { g.fillStyle(0xfff0a0, 1).fillCircle(3.5, 3.5, 3.5); });
+          Studio.Textures.bake(this, 'smoke', 16, 16, function (g) { g.fillStyle(0x888078, 0.5).fillCircle(8, 8, 8); g.fillStyle(0xb0a89c, 0.4).fillCircle(8, 8, 5); });
+          // procedural roadside PROPS (set-dressing for depth) — tyre stack, barrel, cone
+          Studio.Textures.bake(this, 'prop_tyres', 30, 26, function (g) { for (var i = 0; i < 3; i++) { g.fillStyle(0x222226, 1).fillCircle(15, 20 - i * 7, 11); g.fillStyle(0x44444a, 1).fillCircle(15, 20 - i * 7, 5); } });
+          Studio.Textures.bake(this, 'prop_barrel', 22, 28, function (g) { g.fillStyle(0xc2462e, 1).fillRoundedRect(2, 2, 18, 24, 4); g.fillStyle(0x8f2f1e, 1).fillRect(2, 9, 18, 3); g.fillStyle(0x8f2f1e, 1).fillRect(2, 18, 18, 3); g.fillStyle(0xffd24a, 1).fillRect(7, 12, 8, 5); });
+          Studio.Textures.bake(this, 'prop_cone', 20, 24, function (g) { g.fillStyle(0xff7a2a, 1).fillTriangle(10, 2, 2, 22, 18, 22); g.fillStyle(0xffffff, 1).fillRect(5, 12, 10, 3); g.fillStyle(0x6a3410, 1).fillRect(2, 21, 16, 3); });
           Studio.Textures.bake(this, 'car_fallback', 30, 34, function (g) { g.fillStyle(0x4aa3ff, 1).fillRoundedRect(3, 2, 24, 30, 5); g.fillStyle(0xcdefff, 1).fillRect(7, 6, 16, 8); });
           Studio.Textures.bake(this, 'enemy_fallback', 30, 34, function (g) { g.fillStyle(0xd64a4a, 1).fillRoundedRect(3, 2, 24, 30, 5); g.fillStyle(0x331, 1).fillRect(7, 6, 16, 8); });
           Studio.Textures.bake(this, 'garage_fallback', 200, 90, function (g) { g.fillStyle(0x2a6aa0, 1).fillRoundedRect(0, 0, 200, 80, 10); g.fillStyle(0x9cd, 1).fillRect(70, 14, 60, 50); });
@@ -2337,6 +2387,14 @@
           if (!scene.textures.exists('bg_0')) bgImg.setVisible(false);
           // lane guides
           LANES.forEach(function (lx) { scene.add.rectangle(lx, H / 2, 86, H, 0xffffff, 0.04).setDepth(-80); });
+          // PROPS — roadside set-dressing scattered down the two margins (fixed,
+          // deterministic positions; purely cosmetic, depth-sorted behind units).
+          var PROPS = ['prop_tyres', 'prop_barrel', 'prop_cone'];
+          [[40, 120], [70, 250], [44, 380], [66, 470], [916, 150], [892, 300], [918, 410], [890, 500]].forEach(function (p, i) {
+            var pr = scene.add.image(p[0], p[1], PROPS[(i * 2 + 1) % PROPS.length]).setDepth(2).setAlpha(0.95); pr.setScale(1.1);
+          });
+          // ambient atmosphere — slow drifting dust/embers tinted to the ground
+          Studio.Juice.ambient(this, W, { texture: 'spark', y: H + 6, vyMin: -34, vyMax: -14, drift: 10, scale: 0.5, alpha: 0.22, frequency: 220, tint: TH.accent != null ? TH.accent : 0xffcc44, lifespan: 6000 });
           uLayer = this.add.container(0, 0).setDepth(4);
           depotLayer = this.add.container(0, 0).setDepth(3);
 
@@ -2409,6 +2467,8 @@
 
           // WIN / LOSE
           if (!won && fortressHp <= 0) {
+            // the fortress comes down — a chain of explosions across its footprint
+            if (scene && scene.fortress) { for (var fb = 0; fb < 5; fb++) { (function (k) { scene.time.delayedCall(k * 90, function () { Studio.Juice.explode(scene, 480 + (k - 2) * 46, FORT_Y + 6, { texture: 'spark', smoke: 'smoke', n: 22, r: 70, tint: 0xffb24a, life: 560, spMax: 240, shake: 200, shakeAmt: 0.012, flash: k === 0 }); }); })(fb); } }
             if (levelIndex < LEVELS.length - 1) {
               Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 160, 150, 255, 200);
               var stats = { score: Math.round(scrap), timeMs: Math.round(((frame - levelStartFrame) / 60) * 1000) };

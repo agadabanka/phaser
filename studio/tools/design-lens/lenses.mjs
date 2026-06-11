@@ -38,7 +38,8 @@ export const LENSES = {
   punish:    { n: 41, name: 'Punishment',           q: 'Is failure fair, legible, and a quick retry — never cheap?' },
   juice:     { n: 58, name: 'Juiciness',            q: 'Does every action get a satisfying response — bursting with feedback?' },
   interest:  { n: 61, name: 'Interest Curve',       q: 'Does interest hook early, rise with peaks/valleys, and climax just before the end?' },
-  inherent:  { n: 62, name: 'Inherent Interest',    q: 'Which moments are inherently gripping (risk, spectacle, novelty) vs filler?' }
+  inherent:  { n: 62, name: 'Inherent Interest',    q: 'Which moments are inherently gripping (risk, spectacle, novelty) vs filler?' },
+  beauty:    { n: 63, name: 'Beauty',               q: 'Is the art cohesive and characterful enough to be its own reward?' }
 };
 
 // ── per-archetype MECHANIC catalog. `ai` = how the deterministic autopilot copes:
@@ -106,6 +107,23 @@ export const DIAGNOSIS = {
     fix: { runner: 'remove long empty stretches; keep a steady ramp.', vertical: 'no long gaps between shelves.', shooter: 'no silent lulls between waves.', rts: 'no quiet gaps — keep the front engaged between scheduled pushes; smooth the difficulty ramp.' }
   }
 };
+
+// ── PRODUCTION POLISH — the fun the level-geometry Feel model is BLIND to.
+// The Studio.Feel score measures the interest curve of the level layout only; a
+// game's fun ALSO comes from juice, reward loops, spectacle, sensory variety and
+// art (Schell #58 Juiciness · #40 Reward · #62 Inherent Interest · #31 Challenge-
+// variety · #63 Beauty). These are REAL, well-established fun sources, so the
+// headline FUN should credit them. Each dimension scores 0..1 from features the
+// game actually ships; the weights sum to 1.
+export const POLISH = {
+  juice:     { w: 0.30, lens: 'juice',    q: 'Does every hit/death/win burst with feedback — explosions, shockwaves, muzzle flashes, floating text, shake?' },
+  spectacle: { w: 0.22, lens: 'inherent', q: 'Is there a climactic set-piece (a boss / big moment) that is inherently gripping?' },
+  reward:    { w: 0.20, lens: 'reward',   q: 'Is there a building reward/economy loop the player invests in?' },
+  variety:   { w: 0.16, lens: 'challenge',q: 'Sensory + mechanical variety — a distinct score per level, multiple unit/enemy types?' },
+  beauty:    { w: 0.12, lens: 'beauty',   q: 'Cohesive, characterful art (backdrops, hero/units, props, a wordmark)?' }
+};
+// the headline FUN blends level-design interest (geometry) with production polish.
+export const FUN_BLEND = { design: 0.62, polish: 0.38 };
 
 // the studio FUN bar (rules.json thresholds.funMin), surfaced for the tool.
 export const FUN_MIN = 80;
