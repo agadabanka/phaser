@@ -20,12 +20,12 @@
 window.LEVELS = [
   {
     // G1 — INTRODUCE: the basic convoy (scouts + your first brawler). Gentle.
-    name: 'Desert Highway', sky: 0x3a2a16, income: 16, startScrap: 60, garageHp: 900, fortressHp: 700,
+    name: 'Desert Highway', sky: 0x3a2a16, income: 16, startScrap: 60, garageHp: 900, fortressHp: 600,
     rally: 1, autoBuild: 'brawler', fortressTurret: { range: 150, dmg: 10 }, garageTurret: { range: 150, dmg: 12 },
     schedule: [
-      { t: 1, type: 'scout', lane: 1 }, { t: 2, type: 'scout', lane: 1 },                              // hook: a probe
-      { t: 9, type: 'brawler', lane: 1 }, { t: 10, type: 'scout', lane: 1 },                            // wave 1
-      { t: 18, type: 'brawler', lane: 1 }, { t: 19, type: 'scout', lane: 1 }, { t: 20, type: 'brawler', lane: 1 } // climax
+      { t: 2, type: 'scout', lane: 1 },                                                                // hook: a single probe (gentle teach)
+      { t: 10, type: 'scout', lane: 1 }, { t: 11, type: 'brawler', lane: 1 },                          // wave 1
+      { t: 19, type: 'brawler', lane: 1 }, { t: 20, type: 'scout', lane: 1 }                           // light climax
     ]
   },
   {
@@ -69,7 +69,7 @@ window.LEVELS = [
     schedule: [
       { t: 1, type: 'scout', lane: 1 }, { t: 2, type: 'gunner', lane: 1 }, { t: 3, type: 'scout', lane: 0 },        // hook: a light probe
       { t: 10, type: 'brawler', lane: 1 }, { t: 11, type: 'gunner', lane: 1 }, { t: 12, type: 'scout', lane: 2 },   // wave 1
-      { t: 18, type: 'brawler', lane: 1 }, { t: 19, type: 'gunner', lane: 1 }, { t: 20, type: 'brawler', lane: 1 }, { t: 21, type: 'scout', lane: 0 }, // wave 2: pincer
+      { t: 18, type: 'brawler', lane: 1 }, { t: 19, type: 'gunner', lane: 1 }, { t: 20, type: 'brawler', lane: 1 }, { t: 21, type: 'scout', lane: 0 }, { t: 22, type: 'scout', lane: 2 }, // wave 2: full pincer
       { t: 26, type: 'brawler', lane: 1 }, { t: 27, type: 'gunner', lane: 1 }, { t: 28, type: 'brawler', lane: 1 }, { t: 29, type: 'gunner', lane: 1 }, { t: 30, type: 'brawler', lane: 1 }, // build-up: the gate's full garrison holds the line
       { t: 32, type: 'warlord', lane: 1 } // CLIMAX: the WARLORD himself rolls out last — the boss the whole campaign built to
     ]

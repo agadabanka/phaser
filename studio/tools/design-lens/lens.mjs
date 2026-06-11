@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { FUN, LENSES, MECHANICS, DIAGNOSIS, FUN_MIN } from './lenses.js';
+import { FUN, LENSES, MECHANICS, DIAGNOSIS, FUN_MIN } from './lenses.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STUDIO_ROOT = path.resolve(HERE, '..', '..');
@@ -57,11 +57,16 @@ async function collect(srcDir) {
           // a few spec features the lenses read directly
           const unitTypes = spec.schedule ? [...new Set(spec.schedule.map(e => e.type))] : [];
           const flanks = spec.schedule ? spec.schedule.filter(e => e.lane != null && e.lane !== (spec.rally != null ? spec.rally : 1)).length : 0;
+          const hasBoss = spec.schedule ? spec.schedule.some(e => /boss|warlord|elite|tank/.test(e.type)) : false;
+          // absolute INTENSITY (threat load) — what the span-normalized Feel score
+          // can't see: does the CAMPAIGN escalate level to level?
+          const TW = { scout: 1, gunner: 2, brawler: 3, warlord: 12 };
+          const intensity = spec.schedule ? spec.schedule.reduce((a, e) => a + (TW[e.type] || 1), 0) : ((spec.waves || []).length * 3 || (spec.platforms || []).length || (spec.ground || []).length);
           return {
             level: i + 1, name: spec.name || `level ${i + 1}`,
             fun: s.fun, engagement: s.engagement, dynamics: s.dynamics, arc: s.arc, flow: s.flow,
-            peakPos: s.peakPos, weakest: s.weakest, curve: p.curve || [],
-            feat: { unitTypes, flanks, hasBoss: spec.schedule ? spec.schedule.some(e => /boss|warlord|elite|tank/.test(e.type)) : false, hasDepot: !!spec.depot, coins: (spec.coins || []).length }
+            peakPos: s.peakPos, weakest: s.weakest, curve: p.curve || [], intensity,
+            feat: { unitTypes, flanks, hasBoss, hasDepot: !!spec.depot, coins: (spec.coins || []).length }
           };
         })
       };
@@ -76,12 +81,21 @@ async function collect(srcDir) {
 const COMP_LENS = { engagement: 'inherent', dynamics: 'challenge', arc: 'interest', flow: 'flow' };
 const lensFix = (comp) => (DIAGNOSIS[comp].fix[ARCH] || Object.values(DIAGNOSIS[comp].fix)[0]);
 
-// campaign macro interest curve: does per-level FUN climax near the end?
+// campaign macro curve. Two axes — the span-normalized Feel score measures each
+// level's interest-curve QUALITY (it should be high & even); ESCALATION is the
+// separate axis the FUN score can't see (the campaign's absolute intensity must
+// climb to the finale, per Schell #61 fractal interest — the whole campaign is
+// the envelope, climaxing at the last level).
 function macroArc(levels) {
-  const f = levels.map(l => l.fun); const n = f.length; if (n < 2) return { ok: true, peakPos: 1 };
-  const peakPos = (f.indexOf(Math.max(...f))) / (n - 1);
-  const rising = f[n - 1] >= f[0];
-  return { peakPos: +peakPos.toFixed(2), rising, climaxLate: peakPos >= 0.6 };
+  const f = levels.map(l => l.fun), inten = levels.map(l => l.intensity || 0); const n = f.length;
+  if (n < 2) return { funPeakPos: 1, escalates: true, intensity: inten };
+  const funPeakPos = f.indexOf(Math.max(...f)) / (n - 1);
+  const funEven = (Math.max(...f) - Math.min(...f)) <= 6;             // every level clears a similar (high) bar
+  // escalation: intensity trends up, and the finale is the (near-)peak + has a boss
+  const finaleIsPeak = inten[n - 1] >= Math.max(...inten) - 1;
+  const rising = inten[n - 1] > inten[0];
+  const bossFinale = !!(levels[n - 1].feat && levels[n - 1].feat.hasBoss);
+  return { funPeakPos: +funPeakPos.toFixed(2), funEven, intensity: inten, escalates: rising && finaleIsPeak, bossFinale };
 }
 
 const res = await collect(SRC);
@@ -115,7 +129,7 @@ if (report.error) { console.log('   ⚠ ' + report.error + '\n'); process.exit(0
 const tick = report.pass ? '✅' : '⚠️';
 console.log(`   campaign FUN ${report.mean}  ${tick} (bar ${FUN_MIN})   ·   components: ` + ['engagement', 'dynamics', 'arc', 'flow'].map(d => `${d} ${report.dimMean[d]}`).join('  '));
 const m = report.macroArc;
-console.log(`   macro interest curve: peak at ${Math.round(m.peakPos * 100)}% of the campaign ${m.climaxLate ? '(climaxes late ✓)' : '(peaks too early — back-load the hardest ground)'} ${m.rising ? '' : '· campaign does not rise overall'}`);
+console.log(`   per-level FUN ${m.funEven ? 'even & high ✓' : 'uneven — some levels lag'}  ·  campaign intensity [${(m.intensity || []).join(' → ')}] ${m.escalates ? 'escalates to the finale ✓' : '⚠ does not climb to the finale — make the last ground the most intense'}${m.bossFinale ? ' (boss finale ✓)' : ''}`);
 console.log(`   campaign weakest: ${report.campaignLens}  →  ${report.campaignFix}`);
 console.log('\n   per-level lens diagnosis:');
 for (const l of report.levels) {
