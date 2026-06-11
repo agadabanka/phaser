@@ -2541,13 +2541,35 @@
       });
       return { beats: b, span: total };
     }
+    // RTS beats: the enemy SCHEDULE placed along the TIME axis (the designed
+    // intensity curve), plus the opening sortie and a big climax beat for storming
+    // the fortress after the schedule exhausts — so the arc peaks at the final push.
+    // A flank (off the rally lane) reads as a sharper spike (the moment you must react).
+    function collectBeatsRts(spec) {
+      var sched = (spec.schedule || []), b = [], TW = { scout: 4, gunner: 6, brawler: 7 };
+      var lastT = sched.reduce(function (a, e) { return Math.max(a, e.t || 0); }, 0), span = lastT + 12;
+      var rally = spec.rally != null ? spec.rally : 1;
+      // RISING "battle heat" — the front-line melee never stops and intensifies as
+      // both convoys pile up; this fills the gaps between spawns (no dead air) and
+      // gives the level its climbing spine toward the fortress assault.
+      for (var t = 0.5; t < span; t += 3) b.push({ x: t, type: 'skirmish', interest: 3.2 + 3.6 * (t / span) });
+      // the designed SCHEDULE = the intensity spikes on top; stakes rise with time,
+      // and a flank (off the rally lane) reads as a sharper spike (react NOW).
+      sched.forEach(function (e) {
+        var flank = (e.lane != null && e.lane !== rally), prog = (e.t || 0) / span;
+        b.push({ x: e.t, type: e.type + (flank ? '_flank' : ''), interest: ((TW[e.type] || 5) + (flank ? 1.5 : 0)) * (0.7 + 0.5 * prog) });
+      });
+      b.push({ x: span * 0.88, type: 'assault', interest: 10 });                  // the climax: storming the fortress
+      return { beats: b, span: span };
+    }
     function predict(spec, opt) {
       opt = opt || {};
-      var vertical = !!spec.vertical, shooter = !!spec.waves;
-      if (shooter) {
-        var sh = collectBeatsShooter(spec); var W2 = sh.span; var n2 = Math.max(6, Math.min(20, (spec.waves || []).length * 2));
+      var vertical = !!spec.vertical, shooter = !!spec.waves, rts = !!spec.schedule;
+      if (shooter || rts) {
+        var tl = shooter ? collectBeatsShooter(spec) : collectBeatsRts(spec); var W2 = tl.span;
+        var n2 = shooter ? Math.max(6, Math.min(20, (spec.waves || []).length * 2)) : Math.max(8, Math.min(24, Math.round(W2 / 4)));
         var win2 = []; for (var k = 0; k < n2; k++) win2.push({ peak: 0, dom: null, count: 0, coins: 0 });
-        sh.beats.forEach(function (bt) { var wi2 = Math.max(0, Math.min(n2 - 1, Math.floor((bt.x / W2) * n2))); var w = win2[wi2]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
+        tl.beats.forEach(function (bt) { var wi2 = Math.max(0, Math.min(n2 - 1, Math.floor((bt.x / W2) * n2))); var w = win2[wi2]; w.count++; if (bt.interest > w.peak) { w.peak = bt.interest; w.dom = bt.type; } });
         return finishPredict(win2, W2, n2);
       }
       var W = vertical ? (spec.height || 2200) : (spec.width || 960), T = spec.tile || 40;
