@@ -61,13 +61,27 @@ stays green and the score rises → commit → next**. Fan out where independent
 - ✅ **Phase 2** — Conductor + vertical registry (`orchestrator/`).
 - ✅ **Phase 3/4** — vertical agents demonstrated by building a second game (`games/`).
 
-## Run it
+## Run it — the `studio` front door
+Every game travels the SAME pipeline; `studio` is the one door (see `studio.mjs`).
 ```bash
-# scaffold a new game (copy the Phaser-4 base)
-cp -r game-template games/<name>
-
-# drive it
-node orchestrator/conductor.mjs games/<name>     # status + next agent brief
-node games/<name>/eval.mjs                        # the QA gate
-cd games/<name> && railway up                     # ship
+node studio.mjs new <name>            # scaffold games/<name> from the Phaser-4 base
+node studio.mjs lint <name>           # cheap static geometry/economy gate (rules.json)
+node studio.mjs gate <name>           # deterministic 0-death browser gate (webgl+canvas)
+node studio.mjs feel <name>           # the FUN model per level
+node studio.mjs check <name>          # every applicable validator -> scorecard
+node studio.mjs ship <name>           # railway up (deploy) -> live URL
+node studio.mjs publish <name>        # ENSURE the game's GitHub repo exists + push it
 ```
+
+### Every game IS a repo (don't skip this)
+A finished game is not just deployed — it is its **own standalone GitHub repo** (the
+deepfin convention) so the hub links to it and playtest notes file as issues there.
+`studio publish` is the single source of truth for that: it **creates the repo if it
+doesn't exist** (private by default; `--public` or `GAME_META.private:false` to override)
+and force-pushes the game's subtree to `main`. So the "does this new game have a repo?"
+question is answered by one idempotent command — never a manual GitHub step. After
+publishing, register the game in the hub (`game-engine/hub/games.json`) with its
+`repo` + `url` so it shows up in the family with working REPO / NOTES→ISSUES links.
+
+The per-game ship checklist (also mirrored in `GAME_META.stages`):
+`scaffold → identity → levels → gate → feel → hero → art → music → deploy → repo (publish) → hub`.
