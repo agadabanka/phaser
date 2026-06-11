@@ -1,6 +1,6 @@
 {
   "name": "Nimbus Climb",
-  "tagline": "Ride the updrafts, dodge the storms — climb the sky to the Sun Bell.",
+  "tagline": "Ride the updrafts, dodge the storms \u2014 climb the sky to the Sun Bell.",
   "hero": "Nimbi",
   "verb": "climb, float updrafts & time the gusts",
   "worlds": 1,
@@ -39,5 +39,9 @@
     "deploy": true
   },
   "archetype": "vertical",
-  "repo": "agadabanka/nimbus-climb"
+  "repo": "agadabanka/nimbus-climb",
+  "railway": {
+    "projectId": "(nimbus-climb)",
+    "serviceId": "f8281192-f054-4568-8b9a-3302381c3a16"
+  }
 }
