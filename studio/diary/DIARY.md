@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**37 entries** across 19 phases · **77 systems** · **167 edges** in the graph.
+**38 entries** across 19 phases · **77 systems** · **167 edges** in the graph.
 
 ---
 
@@ -377,6 +377,15 @@
 - **Systems:** game-engine hub, Studio.Game.boot, Studio.IsoRTS, Roadwar Iso
 - **Validator:** all 5 games serve the robust server (config.repo) + deploy via GitHub (serviceConnect); notes→issues verified (issues filed); iso gate 0-death 9005
 - **Artifacts:** `game-template/server.js`, `studio.mjs (publish→serviceConnect)`, `sdk/studio.js (iso car scale)`
+
+### Tap-to-annotate notes (screenshot+dot → the issue), rich game diaries, and the issues-health validator
+`2026-06-11` · 🚀 shipped
+
+- **What:** Three engine-level upgrades, percolated to every game. (1) TAP-TO-ANNOTATE: 📝 now freezes the game and asks 'tap where the issue is' — a red-ringed DOT marks the spot, the composer opens, and the note ships with a SCREENSHOT (dot drawn in, captured from the preserved canvas). The template server uploads it to notes/shots/<id>.jpg in the game's repo (Contents API) and embeds it in the GitHub issue with the tap position ('45% across, 46% down'); the backfill retries shot uploads too. Verified end-to-end with a real browser → a real issue with the image. (2) RICH DIARIES: every game now serves /diary.html — a styled page rendering its DIARY.md WITH screenshots (repo convention src/diary-shots/, GitHub-renderable; the page strips the prefix for the web). All 5 game diaries enriched with real shots; the Shell DIARY links point at it. (3) ISSUES-HEALTH (studio issues): the FEEDBACK validator — sweeps every repo in the engine family (hub registry + the hub) for open playtest-note issues and FAILS while any remain. Its first run surfaced the real to-do list: 20 open playtest issues across starlance/roadwar/roadwar-iso/the-platformer/game-engine.
+- **Why:** The playtest loop is the engine's outer loop, and it just got eyes: a note now carries WHERE (the dot in the screenshot) — the difference between 'cars are tiny' and seeing exactly which cars where. And the loop now has a CONSCIENCE: studio issues makes unaddressed feedback a red validator, so 'taken care of every raised issue' is a checkable engine property, not a hope. Diaries with screenshots make each game's story legible to a player, not just a builder.
+- **Systems:** game-engine hub, Studio.Game.boot, Playtest Shell
+- **Validator:** e2e: real browser tap → issue with embedded dot-screenshot (roadwar-iso#5, then cleaned); /diary.html images load on all 5 live games; gate 9005 unchanged; ci --fast green; studio issues correctly RED (20 open)
+- **Artifacts:** `sdk/studio.js (Shell tap-to-annotate)`, `game-template/server.js (shot upload + /diary.html)`, `tools/eval/issues.mjs`
 
 ---
 
