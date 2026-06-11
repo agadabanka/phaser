@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**33 entries** across 18 phases · **70 systems** · **150 edges** in the graph.
+**34 entries** across 18 phases · **74 systems** · **157 edges** in the graph.
 
 ---
 
@@ -340,6 +340,15 @@
 - **Validator:** gate 0-death webgl+canvas (8966); music validator per-level (5/5 tracks, perLevelMusic ✓); design-lens FUN 91.5 (design 86.3 + polish 100); hub /api/dashboard 8 games, no hang
 - **Artifacts:** `sdk/studio.js`, `tools/studio-sound/validate.mjs`, `tools/design-lens/`, `https://hub-production-6d28.up.railway.app`
 
+### Isometric archetype (Studio.Iso + Studio.IsoRTS) + a strategy-sweep eval beyond 0-death
+`2026-06-11` · 🚀 shipped
+
+- **What:** Two building blocks. (1) ISOMETRIC: Studio.Iso is a reusable perspective-iso PROJECTOR (configure screen anchors once → project lx∈[-1,1] across + t∈[0,1] depth to a screen point with perspective scale + depth-sort; lxAt inverts a click) — the foundation for any future iso game of any genre. Studio.IsoRTS is a new archetype built on it: the car RTS on a FREER continuous-front battlefield (a continuous lateral lx, not 3 fixed lanes) drawn in 2.5D iso, REUSING the RTS economy + combat + win-by-construction (lane→lx band). Roadwar Iso ships with a full iso art set (5 backdrops + 10 sprites) and gates 0-death deterministically (9005). (2) A new KIND of eval: tools/eval/strategies.mjs sweeps 7 AI playstyles (brawler-ball, scout-swarm, gunner-line, eco-boom, no-eco, mixed-arms, spread-front) through every ground and reports strategic DIVERSITY (how many styles win = meaningful choices, Schell #32), TENSION (how close the garage came — stomp vs nail-biter) and a per-ground challenge profile. It immediately exposed what the binary 0-death gate hides: the grounds are STOMPS (every style wins, tension ≈ 0).
+- **Why:** Per playtest steer: 0-death is one optimal strategy's yes/no — a weak signal. The richer questions are 'is it a stomp?' and 'does more than one strategy work?'. The strategy sweep + the fun-maximizer (design lens) are the new quality bar; 0-death becomes a sanity floor, not the goal. And the iso projector + archetype are engine building blocks, so the next iso/RTS game inherits them.
+- **Systems:** Studio.IsoRTS, Roadwar Iso, Studio.Game.boot, Design Lens, Studio.Feel, rules.json + level-lint
+- **Validator:** iso gate 0-death webgl+canvas (9005, frame-identical); strategy-sweep 7×5; design-lens FUN 91.7
+- **Artifacts:** `sdk/studio.js (Studio.Iso, Studio.IsoRTS)`, `games/roadwar-iso/`, `tools/eval/strategies.mjs`
+
 ---
 
 ## Flows — the order systems are called
@@ -441,6 +450,8 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.Menu + Save** | sdk | — | deepfin-bar menu inside boot(): full-bleed backdrop, breathing hero, generated wordmark lockup, zone rail of per-level thumbnail cards (lock/best), level-complete card, win screen; Studio.Save persists unlocked+best. Eval-safe: harness reset() bypasses. |
 | **Studio.Shooter** | sdk | — | the vertical space-shooter archetype: a separate game loop reusing Shell/Save/Audio/Touch/harness; the sweeping-gap bullet curtain is 0-death-by-construction (sweepSpeed·fallTime < gapW/2 − shipHalf). |
 | **Studio.RTS** | sdk | — | The car-RTS archetype: deterministic 3-lane lane-push (build→rally→brawl). Win-by-construction via economic bounds (accumulation + side-leak), not geometry. |
+| **Studio.Iso** | sdk | — | Reusable perspective-iso projector: lx+depth → screen with perspective scale + depth-sort. The building block behind any isometric game. |
+| **Studio.IsoRTS** | sdk | — | Isometric continuous-front RTS archetype (built on Studio.Iso); reuses the RTS economy/combat/win-by-construction with lane→lx band. |
 
 ### 4. Content
 
@@ -479,6 +490,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio Distinct (uniqueness judge)** | tool | distinctness | tools/studio-distinct/ — scores a game's UNIQUENESS vs a sibling or the stock-platformer baseline (Gemini vision, 6 axes). |
 | **rules.json + level-lint** | concept | rules | the geometry contract as data (per archetype) + the cheap static gate that lints levels before the browser gate. |
 | **Design Lens** | sdk | — | MDA + Jesse Schell's lenses as a tool: traces each weak Feel component to the lens that asks why + a concrete per-archetype mechanic fix; judges per-level quality AND campaign intensity escalation. |
+| **Strategy Sweep** | tool | — | Runs many AI playstyles through a level → strategic diversity + tension + balance. A different kind of eval than the binary 0-death gate. |
 
 ### 6. Feedback
 
