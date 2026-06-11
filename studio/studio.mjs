@@ -12,6 +12,8 @@
  *   studio feel <game>               the FUN model per level
  *   studio check <game>              EVERY applicable validator -> scorecard (--validate-all)
  *   studio ship <game>               railway up from the game dir
+ *   studio publish <game> [--public] ENSURE the game's GitHub repo exists (private
+ *                                    by default) + push it — every game IS a repo
  *   studio notes pull|triage         harvest playtest notes from live games / triage to capabilities
  */
 import fs from 'node:fs';
@@ -56,13 +58,42 @@ switch (cmd) {
   case 'notes': run(path.join(STUDIO, 'tools', 'notes-loop', 'tool.mjs'), args); break;
   case 'publish': {
     // push the game's subtree to its OWN GitHub repo (the deepfin convention:
-    // every game is a standalone repo the hub + issues point at).
+    // every game is a standalone repo the hub + issues point at). EVERY new game
+    // MUST have a repo — so this ENSURES it exists (creates it, private by
+    // default) before pushing, rather than assuming someone made it by hand.
     const g = gameDir(args[0]);
     const slug = path.basename(g);
     const meta = JSON.parse(fs.readFileSync(path.join(g, 'GAME_META.json'), 'utf8'));
     const repo = meta.repo || ('agadabanka/' + slug);
     const tok = process.env.GH_TOKEN;
     if (!tok) { console.error('set GH_TOKEN'); process.exit(2); }
+    // visibility: private unless the meta opts out or --public is passed (the
+    // studio convention is private game repos; deepfin is the public showcase).
+    const wantPublic = args.includes('--public') || meta.private === false;
+    const [owner, name] = repo.split('/');
+    // ghApi(method, apiPath, body?) -> { code, json } via curl (sync, dep-free)
+    const ghApi = (method, apiPath, body) => {
+      const a = ['-s', '-w', '\n%{http_code}', '-X', method, '-H', 'Authorization: Bearer ' + tok, '-H', 'Accept: application/vnd.github+json'];
+      if (body) { a.push('-H', 'Content-Type: application/json', '-d', JSON.stringify(body)); }
+      a.push('https://api.github.com' + apiPath);
+      const r = spawnSync('curl', a, { encoding: 'utf8' });
+      const out = (r.stdout || '').trim(); const nl = out.lastIndexOf('\n');
+      const code = +out.slice(nl + 1); let json = {}; try { json = JSON.parse(out.slice(0, nl)); } catch {}
+      return { code, json };
+    };
+    // 1) ENSURE the repo exists (create private-by-default on 404)
+    const exists = ghApi('GET', '/repos/' + repo).code;
+    if (exists === 404) {
+      console.log('repo ' + repo + ' missing — creating (' + (wantPublic ? 'public' : 'private') + ')…');
+      const me = ghApi('GET', '/user').json.login;
+      const create = owner && me && owner.toLowerCase() !== me.toLowerCase()
+        ? ghApi('POST', '/orgs/' + owner + '/repos', { name, private: !wantPublic, has_issues: true, description: meta.tagline || meta.name })
+        : ghApi('POST', '/user/repos', { name, private: !wantPublic, has_issues: true, description: meta.tagline || meta.name });
+      if (create.code >= 300) { console.error('create failed (HTTP ' + create.code + '): ' + (create.json.message || '')); process.exit(1); }
+      console.log('✅ created https://github.com/' + repo + ' (' + (create.json.private ? 'private' : 'public') + ')');
+    } else if (exists >= 400) { console.error('cannot reach ' + repo + ' (HTTP ' + exists + ')'); process.exit(1); }
+    else console.log('repo ' + repo + ' exists — refreshing.');
+    // 2) subtree split + force-push the game as its own clean history
     const prefix = path.relative(path.resolve(STUDIO, '..'), g).replace(/\\/g, '/');
     const root = path.resolve(STUDIO, '..');
     console.log('publishing ' + prefix + ' -> ' + repo);
