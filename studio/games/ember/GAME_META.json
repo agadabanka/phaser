@@ -1,6 +1,6 @@
 {
   "name": "Ember Depths",
-  "tagline": "Hop the lava, ride the embers — descend the molten cave.",
+  "tagline": "Hop the lava, ride the embers \u2014 descend the molten cave.",
   "hero": "Ember",
   "verb": "run, hop lava & stomp",
   "worlds": 1,
@@ -49,5 +49,9 @@
     "distinctness": 75,
     "texturing": 100
   },
-  "repo": "agadabanka/ember-depths"
+  "repo": "agadabanka/ember-depths",
+  "railway": {
+    "projectId": "dc9f565e-8c86-4e17-b37a-135023c9865c",
+    "serviceId": "27e8608c-6a49-4af2-bafc-427935bf4d00"
+  }
 }

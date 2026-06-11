@@ -2,12 +2,12 @@
   "name": "Starlance",
   "tagline": "Climb the five veils of the nebula to the Hollow Star.",
   "hero": "a lone crystalline interceptor",
-  "verb": "fly · dodge · blast",
+  "verb": "fly \u00b7 dodge \u00b7 blast",
   "worlds": 1,
   "levelCount": 5,
-  "controls": "← → move · auto-fire (joystick on touch)",
+  "controls": "\u2190 \u2192 move \u00b7 auto-fire (joystick on touch)",
   "art": "painterly synthwave space (Gemini)",
-  "music": "Lyria — a drive per veil",
+  "music": "Lyria \u2014 a drive per veil",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",
@@ -40,5 +40,9 @@
   "archetype": "shooter",
   "menu": {
     "logo": "assets/menu/logo.png"
+  },
+  "railway": {
+    "projectId": "6afbdbdc-b795-4a12-907a-ea418565a80f",
+    "serviceId": "3c8748f8-915a-415a-874c-0e0d74245de4"
   }
 }
