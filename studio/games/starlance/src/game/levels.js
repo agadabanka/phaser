@@ -28,15 +28,15 @@ window.LEVELS = [
     waves: [
       { dur: 7, formations: [{ tex: 'enemy_dart', count: 5, x: 480, gap: 90, path: 'sweep', amp: 140, holdY: 150, hp: 2 }] },
       { dur: 7, formations: [{ tex: 'enemy_drone', count: 4, x: 260, gap: 70, path: 'sweep', amp: 100, holdY: 150, hp: 2 }, { tex: 'enemy_dart', count: 4, x: 700, gap: 70, path: 'sweep', amp: 120, holdY: 170, hp: 2 }] },
-      { dur: 7, formations: [{ tex: 'enemy_dart', count: 6, x: 480, gap: 95, path: 'sweep', amp: 150, holdY: 160, hp: 2 }] }
+      { dur: 7, formations: [{ tex: 'enemy_dart', count: 6, x: 480, gap: 95, path: 'dive', amp: 150, holdY: 160, hp: 2, size: 38 }] }
     ]
   },
   {
     name: 'Storm Veil', sky: 0x241038, curtain: CURTAIN_MED,
     waves: [
-      { dur: 7, formations: [{ tex: 'enemy_turret', count: 4, x: 480, gap: 110, path: 'hold', holdY: 130, hp: 3 }] },
+      { dur: 7, formations: [{ tex: 'enemy_turret', count: 3, x: 480, gap: 150, path: 'orbit', amp: 60, holdY: 130, hp: 6, size: 78 }] },
       { dur: 8, formations: [{ tex: 'enemy_dart', count: 5, x: 320, gap: 80, path: 'sweep', amp: 120, holdY: 150, hp: 2 }, { tex: 'enemy_drone', count: 5, x: 640, gap: 80, path: 'sweep', amp: 120, holdY: 170, hp: 2 }] },
-      { dur: 7, formations: [{ tex: 'enemy_turret', count: 5, x: 480, gap: 120, path: 'hold', holdY: 150, hp: 3 }] }
+      { dur: 7, formations: [{ tex: 'enemy_turret', count: 4, x: 480, gap: 150, path: 'orbit', amp: 70, holdY: 150, hp: 6, size: 78 }] }
     ]
   },
   {

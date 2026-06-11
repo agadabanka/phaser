@@ -1064,10 +1064,13 @@
       var thumb = scene.add.circle(bx, by, 30, th.thumb, 0.9).setScrollFactor(0).setDepth(DEPTH + 1).setStrokeStyle(3, th.thumbStroke, 0.85);
       var jx = W - 96, jy = H - 84;
       var jbtn = scene.add.circle(jx, jy, 54, th.btn, th.btnA).setScrollFactor(0).setDepth(DEPTH).setStrokeStyle(3, th.btnStroke, 0.7).setInteractive();
-      var jlbl = scene.add.text(jx, jy, 'JUMP', { fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', color: th.label }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+      // opt.button: false hides the action button (auto-fire shooters have no jump);
+      // a string relabels it ('FIRE', 'BOOST', …). Default stays 'JUMP'.
+      var jlbl = scene.add.text(jx, jy, typeof opt.button === 'string' ? opt.button : 'JUMP', { fontFamily: 'Georgia, "Times New Roman", serif', fontSize: '13px', color: th.label }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
       // touch UI only ON TOUCH DEVICES (opt.always forces it): a desktop/keyboard
       // player should never stare at a joystick they can't use.
       if (!isTouch && !opt.always) [ring, thumb, jbtn, jlbl].forEach(function (e) { e.setVisible(false); });
+      if (opt.button === false) { jbtn.setVisible(false); jlbl.setVisible(false); jbtn.disableInteractive(); }
       jbtn.on('pointerdown', function () { st._btn = true; }); jbtn.on('pointerup', function () { st._btn = false; }); jbtn.on('pointerout', function () { st._btn = false; });
       var pid = null;
       function setFrom(px, py) { var dx = px - bx, dy = py - by, m = Math.hypot(dx, dy) || 1; if (m > R) { dx = dx / m * R; dy = dy / m * R; } thumb.setPosition(bx + dx, by + dy); var nx = dx / R, ny = dy / R; st.left = nx < -0.35; st.right = nx > 0.35; st._up = ny < -0.45; st.down = ny > 0.45; }
@@ -1983,6 +1986,12 @@
       var levelIndex = 0, clock = 0, frame = 0, waveIdx = 0, waveT = 0;
       var hp = 3, deaths = 0, won = false, score = 0, levelStartFrame = 0, bossHpMax = 0;
       var fireCd = 0, bedOn = false, touch = null;
+      // POWERUPS (deterministic): pickups drop on the level clock; catching one arms
+      // a timed fire mode — 'spread' (3-way) · 'rapid' (faster) · 'swarm' (2 wingmen
+      // that fire with you). Pure player-side buffs: survivability is unchanged, so
+      // the gate's win-by-construction holds (the boss just dies faster).
+      var pups = [], pupIdx = 0, power = null, powerT = 0, wingmen = [];
+      var PUP_KINDS = ['spread', 'rapid', 'swarm'];
 
       var spec = function () { return LEVELS[levelIndex] || {}; };
       var curtain = function () { return spec().curtain || { amp: 180, period: 14, gapW: 200, bulletSpeed: 520, fireInterval: 9, columns: 11 }; };
@@ -2000,6 +2009,10 @@
 
       // ----- the bullet curtain (deterministic; fired in bursts on the clock) -----
       var lastBurst = -1;
+      // revive a pooled arcade object CORRECTLY: enableBody re-enables a body that
+      // disableBody() turned off — setActive/setVisible+reset does NOT, which left
+      // pool-recycled enemies as unhittable ghosts ("bullets go through ships").
+      function revive(go, x, y) { go.enableBody(true, x, y, true, true); return go; }
       function fireCurtain(dense) {
         var c = curtain(), gx = gapCenter(clock), half = c.gapW / 2;  // invariant gap width (survivability bound)
         var n = c.columns || 11, step = W / (n - 1);
@@ -2008,7 +2021,7 @@
           if (Math.abs(bx - gx) < half) continue;          // leave the safe gap
           var b = ebullets.get(bx, -16, 'ebullet');
           if (!b) continue;
-          b.setActive(true).setVisible(true); b.body.reset(bx, -16);
+          revive(b, bx, -16);
           b.setVelocity(0, c.bulletSpeed); b._spawn = clock;
         }
       }
@@ -2020,17 +2033,22 @@
           var ex = baseX + (i - (cnt - 1) / 2) * gap;
           var e = enemies.get(ex, -40 - i * 30, f.tex || 'enemy_drone');
           if (!e) continue;
-          e.setActive(true).setVisible(true); e.body.reset(ex, -40 - i * 30);
+          revive(e, ex, -40 - i * 30);
+          if (f.tex && e.setTexture) e.setTexture(scene.textures.exists(f.tex) ? f.tex : 'enemy_fallback');
           e.hp = f.hp || 2; e.homeX = ex; e.kind = f.tex || 'enemy_drone';
           e.t0 = clock; e.path = f.path || 'sweep'; e.amp = f.amp || 120; e.holdY = f.holdY || 150;
-          var img = e.setTexture ? e : e; e.setDisplaySize(46, 46);
+          e.setDisplaySize(f.size || 46, f.size || 46);   // f.size: big cruisers, small darts (variety)
         }
       }
       function moveEnemy(e) {
         var t = clock - e.t0;
-        // enter to holdY, then weave horizontally; clamp y so it never reaches SHIP_Y-120
+        // enter to holdY, then move on the formation's path; y is clamped so a
+        // formation never enters the ship band (the survivability contract).
         var y = Math.min(e.holdY, -40 + t * 90);
-        var x = e.homeX + (e.path === 'sweep' ? e.amp * Math.sin(t * 1.1) : 0);
+        var x = e.homeX;
+        if (e.path === 'sweep') x = e.homeX + e.amp * Math.sin(t * 1.1);
+        else if (e.path === 'orbit') { x = e.homeX + e.amp * Math.sin(t * 1.4); y = Math.min(e.holdY + Math.cos(t * 1.4) * 26, SHIP_Y - 150); }
+        else if (e.path === 'dive') { var dv = Math.max(0, t - 2.2); y = Math.min(e.holdY + dv * 46, SHIP_Y - 150); x = e.homeX + e.amp * 0.5 * Math.sin(t * 2.2); }
         e.x = x; e.y = y;
         if (e.body) { e.body.x = x - e.body.halfWidth; e.body.y = y - e.body.halfHeight; }
       }
@@ -2039,6 +2057,7 @@
       function loadLevel(i) {
         levelIndex = i; clock = 0; waveIdx = 0; waveT = 0; lastBurst = -1; boss = null;
         bullets.clear(true, true); ebullets.clear(true, true); enemies.clear(true, true);
+        pups.forEach(function (p) { try { p.destroy(); } catch (e) {} }); pups = []; pupIdx = 0; clearPower();
         var s = spec();
         if (bgImg) { bgImg.setTexture(scene.textures.exists('bg_' + i) ? 'bg_' + i : 'bg_0'); }
         if (s.boss) { /* boss spawns when the boss wave starts */ }
@@ -2054,6 +2073,46 @@
         boss.setDisplaySize(bs.w || 520, bs.h || 150); if (boss.body) { boss.body.setAllowGravity(false); boss.body.setSize((bs.w||520)*0.8, (bs.h||150)*0.7); }
         boss.hp = bs.hp || 520; bossHpMax = boss.hp;
         scene.tweens.add({ targets: boss, x: W / 2 - 80, duration: 2200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
+
+      // ----- powerups: deterministic drops → timed fire modes -----
+      function clearPower() { power = null; powerT = 0; wingmen.forEach(function (w) { try { w.destroy(); } catch (e) {} }); wingmen = []; }
+      function spawnPup() {
+        var kind = PUP_KINDS[pupIdx % PUP_KINDS.length];
+        var px = 140 + ((pupIdx * 257) % (W - 280));            // deterministic spread across the field
+        pupIdx++;
+        var p = scene.add.image(px, -20, scene.textures.exists('powerup_art') ? 'powerup_art' : 'spark').setDepth(8);
+        p.setDisplaySize(34, 34); p._kind = kind; p._vy = 120;
+        var tag = scene.add.text(px, -44, kind.toUpperCase(), { fontFamily: FONT, fontSize: '11px', color: '#aef6ff', stroke: '#03202c', strokeThickness: 3 }).setOrigin(0.5).setDepth(8);
+        p._tag = tag; pups.push(p);
+        Studio.Juice.glow(p, 0x8af0ff, 3);
+      }
+      function applyPower(kind) {
+        clearPower(); power = kind; powerT = kind === 'swarm' ? 10 : 8;
+        Studio.Audio.sfx('coin'); Studio.Juice.flash(scene, 120, 140, 240, 255);
+        Studio.Juice.popText(scene, ship.x, ship.y - 40, kind.toUpperCase() + '!', { size: 18, color: '#aef6ff' });
+        if (kind === 'swarm') for (var s = -1; s <= 1; s += 2) {
+          var w = scene.add.image(ship.x + s * 46, ship.y + 10, scene.textures.exists('ship_art') ? 'ship_art' : 'ship_fallback').setDepth(9).setAlpha(0.85);
+          w.setDisplaySize(30, 30); w._side = s; wingmen.push(w);
+        }
+      }
+      function tickPups(dt) {
+        // a pickup drifts down every `powerupEvery` s (theme/level tunable; default 18)
+        var every = spec().powerupEvery != null ? spec().powerupEvery : (TH.powerupEvery != null ? TH.powerupEvery : 18);
+        if (every > 0 && clock >= (pupIdx + 1) * every) spawnPup();
+        for (var i = pups.length - 1; i >= 0; i--) {
+          var p = pups[i]; p.y += p._vy * dt; if (p._tag) p._tag.setPosition(p.x, p.y - 26);
+          if (Math.abs(p.x - ship.x) < 34 && Math.abs(p.y - ship.y) < 34) { applyPower(p._kind); p._tag && p._tag.destroy(); p.destroy(); pups.splice(i, 1); continue; }
+          if (p.y > H + 24) { p._tag && p._tag.destroy(); p.destroy(); pups.splice(i, 1); }
+        }
+        if (power) { powerT -= dt; if (powerT <= 0) clearPower(); }
+        for (var wgi = 0; wgi < wingmen.length; wgi++) { var wg = wingmen[wgi]; wg.x = ship.x + wg._side * 46; wg.y = ship.y + 10; }
+      }
+      function fireFrom(x, y, angDeg) {
+        var b = bullets.get(x, y, 'pbullet'); if (!b) return;
+        revive(b, x, y);
+        var rad = (angDeg || 0) * Math.PI / 180;
+        b.setVelocity(Math.sin(rad) * 680, -Math.cos(rad) * 680);
       }
 
       function die() {
@@ -2118,7 +2177,8 @@
           scene._hud = this.add.text(16, 12, '', { fontFamily: FONT, fontSize: '18px', color: TH.hud && TH.hud.color || '#cdefff', stroke: TH.hud && TH.hud.stroke || '#0a0420', strokeThickness: 5 }).setScrollFactor(0).setDepth(100);
           hud();
           this.cursors = this.input.keyboard.createCursorKeys();
-          touch = Studio.Touch.create(this, { theme: TH.touch || null });
+          touch = Studio.Touch.create(this, { theme: TH.touch || null, button: false });  // auto-fire: no JUMP/FIRE button
+          Studio.Juice.glow(ship, TH.accent != null ? TH.accent : 0x8af0ff, 4);           // ship visibility
 
           var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.55); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
           this.input.once('pointerdown', startBed); if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
@@ -2175,12 +2235,19 @@
           var vx = (mv.right ? 1 : 0) - (mv.left ? 1 : 0);
           ship.x = Math.max(30, Math.min(W - 30, ship.x + vx * SHIP_SPEED * dt));
           if (ship.body) { ship.body.x = ship.x - ship.body.halfWidth; ship.body.y = ship.y - ship.body.halfHeight; }
+          // visibility: bank into the turn + a thruster flame off the tail
+          ship.setRotation(vx * 0.16);
+          if (frame % 3 === 0) Studio.Juice.burst(scene, ship.x - vx * 6, ship.y + 20, { texture: 'spark', n: 2, tint: 0x66d9ff, life: 220, spMin: 20, spMax: 60, scale: 0.55 });
 
-          // ----- auto-fire upward -----
+          tickPups(dt);
+
+          // ----- auto-fire upward (the active powerup shapes the salvo) -----
           fireCd -= dt;
           if (mv.fire && fireCd <= 0 && !won) {
-            fireCd = TH.fireRate || 0.13;
-            var b = bullets.get(ship.x, ship.y - 22, 'pbullet'); if (b) { b.setActive(true).setVisible(true); b.body.reset(ship.x, ship.y - 22); b.setVelocity(0, -680); }
+            fireCd = (TH.fireRate || 0.13) * (power === 'rapid' ? 0.55 : 1);
+            if (power === 'spread') { fireFrom(ship.x, ship.y - 22, 0); fireFrom(ship.x - 6, ship.y - 16, -14); fireFrom(ship.x + 6, ship.y - 16, 14); }
+            else fireFrom(ship.x, ship.y - 22, 0);
+            for (var wj = 0; wj < wingmen.length; wj++) fireFrom(wingmen[wj].x, wingmen[wj].y - 18, 0);
             if (frame % 4 === 0) Studio.Audio.sfx('jump');
           }
           // player bullets vs boss
@@ -2518,8 +2585,17 @@
             btn.on('pointerdown', function () { buildType = d[0]; build('p', d[0], selLane); });
             scene._buildUI.add(btn); scene._buildUI.add(lbl);
           });
-          // lane selectors
+          // lane labels (still clickable to pre-select)
           LANES.forEach(function (lx, li) { var t = scene.add.text(lx, H - 64, '▲ LANE ' + (li + 1), { fontFamily: FONT, fontSize: '12px', color: '#ffe7a0' }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(102); t.on('pointerdown', function () { selLane = li; }); scene._laneLabels = scene._laneLabels || []; scene._laneLabels.push(t); });
+          // ONE-CLICK DEPLOY (playtest ask): click anywhere on a lane → the selected
+          // car deploys there immediately (no select-lane-then-build two-step).
+          this.input.on('pointerdown', function (ptr) {
+            if (mode !== 'play' || ptr.y > H - 84) return;            // ignore the build bar / lane labels
+            var best = 0, bd = 1e9;
+            for (var li = 0; li < LANES.length; li++) { var d = Math.abs(ptr.x - LANES[li]); if (d < bd) { bd = d; best = li; } }
+            if (bd > 130) return;                                      // not near a lane
+            selLane = best; build('p', buildType, best); hud();
+          });
           hud();
 
           this.cursors = this.input.keyboard.createCursorKeys();
@@ -2765,8 +2841,22 @@
           // HQ buildings at the iso ends (origin bottom so they sit on the ground)
           var fp = project(0, FORT_Y), gp = project(0, GAR_Y);
           this.fortress = this.add.image(fp.sx, fp.sy, scene.textures.exists('fortress_art') ? 'fortress_art' : 'fortress_fallback').setOrigin(0.5, 0.9).setDepth(fp.depth - 1); this.fortress.setScale((150 / Math.max(1, this.fortress.height)) * fp.sc * 1.4);
-          this.garage = this.add.image(gp.sx, gp.sy + 6, scene.textures.exists('garage_art') ? 'garage_art' : 'garage_fallback').setOrigin(0.5, 0.85).setDepth(gp.depth + 2); this.garage.setScale((150 / Math.max(1, this.garage.height)) * gp.sc);
-          fieldLayer = this.add.container(0, 0); depotLayer = this.add.container(0, 0).setDepth(gp.depth);
+          // the garage sits BELOW the near units (playtest: "my garage blocks the
+          // view of my cars") — drawn behind + slightly translucent so fresh
+          // deploys are always readable.
+          this.garage = this.add.image(gp.sx, gp.sy + 6, scene.textures.exists('garage_art') ? 'garage_art' : 'garage_fallback').setOrigin(0.5, 0.85).setDepth(gp.depth - 30).setAlpha(0.92); this.garage.setScale((150 / Math.max(1, this.garage.height)) * gp.sc);
+          // LANE GUIDES (playtest: "I want to see multiple lanes clearly") — the three
+          // deploy lanes (lx −0.6 / 0 / +0.6) as soft projected stripes down the field.
+          var laneG = this.add.graphics().setDepth(2).setAlpha(0.30);
+          [-0.6, 0, 0.6].forEach(function (glx) {
+            var hw = 0.085;
+            var p1 = ISO.at(glx - hw, 0.02), p2 = ISO.at(glx + hw, 0.02), p3 = ISO.at(glx + hw, 0.985), p4 = ISO.at(glx - hw, 0.985);
+            laneG.fillStyle(0xffffff, 0.10).fillPoints([{ x: p1.sx, y: p1.sy }, { x: p2.sx, y: p2.sy }, { x: p3.sx, y: p3.sy }, { x: p4.sx, y: p4.sy }], true);
+            laneG.lineStyle(2, TH.accent != null ? TH.accent : 0xffcc44, 0.35);
+            var m1 = ISO.at(glx, 0.02), m2 = ISO.at(glx, 0.985);
+            laneG.lineBetween(m1.sx, m1.sy, m2.sx, m2.sy);
+          });
+          fieldLayer = this.add.container(0, 0); depotLayer = this.add.container(0, 0).setDepth(gp.depth - 31);
 
           if (TH.grade) Studio.Juice.grade(this, function (cm) { try { cm.saturate(TH.grade.saturate || 0.14); cm.brightness(TH.grade.brightness || 1); } catch (e) {} });
           if (TH.vignette) Studio.Juice.vignette(this, TH.vignette);

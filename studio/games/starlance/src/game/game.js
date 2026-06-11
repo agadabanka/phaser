@@ -21,7 +21,7 @@
       ship: 'assets/ship.png', shipW: 46, shipH: 50, shipGlow: 0x8af0ff,
       images: {
         enemy_drone: 'assets/enemy-drone.png', enemy_dart: 'assets/enemy-dart.png',
-        enemy_turret: 'assets/enemy-turret.png', boss_art: 'assets/boss.png', powerup: 'assets/powerup.png'
+        enemy_turret: 'assets/enemy-turret.png', boss_art: 'assets/boss.png', powerup_art: 'assets/powerup.png'
       },
       fireRate: 0.12,
       grade: { saturate: 0.12, brightness: 1.02 }, vignette: 0.4,
