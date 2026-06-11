@@ -22,19 +22,29 @@
   "builder": "/",
   "designLens": "/",
   "scaffolded_from": "agadabanka/phaser-private",
-  "url": null,
-  "gate": "pending",
+  "url": "https://roadwar-production.up.railway.app",
+  "gate": "0-death pass (webgl+canvas)",
+  "scorecard": {
+    "date": "2026-06-11",
+    "gate": "0-death webgl+canvas (frame 9801)",
+    "lint": "rts contract 100%",
+    "fun": 86.3,
+    "funBar": 80,
+    "intensity": "escalates 9→45 to a boss finale"
+  },
   "stages": {
     "scaffold": true,
     "identity": true,
-    "levels": false,
-    "gate": false,
-    "feel": false,
-    "hero": false,
-    "art": false,
-    "music": false,
-    "deploy": false
+    "levels": true,
+    "gate": true,
+    "feel": true,
+    "hero": true,
+    "art": true,
+    "music": true,
+    "deploy": true,
+    "repo": true
   },
+  "menu": { "logo": "assets/menu/logo.png" },
   "slug": "roadwar",
   "repo": "agadabanka/roadwar",
   "archetype": "rts"

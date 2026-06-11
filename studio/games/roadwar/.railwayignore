@@ -2,4 +2,6 @@ out/
 node_modules/
 eval.mjs
 diag.mjs
+sim.mjs
+art-src/
 data/

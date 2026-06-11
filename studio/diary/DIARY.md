@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**31 entries** across 17 phases · **67 systems** · **140 edges** in the graph.
+**32 entries** across 17 phases · **70 systems** · **150 edges** in the graph.
 
 ---
 
@@ -320,6 +320,15 @@
 - **Validator:** gate GREEN webgl+canvas, double-gate frame-identical (7875, score 3900, 0 deaths, boss destroyed); level-lint 100/100 (every veil provably survivable)
 - **Artifacts:** `games/starlance/`, `https://github.com/agadabanka/starlance`, `https://starlance-production.up.railway.app`
 
+### Fourth archetype: car RTS (Studio.RTS) + Roadwar — and a design-lens tool
+`2026-06-11` · 🚀 shipped
+
+- **What:** Added a fourth archetype — a toon-shaded car RTS — and built Roadwar (5 grounds) with it. Studio.RTS is a deterministic 3-lane lane-push: spend auto-income SCRAP to BUILD cars (scout/brawler/gunner) that drive up and brawl; win = fortress HP→0, lose = garage HP→0. The 0-death problem is solved WIN-BY-CONSTRUCTION via two STATIC economic bounds (rules.json + level-lint), not geometry: ACCUMULATION (income/cost > fortressTurret.dmg/(cd·hp) so the all-in-rally deathball grows unbounded and the finite-schedule fortress falls) and SIDE-LEAK (a garage-HP budget on off-rally scouts the all-lane base gun clears). New tools this pass: a pure-Node econ sim that tunes balance in ms before the browser gate, and — following the platformer's design-lens path — `studio lens`, a DESIGN DIAGNOSTIC (MDA + Schell lenses) that traces each weak Feel component to the lens that asks why + a concrete mechanic fix. The lens drove FUN 65→86.3 through real design: a Warlord boss climax, per-ground signatures (introduce→develop→twist→master), intensity escalating 9→45 to the finale. Also hardened `studio publish` to CREATE the repo (private) if missing — every game IS a repo. Full Gemini toon art + Lyria anthem. Repo agadabanka/roadwar (private), notes→issues, hub (7 games), deployed.
+- **Why:** Two lessons made first-class. (1) A fourth genre on the SAME engine + autopilot — its win-by-construction expressed as ECONOMIC bounds rather than geometry — is more proof the engine generalizes past platformers. (2) 'Make it more fun' became a TOOL, not vibes: the design lens turns a low Feel number into the lens that asks why and the mechanic that fixes it, so fun rises by design (a boss, a ramp) and the score follows honestly.
+- **Systems:** Studio.RTS, Roadwar, Design Lens, rules.json + level-lint, Studio.Feel, Lyria Music (Vertex), game-engine hub, Playtest Shell, Studio.Game.boot, Publish
+- **Validator:** gate GREEN webgl+canvas frame-identical (9801, 0 deaths, all 5 grounds, boss fought); level-lint rts 100% (accumulation + side-leak); FUN 86.3 (bar 80) via design-lens; deployed live
+- **Artifacts:** `games/roadwar/`, `https://github.com/agadabanka/roadwar`, `https://roadwar-production.up.railway.app`, `tools/design-lens/`
+
 ---
 
 ## Flows — the order systems are called
@@ -369,6 +378,16 @@ One command answers "is this game good?" — every registered validator runs thr
 8. **Studio Distinct (uniqueness judge)** (distinctness) — uniqueness vs the stock-platformer baseline (Ember 86.7).
 9. **Texture Kit (style-matched tiles)** (texturing) — seams, texture energy, palette affinity vs the backdrop (19/19) → scorecard verdict back at the conductor.
 
+### Runtime: one Roadwar frame
+
+What runs every 1/60s step of Roadwar (Studio.RTS update()) — deterministic, so eval replays bit-identically.
+
+1. **Studio.harness** (step) — game.step(t, dt) drives update() with the same dt every frame.
+2. **Studio.Autopilot** (build (rally)) — in eval the all-in-rally macro builds autoBuild on the rally lane whenever scrap allows — the win-by-construction strategy.
+3. **Studio.RTS** (tickWorld) — scrap += income·dt; units (id-order) seek the nearest enemy ahead in-lane, hold at engage range, fight on cd, else advance or hit the HQ; HQ turrets defend all lanes; the finite enemy schedule spawns on the clock.
+4. **Studio.RTS** (win/lose) — fortressHp≤0 → next ground / won; garageHp≤0 → death. Deterministic, no RNG.
+5. **Studio.Feel** ((offline) score) — Studio.Feel reads the schedule as a rising battle-heat curve; the design lens turns weak components into mechanic fixes.
+
 ---
 
 ## Systems graph
@@ -410,6 +429,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.Game.boot** | sdk | — | the declarative game runtime: a game is data + theme tokens + hooks; all per-game glue (world/theme/HUD/shell/autopilot/harness/win-death) is one SDK impl. runner + vertical archetypes. |
 | **Studio.Menu + Save** | sdk | — | deepfin-bar menu inside boot(): full-bleed backdrop, breathing hero, generated wordmark lockup, zone rail of per-level thumbnail cards (lock/best), level-complete card, win screen; Studio.Save persists unlocked+best. Eval-safe: harness reset() bypasses. |
 | **Studio.Shooter** | sdk | — | the vertical space-shooter archetype: a separate game loop reusing Shell/Save/Audio/Touch/harness; the sweeping-gap bullet curtain is 0-death-by-construction (sweepSpeed·fallTime < gapW/2 − shipHalf). |
+| **Studio.RTS** | sdk | — | The car-RTS archetype: deterministic 3-lane lane-push (build→rally→brawl). Win-by-construction via economic bounds (accumulation + side-leak), not geometry. |
 
 ### 4. Content
 
@@ -447,6 +467,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio Art (cohesion judge)** | tool | art-cohesion | tools/studio-art/ — screenshots a game headless and scores 9-dim VISUAL COHESION 0-100 with Gemini vision (threshold 60). |
 | **Studio Distinct (uniqueness judge)** | tool | distinctness | tools/studio-distinct/ — scores a game's UNIQUENESS vs a sibling or the stock-platformer baseline (Gemini vision, 6 axes). |
 | **rules.json + level-lint** | concept | rules | the geometry contract as data (per archetype) + the cheap static gate that lints levels before the browser gate. |
+| **Design Lens** | sdk | — | MDA + Jesse Schell's lenses as a tool: traces each weak Feel component to the lens that asks why + a concrete per-archetype mechanic fix; judges per-level quality AND campaign intensity escalation. |
 
 ### 6. Feedback
 
