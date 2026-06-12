@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/glade-1.mp3",
+  "prompt": "Looping instrumental cozy WOODLAND VILLAGE theme: plucky pizzicato strings, marimba, gentle flute, birdsong feel, warm and industrious, like a tiny settlement waking at dawn, no vocals, seamless loop, relaxed tempo.",
+  "generatedAt": "2026-06-12T14:45:34.834Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0687,
+  "peak": 0.3359,
+  "crossfadeSec": 1.6
+}

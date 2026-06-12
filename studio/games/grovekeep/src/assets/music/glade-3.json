@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/glade-3.mp3",
+  "prompt": "Looping instrumental RIVERSIDE theme: rippling celesta, light fiddle, water-like glissandos, flowing and cheerful, no vocals, seamless loop, moderate tempo.",
+  "generatedAt": "2026-06-12T14:54:50.402Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0693,
+  "peak": 0.5779,
+  "crossfadeSec": 1.6
+}

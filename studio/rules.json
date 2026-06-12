@@ -132,6 +132,86 @@
     ]
    },
    "continuousFront": true
+  },
+  "builder": {
+   "_": "isometric world-builder (Grovekeep). Place structures on a glade grid from auto-income TIMBER+FOOD; goals are population/stockpile/landmark. WINNABLE-BY-CONSTRUCTION: each level's `plan` (the autopilot build order) must be (a) placeable (in-grid, no overlap with decor/itself), (b) AFFORDABLE under the level's income within timeBudget (simulated: each built structure adds its rates), and (c) GOAL-COVERING (popCap+foodRate support goal.pop; goal.built appears in the plan; goal.timber accumulates within budget).",
+   "gridW": 12,
+   "gridH": 7,
+   "timeBudgetS": 90,
+   "popFoodNeed": 0.25,
+   "structs": {
+    "hut": {
+     "cost": {
+      "timber": 18
+     },
+     "gives": {
+      "popCap": 2
+     }
+    },
+    "lumbercamp": {
+     "cost": {
+      "timber": 24
+     },
+     "gives": {
+      "timberRate": 1.6
+     }
+    },
+    "garden": {
+     "cost": {
+      "timber": 20
+     },
+     "gives": {
+      "foodRate": 1.2
+     }
+    },
+    "well": {
+     "cost": {
+      "timber": 14
+     },
+     "gives": {
+      "foodRate": 0.6
+     }
+    },
+    "storehouse": {
+     "cost": {
+      "timber": 30
+     },
+     "gives": {
+      "popCap": 1,
+      "timberRate": 0.4
+     }
+    },
+    "campfire": {
+     "cost": {
+      "timber": 10
+     },
+     "gives": {
+      "popCap": 1
+     }
+    },
+    "shrine": {
+     "cost": {
+      "timber": 60,
+      "food": 30
+     },
+     "gives": {}
+    },
+    "hall": {
+     "cost": {
+      "timber": 90,
+      "food": 40
+     },
+     "gives": {
+      "popCap": 4
+     }
+    },
+    "pine": {
+     "decor": true
+    },
+    "oak": {
+     "decor": true
+    }
+   }
   }
  },
  "thresholds": {

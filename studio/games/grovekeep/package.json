@@ -1,0 +1,15 @@
+{
+  "name": "grovekeep",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "eval": "node eval.mjs",
+    "diag": "node diag.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

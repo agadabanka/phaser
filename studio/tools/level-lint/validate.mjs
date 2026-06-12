@@ -52,6 +52,63 @@ const notes = [];
 let checks = 0, ok = 0;
 const check = (cond, okMsg, failMsg) => { checks++; if (cond) { ok++; if (okMsg) notes.push('ok ' + okMsg); } else notes.push('FAIL ' + failMsg); };
 
+// --------------------------------------------------------------- builder
+// the world-builder's WIN-BY-CONSTRUCTION: the level `plan` must be placeable,
+// affordable under simulated income (built structures add their rates), and
+// cover the goal — all within the time budget. See rules.json "builder"._
+function lintBuilder(L, i) {
+  const tag = `G${i + 1} ${L.name || ''}`.trim();
+  const S = R.structs || {}, GWB = R.gridW || 12, GHB = R.gridH || 7, BUDGET = R.timeBudgetS || 90, NEED = R.popFoodNeed || 0.25;
+  const plan = L.plan || [];
+  check(plan.length > 0, null, `${tag}: no plan (the autopilot needs a build order)`);
+  // placement: in-grid, no overlap with decor or earlier plan steps
+  const occ = new Set();
+  (L.decor || []).forEach((d) => occ.add(d.g[0] + ',' + d.g[1]));
+  let placeOk = true;
+  for (const st of plan) {
+    const known = !!S[st.build]; if (!known) { placeOk = false; notes.push(`FAIL ${tag}: plan builds unknown "${st.build}"`); checks++; continue; }
+    const [gx, gy] = st.g || [];
+    if (!(gx >= 0 && gx < GWB && gy >= 0 && gy < GHB)) { placeOk = false; notes.push(`FAIL ${tag}: plan cell [${gx},${gy}] out of the ${GWB}×${GHB} grid`); checks++; continue; }
+    const kk = gx + ',' + gy;
+    if (occ.has(kk)) { placeOk = false; notes.push(`FAIL ${tag}: plan cell [${gx},${gy}] already occupied`); checks++; continue; }
+    occ.add(kk);
+  }
+  check(placeOk, `${tag}: plan placeable (${plan.length} steps, no overlaps)`, `${tag}: plan has placement conflicts (see above)`);
+  // affordability: simulate the build order under income (+ built structures' rates)
+  let timber = (L.start && L.start.timber) || 0, food = (L.start && L.start.food) || 0;
+  let tr = (L.income && L.income.timber) || 0, fr = (L.income && L.income.food) || 0;
+  let t = 0, affordable = true;
+  for (const st of plan) {
+    const def = S[st.build] || {}, c = def.cost || {};
+    const needT = Math.max(0, (c.timber || 0) - timber), needF = Math.max(0, (c.food || 0) - food);
+    const waitT = needT > 0 ? (tr > 0 ? needT / tr : Infinity) : 0;
+    const waitF = needF > 0 ? (fr > 0 ? needF / fr : Infinity) : 0;
+    const wait = Math.max(waitT, waitF);
+    if (!isFinite(wait)) { affordable = false; notes.push(`FAIL ${tag}: "${st.build}" never affordable (needs ${JSON.stringify(c)}, rates t${tr.toFixed(1)}/f${fr.toFixed(1)})`); checks++; break; }
+    t += wait; timber += tr * wait - (c.timber || 0); food += fr * wait - (c.food || 0);
+    const g = def.gives || {}; tr += g.timberRate || 0; fr += g.foodRate || 0;
+  }
+  check(affordable && t <= BUDGET, `${tag}: plan affordable in ~${t.toFixed(0)}s (budget ${BUDGET}s)`, `${tag}: plan takes ~${t.toFixed(0)}s > ${BUDGET}s budget — raise income or cheapen the plan`);
+  // goal coverage
+  const g = L.goal || {};
+  check(!!(g.pop || g.timber || g.built), null, `${tag}: no goal`);
+  if (g.pop) {
+    let cap = L.startPop != null ? L.startPop : 2, fr2 = (L.income && L.income.food) || 0;
+    for (const st of plan) { const gv = (S[st.build] || {}).gives || {}; cap += gv.popCap || 0; fr2 += gv.foodRate || 0; }
+    check(cap >= g.pop, `${tag}: plan shelters ${cap} ≥ goal ${g.pop}`, `${tag}: popCap after plan ${cap} < goal ${g.pop} — add huts`);
+    check(fr2 >= g.pop * NEED, `${tag}: food rate ${fr2.toFixed(1)} supports ${g.pop} rootlings`, `${tag}: food rate ${fr2.toFixed(1)} < ${(g.pop * NEED).toFixed(1)} needed for pop ${g.pop} — add gardens`);
+    const joins = g.pop - (L.startPop != null ? L.startPop : 2);
+    check(t + joins * (L.popEvery || 4) <= BUDGET, `${tag}: pop goal lands in budget`, `${tag}: builds+joins exceed the ${BUDGET}s budget`);
+  }
+  if (g.built) check(plan.some((s) => s.build === g.built), `${tag}: plan raises the ${g.built}`, `${tag}: goal building "${g.built}" not in the plan`);
+  if (g.timber) {
+    let trFinal = (L.income && L.income.timber) || 0;
+    for (const st of plan) { const gv = (S[st.build] || {}).gives || {}; trFinal += gv.timberRate || 0; }
+    const tNeed = t + Math.max(0, g.timber) / Math.max(0.001, trFinal);
+    check(tNeed <= BUDGET, `${tag}: stockpile ${g.timber} lands in ~${tNeed.toFixed(0)}s`, `${tag}: stockpiling ${g.timber} takes ~${tNeed.toFixed(0)}s > ${BUDGET}s — add lumber camps`);
+  }
+}
+
 // ---------------------------------------------------------------- runner
 function lintRunner(L, i) {
   const tag = `L${i + 1} ${L.name || ''}`.trim();
@@ -186,7 +243,7 @@ function lintRts(L, i) {
     check(leakDmg <= budget, `${tag}: side leaks survivable (${leakDmg} ≤ ${Math.round(budget)} garage budget, ${sideN} scout(s))`, `${tag}: side leaks chip ${leakDmg} > ${Math.round(budget)} garage budget — widen garageTurret.dmg, fewer side scouts, or more garageHp`);
   }
 }
-LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : (archetype === 'rts' || archetype === 'isorts') ? lintRts(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
+LEVELS.forEach((L, i) => (archetype === 'shooter' ? lintShooter(L, i) : (archetype === 'rts' || archetype === 'isorts') ? lintRts(L, i) : archetype === 'builder' ? lintBuilder(L, i) : archetype === 'vertical' ? lintVertical(L, i) : lintRunner(L, i)));
 
 const pass = ok === checks;
 const score = +(100 * (checks ? ok / checks : 0)).toFixed(1);
