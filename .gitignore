@@ -12,6 +12,8 @@ Thumbs.db
 node_modules/
 
 # Build
+# recorded gameplay clips are build artifacts (uploaded to YouTube), not source
+studio/games/*/video/*.webm
 test-gen-logs/
 test-fix-logs/
 /npm-debug.log
