@@ -1,6 +1,6 @@
 {
  "project": "Studio — a Phaser 4 game studio you can orchestrate",
- "generated": "2026-06-11",
+ "generated": "2026-06-12",
  "tiers": [
   {
    "id": "foundations",
@@ -949,6 +949,33 @@
     "tools/eval/issues.mjs"
    ],
    "commit": null
+  },
+  {
+   "id": "e40",
+   "date": "2026-06-12",
+   "phase": "Archetype",
+   "title": "Fifth genre: the world-builder (Studio.Builder + Studio.UI + pixelize) — Grovekeep, shipped",
+   "what": "A new isometric WORLD-BUILDER, pixel-art, forest-themed — and three engine investments it funded. (1) Studio.UI: the engine's first real UI KIT — canvas-native, pixel-friendly, themed: panels, buttons, BUILD-PALETTE CARDS (icon+cost+affordability greying+selection), ANIMATED RESOURCE BARS, follow-pointer tooltip. (2) Studio.Builder: the 5th archetype on Studio.Iso — a glade grid, placement ghost (validity tint), a deterministic timber/food economy, food-gated population growth, per-glade goals (population/stockpile/landmark), a 20-character ROSTER panel, and a PLAN-driven autopilot. Win-by-construction for a builder = the plan: placeable + affordable (simulated compounding income) + goal-covering — the `builder` rules block, linted statically (29/29) then replayed by the gate (deterministic, frame-identical 10100, webgl+canvas). (3) pixelize: Phaser's Pixel Studio proved to be an interactive web app with no headless API, so the engine got its own pixel-art post-processor (coarse-grid downscale → palette posterize → hard alpha → NN upscale) — all 36 Gemini renders (20 NAMED CHARACTERS, 10 structures, 5 glade backdrops, the wordmark) pass through it for one cohesive 16-bit look. Grovekeep: 5 glades, 5 Lyria woodland themes (per-level ✓), repo private via publish, deployed once via CLI then GitHub-connected, hub-registered (the 10th game). Engine CI: all 6 games green.",
+   "why": "The ask was a new iso world-builder with GREAT UI backported to the engine and 20 pixel characters. Each demand became a permanent building block: the UI kit (every future game's HUD), the Builder archetype (a 5th proof the engine is an engine), and pixelize (a whole art STYLE the pipeline can now do on demand). The win-by-construction idea also generalized again — geometry (platformer), curtains (shooter), economics (RTS), and now PLANS (builder).",
+   "systems": [
+    "game-runtime",
+    "iso",
+    "design-lens",
+    "rules",
+    "lyria",
+    "hub",
+    "shell"
+   ],
+   "validator": "gate det frame-identical 10100 webgl+canvas; builder lint 29/29; per-level music 5/5; engine CI 6/6 green",
+   "status": "shipped",
+   "artifacts": [
+    "sdk/studio.js (Studio.UI, Studio.Builder)",
+    "tools/art/pixelize.mjs",
+    "games/grovekeep/",
+    "https://github.com/agadabanka/grovekeep",
+    "https://grovekeep-production.up.railway.app"
+   ],
+   "commit": null
   }
  ],
  "graph": {
@@ -1555,6 +1582,38 @@
     "tier": "evaluation",
     "validator": "5/5 games green",
     "desc": "The regression ratchet: re-vendors the current SDK into every game and gates them all on each SDK change. The engine defends itself."
+   },
+   {
+    "id": "ui-kit",
+    "kind": "sdk",
+    "label": "Studio.UI",
+    "tier": "engine",
+    "validator": null,
+    "desc": "The engine's UI kit: canvas-native panels/buttons/cards/animated bars/tooltips, pixel-friendly + themed. Born in Grovekeep, reusable by every archetype."
+   },
+   {
+    "id": "builder",
+    "kind": "sdk",
+    "label": "Studio.Builder",
+    "tier": "engine",
+    "validator": null,
+    "desc": "The world-builder archetype (5th genre): glade grid on Studio.Iso, placement, economy, population, goals, plan-driven autopilot."
+   },
+   {
+    "id": "pixelize",
+    "kind": "tool",
+    "label": "Pixelize",
+    "tier": "content",
+    "validator": null,
+    "desc": "Pixel-art post-processor (coarse grid + palette posterize + NN upscale) — turns any render into cohesive 16-bit art. Built because Phaser's Pixel Studio has no headless API."
+   },
+   {
+    "id": "grovekeep",
+    "kind": "game",
+    "label": "Grovekeep",
+    "tier": "games",
+    "validator": "gate det 10100 + builder lint 29/29",
+    "desc": "Pixel-art forest world-builder — 20 named rootlings, 5 glades, the Studio.UI showcase."
    }
   ],
   "edges": [
@@ -2393,6 +2452,66 @@
     "from": "roadwar-iso",
     "to": "engine-ci",
     "rel": "validated-by"
+   },
+   {
+    "from": "builder",
+    "to": "iso",
+    "rel": "builds-on"
+   },
+   {
+    "from": "builder",
+    "to": "ui-kit",
+    "rel": "builds-on"
+   },
+   {
+    "from": "builder",
+    "to": "sdk",
+    "rel": "builds-on"
+   },
+   {
+    "from": "ui-kit",
+    "to": "sdk",
+    "rel": "builds-on"
+   },
+   {
+    "from": "grovekeep",
+    "to": "builder",
+    "rel": "depends-on"
+   },
+   {
+    "from": "grovekeep",
+    "to": "gate",
+    "rel": "validated-by"
+   },
+   {
+    "from": "grovekeep",
+    "to": "rules",
+    "rel": "validated-by"
+   },
+   {
+    "from": "grovekeep",
+    "to": "lyria",
+    "rel": "feeds"
+   },
+   {
+    "from": "grovekeep",
+    "to": "hub",
+    "rel": "feeds"
+   },
+   {
+    "from": "grovekeep",
+    "to": "railway",
+    "rel": "produces"
+   },
+   {
+    "from": "pixelize",
+    "to": "art",
+    "rel": "builds-on"
+   },
+   {
+    "from": "grovekeep",
+    "to": "pixelize",
+    "rel": "depends-on"
    }
   ]
  },

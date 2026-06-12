@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**39 entries** across 20 phases · **77 systems** · **167 edges** in the graph.
+**40 entries** across 20 phases · **81 systems** · **179 edges** in the graph.
 
 ---
 
@@ -329,6 +329,15 @@
 - **Validator:** gate GREEN webgl+canvas frame-identical (9801, 0 deaths, all 5 grounds, boss fought); level-lint rts 100% (accumulation + side-leak); FUN 86.3 (bar 80) via design-lens; deployed live
 - **Artifacts:** `games/roadwar/`, `https://github.com/agadabanka/roadwar`, `https://roadwar-production.up.railway.app`, `tools/design-lens/`
 
+### Fifth genre: the world-builder (Studio.Builder + Studio.UI + pixelize) — Grovekeep, shipped
+`2026-06-12` · 🚀 shipped
+
+- **What:** A new isometric WORLD-BUILDER, pixel-art, forest-themed — and three engine investments it funded. (1) Studio.UI: the engine's first real UI KIT — canvas-native, pixel-friendly, themed: panels, buttons, BUILD-PALETTE CARDS (icon+cost+affordability greying+selection), ANIMATED RESOURCE BARS, follow-pointer tooltip. (2) Studio.Builder: the 5th archetype on Studio.Iso — a glade grid, placement ghost (validity tint), a deterministic timber/food economy, food-gated population growth, per-glade goals (population/stockpile/landmark), a 20-character ROSTER panel, and a PLAN-driven autopilot. Win-by-construction for a builder = the plan: placeable + affordable (simulated compounding income) + goal-covering — the `builder` rules block, linted statically (29/29) then replayed by the gate (deterministic, frame-identical 10100, webgl+canvas). (3) pixelize: Phaser's Pixel Studio proved to be an interactive web app with no headless API, so the engine got its own pixel-art post-processor (coarse-grid downscale → palette posterize → hard alpha → NN upscale) — all 36 Gemini renders (20 NAMED CHARACTERS, 10 structures, 5 glade backdrops, the wordmark) pass through it for one cohesive 16-bit look. Grovekeep: 5 glades, 5 Lyria woodland themes (per-level ✓), repo private via publish, deployed once via CLI then GitHub-connected, hub-registered (the 10th game). Engine CI: all 6 games green.
+- **Why:** The ask was a new iso world-builder with GREAT UI backported to the engine and 20 pixel characters. Each demand became a permanent building block: the UI kit (every future game's HUD), the Builder archetype (a 5th proof the engine is an engine), and pixelize (a whole art STYLE the pipeline can now do on demand). The win-by-construction idea also generalized again — geometry (platformer), curtains (shooter), economics (RTS), and now PLANS (builder).
+- **Systems:** Studio.Game.boot, Studio.Iso, Design Lens, rules.json + level-lint, Lyria Music (Vertex), game-engine hub, Playtest Shell
+- **Validator:** gate det frame-identical 10100 webgl+canvas; builder lint 29/29; per-level music 5/5; engine CI 6/6 green
+- **Artifacts:** `sdk/studio.js (Studio.UI, Studio.Builder)`, `tools/art/pixelize.mjs`, `games/grovekeep/`, `https://github.com/agadabanka/grovekeep`, `https://grovekeep-production.up.railway.app`
+
 ## Engine
 
 ### Engine polish pass: economy, per-level music, richer juice/props, composite FUN — and the hub unstuck
@@ -502,6 +511,8 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Studio.Iso** | sdk | — | Reusable perspective-iso projector: lx+depth → screen with perspective scale + depth-sort. The building block behind any isometric game. |
 | **Studio.IsoRTS** | sdk | — | Isometric continuous-front RTS archetype (built on Studio.Iso); reuses the RTS economy/combat/win-by-construction with lane→lx band. |
 | **rtsPressure** | sdk | — | Difficulty→flank-pressure model (Studio.rtsPressure + pressure.mjs mirror): the engine's systematic tension knob. |
+| **Studio.UI** | sdk | — | The engine's UI kit: canvas-native panels/buttons/cards/animated bars/tooltips, pixel-friendly + themed. Born in Grovekeep, reusable by every archetype. |
+| **Studio.Builder** | sdk | — | The world-builder archetype (5th genre): glade grid on Studio.Iso, placement, economy, population, goals, plan-driven autopilot. |
 
 ### 4. Content
 
@@ -519,6 +530,7 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Lyria Music (Vertex)** | tool | music | tools/art/lyria.mjs — generates a real instrumental loop with Google Lyria 2 (Vertex AI), downmixes + crossfade-loops + MP3-encodes, writes a measured sidecar so the music validator can prove it is non-silent. |
 | **sky level-gen** | tool | — | tools/level-gen/sky.mjs — generates vertical towers reachable-by-construction (staggered lanes, centre-column updrafts, storm framing). |
 | **logo + menu-shots** | tool | — | tools/art/logo.mjs (Gemini wordmark per game, keyed) + tools/menu-shots (screenshots every level via __game.gotoLevel into zone cards that can never drift). |
+| **Pixelize** | tool | — | Pixel-art post-processor (coarse grid + palette posterize + NN upscale) — turns any render into cohesive 16-bit art. Built because Phaser's Pixel Studio has no headless API. |
 
 ### 5. Evaluation
 

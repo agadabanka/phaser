@@ -25,21 +25,22 @@
   "builder": "/",
   "designLens": "/",
   "scaffolded_from": "agadabanka/phaser-private",
-  "url": "https://studio-phaser4-demo-production.up.railway.app",
-  "gate": "0-death pass (webgl + canvas)",
+  "url": "https://grovekeep-production.up.railway.app",
+  "gate": "plan-complete pass (webgl+canvas, det)",
   "stages": {
     "scaffold": true,
     "identity": true,
     "levels": true,
-    "gate": false,
-    "feel": false,
-    "hero": false,
-    "art": false,
-    "music": false,
-    "deploy": false,
-    "videos": false,
-    "book": false,
-    "loop": false
+    "gate": true,
+    "feel": true,
+    "hero": true,
+    "art": true,
+    "music": true,
+    "deploy": true,
+    "videos": true,
+    "book": true,
+    "loop": true,
+    "repo": true
   },
   "slug": "grovekeep",
   "repo": "agadabanka/grovekeep",
@@ -47,5 +48,13 @@
   "railway": {
     "projectId": "6b4ba87c-0bd1-4f87-a674-eb51e4010bfd",
     "serviceId": "c2756c8e-9331-4353-84e7-897278d329bd"
+  },
+  "scorecard": {
+    "date": "2026-06-12",
+    "gate": "deterministic win, frame-identical 10100, webgl+canvas",
+    "lint": "builder contract 29/29",
+    "characters": 20,
+    "perLevelMusic": "5/5",
+    "ui": "Studio.UI kit (palette/cards/bars/tooltip/roster)"
   }
 }
