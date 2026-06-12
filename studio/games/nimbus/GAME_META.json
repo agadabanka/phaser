@@ -1,6 +1,6 @@
 {
   "name": "Nimbus Climb",
-  "tagline": "Ride the updrafts, dodge the storms \u2014 climb the sky to the Sun Bell.",
+  "tagline": "Ride the updrafts, dodge the storms — climb the sky to the Sun Bell.",
   "hero": "Nimbi",
   "verb": "climb, float updrafts & time the gusts",
   "worlds": 1,
@@ -36,12 +36,22 @@
     "hero": true,
     "art": true,
     "music": true,
-    "deploy": true
+    "deploy": true,
+    "videos": "done"
   },
   "archetype": "vertical",
   "repo": "agadabanka/nimbus-climb",
   "railway": {
     "projectId": "(nimbus-climb)",
     "serviceId": "f8281192-f054-4568-8b9a-3302381c3a16"
-  }
+  },
+  "videos": {
+    "nimbus-climb-level-1-foothill-puffs": "https://youtu.be/RyGPmfvL6xM",
+    "nimbus-climb-level-2-whisperdraft": "https://youtu.be/eIkE4ebbJzg",
+    "nimbus-climb-level-3-mistspire": "https://youtu.be/ERdSn9p8IKo",
+    "nimbus-climb-level-4-stormshelf-pass": "https://youtu.be/9WbwEHGXhFs",
+    "nimbus-climb-level-5-the-sun-bell": "https://youtu.be/IDlY5jxMKbo",
+    "nimbus-climb-montage": "https://youtu.be/c3bcV58B6Pw"
+  },
+  "playlist": "https://www.youtube.com/watch_videos?video_ids=RyGPmfvL6xM,eIkE4ebbJzg,ERdSn9p8IKo,9WbwEHGXhFs,IDlY5jxMKbo,c3bcV58B6Pw"
 }

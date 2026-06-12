@@ -2,12 +2,12 @@
   "name": "Starlance",
   "tagline": "Climb the five veils of the nebula to the Hollow Star.",
   "hero": "a lone crystalline interceptor",
-  "verb": "fly \u00b7 dodge \u00b7 blast",
+  "verb": "fly · dodge · blast",
   "worlds": 1,
   "levelCount": 5,
-  "controls": "\u2190 \u2192 move \u00b7 auto-fire (joystick on touch)",
+  "controls": "← → move · auto-fire (joystick on touch)",
   "art": "painterly synthwave space (Gemini)",
-  "music": "Lyria \u2014 a drive per veil",
+  "music": "Lyria — a drive per veil",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",
@@ -33,7 +33,8 @@
     "hero": true,
     "art": true,
     "music": true,
-    "deploy": true
+    "deploy": true,
+    "videos": "done"
   },
   "slug": "starlance",
   "repo": "agadabanka/starlance",
@@ -44,5 +45,14 @@
   "railway": {
     "projectId": "6afbdbdc-b795-4a12-907a-ea418565a80f",
     "serviceId": "3c8748f8-915a-415a-874c-0e0d74245de4"
-  }
+  },
+  "videos": {
+    "starlance-level-1-rose-veil": "https://youtu.be/ditCJU2SK_w",
+    "starlance-level-2-ion-veil": "https://youtu.be/DavGA85cW34",
+    "starlance-level-3-storm-veil": "https://youtu.be/D5C76n7PZ0U",
+    "starlance-level-4-void-rift": "https://youtu.be/jeOD3iRjJQE",
+    "starlance-level-5-the-hollow-star": "https://youtu.be/EwNE5z_umrY",
+    "starlance-montage": "https://youtu.be/AlXweJtR7vI"
+  },
+  "playlist": "https://www.youtube.com/watch_videos?video_ids=ditCJU2SK_w,DavGA85cW34,D5C76n7PZ0U,jeOD3iRjJQE,EwNE5z_umrY,AlXweJtR7vI"
 }

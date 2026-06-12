@@ -1,13 +1,13 @@
 {
   "name": "Roadwar Iso",
-  "tagline": "Build your convoy, crush the warlord \u2014 an isometric 2.5D car RTS.",
+  "tagline": "Build your convoy, crush the warlord — an isometric 2.5D car RTS.",
   "hero": "a convoy of toon battle-cars, in iso",
-  "verb": "deploy \u00b7 rally \u00b7 ram",
+  "verb": "deploy · rally · ram",
   "worlds": 1,
   "levelCount": 5,
-  "controls": "click the field to deploy \u00b7 1/2/3 pick a car \u00b7 4 refinery",
+  "controls": "click the field to deploy · 1/2/3 pick a car · 4 refinery",
   "art": "toon cel-shaded ISOMETRIC top-down cars (Gemini)",
-  "music": "Lyria \u2014 a battle anthem per ground",
+  "music": "Lyria — a battle anthem per ground",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",
@@ -36,7 +36,8 @@
     "art": true,
     "music": true,
     "deploy": true,
-    "repo": true
+    "repo": true,
+    "videos": "done"
   },
   "menu": {
     "logo": "assets/menu/logo.png"
@@ -61,5 +62,14 @@
   "railway": {
     "projectId": "d569a498-60a3-47b7-8534-13b028d8d01c",
     "serviceId": "9ef68802-ddb1-4dcc-9343-db058a319100"
-  }
+  },
+  "videos": {
+    "roadwar-iso-level-1-desert-highway": "https://youtu.be/_CyMZe83zZA",
+    "roadwar-iso-level-2-the-junkyard": "https://youtu.be/sALebSTPzYk",
+    "roadwar-iso-level-3-neon-strip": "https://youtu.be/cX_vWgCyCNc",
+    "roadwar-iso-level-4-red-canyon": "https://youtu.be/vWLXQ0hWmVo",
+    "roadwar-iso-level-5-warlord-s-gate": "https://youtu.be/nRXke_tQ3Ro",
+    "roadwar-iso-montage": "https://youtu.be/Jr7B_5JUVGE"
+  },
+  "playlist": "https://www.youtube.com/watch_videos?video_ids=_CyMZe83zZA,sALebSTPzYk,cX_vWgCyCNc,vWLXQ0hWmVo,nRXke_tQ3Ro,Jr7B_5JUVGE"
 }

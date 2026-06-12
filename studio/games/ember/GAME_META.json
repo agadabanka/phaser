@@ -1,6 +1,6 @@
 {
   "name": "Ember Depths",
-  "tagline": "Hop the lava, ride the embers \u2014 descend the molten cave.",
+  "tagline": "Hop the lava, ride the embers — descend the molten cave.",
   "hero": "Ember",
   "verb": "run, hop lava & stomp",
   "worlds": 1,
@@ -35,7 +35,7 @@
     "art": true,
     "music": true,
     "deploy": true,
-    "videos": false,
+    "videos": "done",
     "book": false,
     "loop": false
   },
@@ -53,5 +53,14 @@
   "railway": {
     "projectId": "dc9f565e-8c86-4e17-b37a-135023c9865c",
     "serviceId": "27e8608c-6a49-4af2-bafc-427935bf4d00"
-  }
+  },
+  "videos": {
+    "ember-depths-level-1-molten-shallows": "https://youtu.be/tajJ6XQn0zs",
+    "ember-depths-level-2-the-caldera": "https://youtu.be/k-0QG6ic8Ww",
+    "ember-depths-level-3-ember-vents": "https://youtu.be/peK25DEd0nk",
+    "ember-depths-level-4-magma-run": "https://youtu.be/wAFudHu-bOQ",
+    "ember-depths-level-5-the-core": "https://youtu.be/IBqHMC0_zxE",
+    "ember-depths-montage": "https://youtu.be/0tr6NyryrS0"
+  },
+  "playlist": "https://www.youtube.com/watch_videos?video_ids=tajJ6XQn0zs,k-0QG6ic8Ww,peK25DEd0nk,wAFudHu-bOQ,IBqHMC0_zxE,0tr6NyryrS0"
 }

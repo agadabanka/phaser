@@ -1,13 +1,13 @@
 {
   "name": "Roadwar",
-  "tagline": "Build your convoy, crush the warlord \u2014 a toon car RTS across five battlegrounds.",
+  "tagline": "Build your convoy, crush the warlord — a toon car RTS across five battlegrounds.",
   "hero": "a convoy of toon battle-cars",
-  "verb": "build \u00b7 rally \u00b7 ram",
+  "verb": "build · rally · ram",
   "worlds": 1,
   "levelCount": 5,
-  "controls": "click a lane \u00b7 build cars (1/2/3) \u00b7 auto-rally (joystick n/a)",
+  "controls": "click a lane · build cars (1/2/3) · auto-rally (joystick n/a)",
   "art": "toon cel-shaded top-down cars (Gemini)",
-  "music": "Lyria \u2014 a battle anthem per ground",
+  "music": "Lyria — a battle anthem per ground",
   "engine": "studio-phaser4",
   "renderer": "webgl-canvas",
   "phaserVersion": "4.1.0",
@@ -30,7 +30,7 @@
     "lint": "rts contract 100%",
     "fun": 86.3,
     "funBar": 80,
-    "intensity": "escalates 9\u219245 to a boss finale"
+    "intensity": "escalates 9→45 to a boss finale"
   },
   "stages": {
     "scaffold": true,
@@ -42,7 +42,8 @@
     "art": true,
     "music": true,
     "deploy": true,
-    "repo": true
+    "repo": true,
+    "videos": "done"
   },
   "menu": {
     "logo": "assets/menu/logo.png"
@@ -54,5 +55,14 @@
     "projectId": "6b7d383d-40e8-4755-9d31-b42cf675dcd1",
     "serviceId": "87c6b1d3-a5f2-4439-a336-1ef9874999b5",
     "environmentId": "f3825f84-3b8a-4797-94c1-54b4ce5e60a3"
-  }
+  },
+  "videos": {
+    "roadwar-level-1-desert-highway": "https://youtu.be/FDKEn3ELSlU",
+    "roadwar-level-2-the-junkyard": "https://youtu.be/rhdssFpH8_o",
+    "roadwar-level-3-neon-strip": "https://youtu.be/ICYwWUnR7rs",
+    "roadwar-level-4-red-canyon": "https://youtu.be/1o6fEPKDPr0",
+    "roadwar-level-5-warlord-s-gate": "https://youtu.be/oIBlCCtgBck",
+    "roadwar-montage": "https://youtu.be/p_tEOLN24xw"
+  },
+  "playlist": "https://www.youtube.com/watch_videos?video_ids=FDKEn3ELSlU,rhdssFpH8_o,ICYwWUnR7rs,1o6fEPKDPr0,oIBlCCtgBck,p_tEOLN24xw"
 }
