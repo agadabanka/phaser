@@ -40,21 +40,33 @@ const SIZE = { width: 960, height: 540 }, sleep = (ms) => new Promise((r) => set
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 // GENERIC AUDIO CAPTURE — Playwright's recordVideo is video-ONLY, so the clips
-// came out silent (no music). Instead we tap the game's WebAudio: this init
-// script (runs before any page script) wraps AudioContext so that whenever a
-// node connects to the real `destination`, we also mirror it into a
-// MediaStreamDestination. That tap's stream is the game's full mix (music + SFX)
-// — captured generically, with no SDK change and no ffmpeg.
+// came out silent. This init script (runs before any page script) captures the
+// game's FULL mix with no SDK change and no ffmpeg:
+//   1. AudioContext is forced to a single SHARED instance, and every node that
+//      connects to `destination` is mirrored into a MediaStreamDestination (the
+//      tap) — that captures all WebAudio (SFX, procedural).
+//   2. MUSIC is the catch: the SDK plays mp3 music via `new Audio()`, an
+//      HTMLMediaElement that BYPASSES WebAudio. So on play() we route each media
+//      element through the shared context → destination (same-origin, no taint),
+//      where the mirror above taps it. That's why the music is finally recorded.
 function audioTapInit() {
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   window.__audioCtxs = []; window.__audioTaps = [];
-  const wrap = new Proxy(AC, { construct(T, a) { const c = new T(...a); window.__audioCtxs.push(c); return c; } });
+  let shared = null;
+  const wrap = new Proxy(AC, { construct(T, a) { if (!shared) { shared = new T(...a); window.__audioCtxs.push(shared); } return shared; } });
   window.AudioContext = wrap; if (window.webkitAudioContext) window.webkitAudioContext = wrap;
   const oc = AudioNode.prototype.connect;
   AudioNode.prototype.connect = function (dest) {
     const r = oc.apply(this, arguments);
     try { if (dest === this.context.destination) { if (!this.context.__tap) { this.context.__tap = this.context.createMediaStreamDestination(); window.__audioTaps.push(this.context.__tap); } oc.call(this, this.context.__tap); } } catch (e) {}
     return r;
+  };
+  const ctx = () => { if (!shared) { shared = new wrap(); } return shared; };
+  const routed = new WeakSet();
+  const play = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function () {
+    try { if (!routed.has(this)) { routed.add(this); const c = ctx(); c.createMediaElementSource(this).connect(c.destination); } } catch (e) {}
+    return play.apply(this, arguments);
   };
   window.__resumeAudio = () => { for (const c of window.__audioCtxs) { try { c.resume(); } catch (e) {} } };
   window.__getAudioTracks = () => { const t = []; for (const d of window.__audioTaps) for (const tr of d.stream.getAudioTracks()) t.push(tr); return t; };
