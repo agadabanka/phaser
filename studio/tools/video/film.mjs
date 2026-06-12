@@ -76,5 +76,14 @@ console.log(`🎬 recorded ${N + 1} clips → ${path.relative(STUDIO, OUT)}`);
 
 if (DO_UPLOAD) {
   console.log('\n— uploading to YouTube —');
-  await uploadDir(OUT, { game: NAME, live: meta.url, tagsExtra: [meta.archetype, 'pixel art'].filter(Boolean) });
+  const ids = await uploadDir(OUT, { game: NAME, live: meta.url, tagsExtra: [meta.archetype, 'pixel art'].filter(Boolean) });
+  // report it: write the links into GAME_META.videos + mark the `videos` stage done,
+  // so /api/meta carries it and the hub can light up the stage + show the clips.
+  if (ids && Object.keys(ids).length) {
+    const mp = path.join(GAME, 'GAME_META.json'), m = JSON.parse(fs.readFileSync(mp, 'utf8'));
+    m.videos = Object.fromEntries(Object.entries(ids).map(([k, v]) => [k, 'https://youtu.be/' + v]));
+    m.stages = Object.assign({}, m.stages, { videos: 'done' });
+    fs.writeFileSync(mp, JSON.stringify(m, null, 2) + '\n');
+    console.log('  ✔ GAME_META.videos written + stage marked (the hub will surface these)');
+  }
 }

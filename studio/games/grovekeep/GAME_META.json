@@ -37,7 +37,7 @@
     "art": true,
     "music": true,
     "deploy": true,
-    "videos": true,
+    "videos": "done",
     "book": true,
     "loop": true,
     "repo": true
@@ -56,5 +56,13 @@
     "characters": 20,
     "perLevelMusic": "5/5",
     "ui": "Studio.UI kit (palette/cards/bars/tooltip/roster)"
+  },
+  "videos": {
+    "glade-1-dawn-meadow": "https://youtu.be/PoRmjgmMY1c",
+    "glade-2-fern-hollow": "https://youtu.be/Wjwj_G58o0I",
+    "glade-3-riverbend": "https://youtu.be/E5-31mUthZE",
+    "glade-4-mushroom-dell": "https://youtu.be/O_RHuuU_54g",
+    "glade-5-ancient-heartwood": "https://youtu.be/aEJzBvAmoS8",
+    "grovekeep-montage": "https://youtu.be/VtlZJxkGI0g"
   }
 }
