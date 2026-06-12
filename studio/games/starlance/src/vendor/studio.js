@@ -1109,6 +1109,101 @@
     }
   };
 
+  // ----------------------------------------------------------------------- UI
+  // The engine's UI KIT — canvas-native (scales with the game, no DOM), pixel-
+  // friendly chunky styling, themed by tokens. Born for the world-builder's
+  // build-palette/resource HUD and reusable by every archetype:
+  //   panel  · a bordered backdrop block        button · hover/press/disabled
+  //   card   · icon+label+cost, selectable      bar    · icon + animated counter
+  //   tooltip· singleton hover hint
+  // All objects are plain Phaser nodes in a container — destroy() cleans up.
+  Studio.UI = {
+    theme: function (t) {
+      return Object.assign({ bg: 0x1c2616, bgA: 0.92, border: 0x6fae4e, border2: 0x2e4420, text: '#e8f4d8', sub: '#a8c890', accent: 0xffd166, bad: 0xd64a4a, font: 'Georgia, "Times New Roman", serif' }, t || {});
+    },
+    panel: function (scene, x, y, w, h, opt) {
+      opt = opt || {}; var th = this.theme(opt.theme);
+      var c = scene.add.container(x, y).setDepth(opt.depth != null ? opt.depth : 300);
+      var sh = scene.add.rectangle(3, 4, w, h, 0x000000, 0.35).setOrigin(0);            // chunky drop shadow
+      var bgR = scene.add.rectangle(0, 0, w, h, th.bg, opt.alpha != null ? opt.alpha : th.bgA).setOrigin(0).setStrokeStyle(2, th.border, 1);
+      var inner = scene.add.rectangle(3, 3, w - 6, h - 6, 0x000000, 0).setOrigin(0).setStrokeStyle(1, th.border2, 1);
+      c.add([sh, bgR, inner]);
+      if (opt.title) c.add(scene.add.text(10, 7, opt.title, { fontFamily: th.font, fontSize: '14px', color: th.text, fontStyle: 'bold' }));
+      c._bg = bgR; c._w = w; c._h = h; return c;
+    },
+    button: function (scene, x, y, w, h, label, opt) {
+      opt = opt || {}; var th = this.theme(opt.theme);
+      var c = scene.add.container(x, y).setDepth(opt.depth != null ? opt.depth : 301);
+      var bgR = scene.add.rectangle(0, 0, w, h, opt.primary ? th.accent : th.bg, 1).setOrigin(0).setStrokeStyle(2, opt.primary ? 0xffffff : th.border, 1);
+      var tx = scene.add.text(w / 2, h / 2, label, { fontFamily: th.font, fontSize: (opt.size || 13) + 'px', color: opt.primary ? '#332200' : th.text }).setOrigin(0.5);
+      c.add([bgR, tx]); c._bg = bgR; c._tx = tx;
+      bgR.setInteractive({ useHandCursor: true });
+      bgR.on('pointerover', function () { if (!c._disabled) bgR.setFillStyle(opt.primary ? 0xffe49a : 0x2a3a20, 1); });
+      bgR.on('pointerout', function () { bgR.setFillStyle(opt.primary ? th.accent : th.bg, 1); c.setScale(1); });
+      bgR.on('pointerdown', function () { if (!c._disabled) c.setScale(0.97); });
+      bgR.on('pointerup', function () { c.setScale(1); if (!c._disabled && opt.onClick) opt.onClick(); });
+      c.setDisabled = function (d) { c._disabled = d; c.setAlpha(d ? 0.45 : 1); };
+      return c;
+    },
+    // a BUILD CARD: icon + name + cost; select() highlights; setAffordable() greys.
+    card: function (scene, x, y, opt) {
+      opt = opt || {}; var th = this.theme(opt.theme), w = opt.w || 86, h = opt.h || 96;
+      var c = scene.add.container(x, y).setDepth(opt.depth != null ? opt.depth : 301);
+      var bgR = scene.add.rectangle(0, 0, w, h, th.bg, 0.94).setOrigin(0).setStrokeStyle(2, th.border, 1);
+      c.add(bgR);
+      var icon = null;
+      if (opt.icon && scene.textures.exists(opt.icon)) {
+        icon = scene.add.image(w / 2, 34, opt.icon);
+        var k = Math.min(56 / icon.width, 44 / icon.height); icon.setScale(k);
+        c.add(icon);
+      }
+      var name = scene.add.text(w / 2, 62, opt.label || '?', { fontFamily: th.font, fontSize: '11px', color: th.text, align: 'center', wordWrap: { width: w - 8 } }).setOrigin(0.5, 0);
+      var cost = scene.add.text(w / 2, h - 14, opt.cost || '', { fontFamily: th.font, fontSize: '11px', color: th.sub }).setOrigin(0.5);
+      c.add([name, cost]);
+      bgR.setInteractive({ useHandCursor: true });
+      bgR.on('pointerover', function () { if (!c._off) bgR.setStrokeStyle(2, th.accent, 1); if (opt.onHover) opt.onHover(true, c); });
+      bgR.on('pointerout', function () { if (!c._sel) bgR.setStrokeStyle(2, th.border, 1); if (opt.onHover) opt.onHover(false, c); });
+      bgR.on('pointerup', function () { if (!c._off && opt.onClick) opt.onClick(c); });
+      c.select = function (on) { c._sel = on; bgR.setStrokeStyle(on ? 3 : 2, on ? th.accent : th.border, 1); bgR.setFillStyle(on ? 0x2a3a20 : th.bg, 0.94); c.y = y - (on ? 6 : 0); };
+      c.setAffordable = function (ok) { c._off = !ok; c.setAlpha(ok ? 1 : 0.45); };
+      c._bg = bgR; return c;
+    },
+    // a RESOURCE BAR item: icon + label + an animated count (tweens to the target).
+    bar: function (scene, x, y, opt) {
+      opt = opt || {}; var th = this.theme(opt.theme);
+      var c = scene.add.container(x, y).setDepth(opt.depth != null ? opt.depth : 302);
+      var bgR = scene.add.rectangle(0, 0, opt.w || 118, 30, th.bg, 0.9).setOrigin(0).setStrokeStyle(2, th.border, 1);
+      c.add(bgR);
+      var ixOff = 16;
+      if (opt.icon && scene.textures.exists(opt.icon)) { var ic = scene.add.image(16, 15, opt.icon); ic.setScale(Math.min(22 / ic.width, 22 / ic.height)); c.add(ic); ixOff = 30; }
+      else if (opt.emoji) { c.add(scene.add.text(8, 6, opt.emoji, { fontSize: '16px' })); ixOff = 30; }
+      var tx = scene.add.text(ixOff, 15, '0', { fontFamily: th.font, fontSize: '14px', color: th.text, fontStyle: 'bold' }).setOrigin(0, 0.5);
+      var lb = opt.label ? scene.add.text((opt.w || 118) - 8, 15, opt.label, { fontFamily: th.font, fontSize: '10px', color: th.sub }).setOrigin(1, 0.5) : null;
+      if (lb) c.add(lb);
+      c.add(tx); c._shown = 0; c._target = 0;
+      c.set = function (v, suffix) {
+        c._target = v;
+        scene.tweens.addCounter({ from: c._shown, to: v, duration: 260, onUpdate: function (tw) { c._shown = tw.getValue(); tx.setText(Math.round(c._shown) + (suffix || '')); }, onComplete: function () { c._shown = v; } });
+      };
+      c.flash = function (bad) { scene.tweens.add({ targets: c, scale: 1.08, yoyo: true, duration: 90 }); bgR.setStrokeStyle(2, bad ? th.bad : th.accent, 1); scene.time.delayedCall(300, function () { bgR.setStrokeStyle(2, th.border, 1); }); };
+      return c;
+    },
+    // singleton tooltip that follows the pointer.
+    tooltip: function (scene, opt) {
+      var th = this.theme(opt && opt.theme);
+      var c = scene.add.container(0, 0).setDepth(500).setVisible(false);
+      var bgR = scene.add.rectangle(0, 0, 10, 10, 0x10160c, 0.96).setOrigin(0).setStrokeStyle(1, th.border, 1);
+      var tx = scene.add.text(6, 4, '', { fontFamily: th.font, fontSize: '11px', color: th.text, wordWrap: { width: 190 } });
+      c.add([bgR, tx]);
+      scene.input.on('pointermove', function (p) { if (c.visible) c.setPosition(Math.min(p.x + 12, scene.scale.width - bgR.width - 4), Math.min(p.y + 14, scene.scale.height - bgR.height - 4)); });
+      return {
+        show: function (text, p) { tx.setText(text); bgR.setSize(tx.width + 12, tx.height + 8); if (p) c.setPosition(p.x + 12, p.y + 14); c.setVisible(true); },
+        hide: function () { c.setVisible(false); },
+        destroy: function () { try { c.destroy(); } catch (e) {} }
+      };
+    }
+  };
+
   // ------------------------------------------------------------------- Shell
   // The PLAYTEST SHELL — the hub-convention front end every Studio game host
   // already serves an API for (server.js: /api/notes, /api/meta). A DOM overlay
@@ -1322,6 +1417,7 @@
       if (cfg.archetype === 'shooter') return Studio.Shooter.boot(cfg);   // a different game loop entirely
       if (cfg.archetype === 'rts') return Studio.RTS.boot(cfg);
       if (cfg.archetype === 'isorts') return Studio.IsoRTS.boot(cfg);     // isometric continuous-front RTS
+      if (cfg.archetype === 'builder') return Studio.Builder.boot(cfg);   // isometric world-builder (Studio.UI showcase)
       var TH = cfg.theme || {};
       var HOOKS = cfg.hooks || {};
       var VERT = cfg.archetype === 'vertical';
@@ -2946,6 +3042,336 @@
       function showLose() { mode = 'win'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x1a0404, 0.8)); mtext(menuLayer, 480, 200, 'GARAGE DESTROYED', 30); mtext(menuLayer, 480, 280, '↻  RETRY', 22, true).on('pointerdown', function () { startGame(levelIndex); }); mtext(menuLayer, 480, 330, 'MENU', 15, true).on('pointerdown', function () { showMenu(); }); }
 
       var config = { type: Phaser.AUTO, backgroundColor: TH.cssBg || '#1a160f', seed: [cfg.seed || title], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H }, render: { preserveDrawingBuffer: true, pixelArt: false }, physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }, scene: [Play] };
+      var rp = new URLSearchParams(location.search).get('r'); if (rp === 'canvas') config.type = Phaser.CANVAS; else if (rp === 'webgl') config.type = Phaser.WEBGL;
+      root.game = new Phaser.Game(config);
+      return root.game;
+    }
+  };
+
+  // ============================================================ Studio.Builder
+  // The WORLD-BUILDER archetype (5th genre): an isometric-grid settlement game.
+  // You spend auto-income resources (TIMBER + FOOD) to PLACE structures on a
+  // glade grid; structures raise rates/pop-cap; rootlings join as the village
+  // grows; each glade has a GOAL (population / stockpile / a landmark built).
+  // No death state — the deterministic gate is WIN-BY-CONSTRUCTION: the level's
+  // `plan` (the autopilot's build order) provably reaches the goal (lint checks
+  // affordability + goal coverage; the browser gate replays it bit-identically).
+  // Built on Studio.Iso (the projector) + Studio.UI (palette/cards/bars/tooltip).
+  Studio.Builder = {
+    boot: function (cfg) {
+      var TH = cfg.theme || {}, LEVELS = cfg.levels || root.LEVELS || [];
+      var title = cfg.title || 'Studio Builder', slug = cfg.slug || 'builder';
+      var W = 960, H = 540, FONT = 'Georgia, "Times New Roman", serif';
+      var GW = TH.gridW || 12, GH = TH.gridH || 7;
+      var save = Studio.Save.load(slug);
+
+      // STRUCTURES — the build vocabulary (theme-tunable via TH.structs overrides)
+      var STRUCTS = Object.assign({
+        hut:        { name: 'Hut',         cost: { timber: 18 },           gives: { popCap: 2 },      tip: 'Shelters 2 rootlings.' },
+        lumbercamp: { name: 'Lumber Camp', cost: { timber: 24 },           gives: { timberRate: 1.6 },tip: '+1.6 timber/s.' },
+        garden:     { name: 'Berry Garden',cost: { timber: 20 },           gives: { foodRate: 1.2 },  tip: '+1.2 food/s.' },
+        well:       { name: 'Well',        cost: { timber: 14 },           gives: { foodRate: 0.6 },  tip: '+0.6 food/s.' },
+        storehouse: { name: 'Storehouse',  cost: { timber: 30 },           gives: { popCap: 1, timberRate: 0.4 }, tip: '+1 shelter, +0.4 timber/s.' },
+        campfire:   { name: 'Campfire',    cost: { timber: 10 },           gives: { popCap: 1 },      tip: 'A warm heart. +1 shelter.' },
+        shrine:     { name: 'Sun Shrine',  cost: { timber: 60, food: 30 }, gives: {},                 tip: 'A landmark goal.' },
+        hall:       { name: 'Great Oak Hall', cost: { timber: 90, food: 40 }, gives: { popCap: 4 },   tip: 'THE landmark. +4 shelter.' }
+      }, TH.structs || {});
+
+      var scene, mode = cfg.skipMenu ? 'play' : 'menu', menuLayer = null;
+      var levelIndex = 0, clock = 0, frame = 0, won = false, allWon = false, levelStartFrame = 0;
+      var res = { timber: 0, food: 0 }, rate = { timber: 0, food: 0 }, pop = 0, popCap = 0, popT = 0;
+      var grid = [], placed = [], villagers = [], planIdx = 0, auto = false, bedOn = false;
+      var selKey = null, ghost = null, cards = {}, barT = null, barF = null, barP = null, goalTx = null, tip = null, bgImg = null, gridG = null, rosterPanel = null;
+      var spec = function () { return LEVELS[levelIndex] || {}; };
+      var ISO = Studio.Iso.projector({ farY: TH.farY || 96, nearY: TH.nearY || 430, cx: 480, farHalf: TH.farHalf || 300, nearHalf: TH.nearHalf || 444, farScale: 0.8, nearScale: 1.06, depthSpan: 100 });
+      function cellAt(gx, gy) { return ISO.at((gx / (GW - 1)) * 2 - 1, gy / (GH - 1)); }
+      function inGrid(gx, gy) { return gx >= 0 && gx < GW && gy >= 0 && gy < GH; }
+      function gridFromPointer(px, py) {
+        // invert the projector: t from py, then lx from px at that depth
+        var t = (py - ISO.at(0, 0).sy) / (ISO.at(0, 1).sy - ISO.at(0, 0).sy);
+        var gy = Math.round(t * (GH - 1)); if (gy < 0) gy = 0; if (gy > GH - 1) gy = GH - 1;
+        var row = gy / (GH - 1), p0 = ISO.at(-1, row), p1 = ISO.at(1, row);
+        var lx = ((px - p0.sx) / Math.max(1, p1.sx - p0.sx)) * 2 - 1;
+        var gx = Math.round(((lx + 1) / 2) * (GW - 1)); if (gx < 0) gx = 0; if (gx > GW - 1) gx = GW - 1;
+        return { gx: gx, gy: gy };
+      }
+
+      function snapshot() {
+        return {
+          x: 0, y: 0, vx: 0, vy: 0, timber: Math.round(res.timber), food: Math.round(res.food),
+          coins: Math.round(res.timber), pop: pop, popCap: popCap, built: placed.length,
+          deaths: 0, dead: false, won: allWon, frame: frame, level: levelIndex, maxX: 0
+        };
+      }
+      function goalText() {
+        var g = spec().goal || {};
+        if (g.pop) return 'Shelter ' + g.pop + ' rootlings  (' + pop + '/' + g.pop + ')';
+        if (g.timber) return 'Stockpile ' + g.timber + ' timber  (' + Math.min(Math.round(res.timber), g.timber) + '/' + g.timber + ')';
+        if (g.built) return 'Build the ' + (STRUCTS[g.built] ? STRUCTS[g.built].name : g.built) + (hasBuilt(g.built) ? '  ✓' : '');
+        return '';
+      }
+      function goalMet() {
+        var g = spec().goal || {};
+        if (g.pop && pop < g.pop) return false;
+        if (g.timber && res.timber < g.timber) return false;
+        if (g.built && !hasBuilt(g.built)) return false;
+        return !!(g.pop || g.timber || g.built);
+      }
+      function hasBuilt(key) { for (var i = 0; i < placed.length; i++) if (placed[i].key === key) return true; return false; }
+
+      function loadLevel(i) {
+        levelIndex = i; clock = 0; won = false; planIdx = 0; popT = 0;
+        var s = spec();
+        placed.forEach(function (p) { try { p.spr.destroy(); } catch (e) {} }); placed = [];
+        villagers.forEach(function (v) { try { v.spr.destroy(); v.tag.destroy(); } catch (e) {} }); villagers = [];
+        grid = []; for (var gx = 0; gx < GW; gx++) { grid[gx] = []; for (var gy = 0; gy < GH; gy++) grid[gx][gy] = null; }
+        res.timber = s.start && s.start.timber != null ? s.start.timber : 30;
+        res.food = s.start && s.start.food != null ? s.start.food : 10;
+        rate.timber = s.income && s.income.timber != null ? s.income.timber : 1.2;
+        rate.food = s.income && s.income.food != null ? s.income.food : 0.6;
+        pop = s.startPop != null ? s.startPop : 2; popCap = pop;
+        (s.decor || []).forEach(function (d) {
+          var c = cellAt(d.g[0], d.g[1]);
+          var tex = 'bld_' + d.kind;
+          var spr = scene.add.image(c.sx, c.sy, scene.textures.exists(tex) ? tex : 'tile_ghost').setDepth(c.depth);
+          spr.setScale((TH.decorH || 64) / Math.max(1, spr.height) * c.sc); spr.setOrigin(0.5, 0.86);
+          if (inGrid(d.g[0], d.g[1])) grid[d.g[0]][d.g[1]] = { key: d.kind, decor: true };
+          placed.push({ key: d.kind, gx: d.g[0], gy: d.g[1], spr: spr, decor: true });
+        });
+        for (var v = 0; v < pop; v++) addVillager(v);
+        if (bgImg) bgImg.setTexture(scene.textures.exists('bg_' + i) ? 'bg_' + i : 'bg_0');
+        levelStartFrame = frame;
+        if (bedOn) Studio.Audio.switchMusic(Studio.levelMusic(TH, LEVELS, i), TH.music && TH.music.vol != null ? TH.music.vol : 0.5);
+        toast((TH.toasts && TH.toasts.level || 'GLADE {i} · {name}').replace('{i}', i + 1).replace('{name}', s.name || ''));
+        refreshHud(true);
+      }
+
+      function addVillager(idx) {
+        var roster = TH.roster || [];
+        var who = roster[idx % Math.max(1, roster.length)] || { key: 'char_fern', name: 'Rootling' };
+        var c = cellAt(2 + (idx * 3) % (GW - 4), 2 + (idx * 2) % (GH - 3));
+        var spr = scene.add.image(c.sx, c.sy, scene.textures.exists(who.key) ? who.key : 'tile_ghost').setDepth(c.depth + 1);
+        spr.setScale((TH.charH || 40) / Math.max(1, spr.height) * c.sc); spr.setOrigin(0.5, 0.92);
+        var tag = scene.add.text(c.sx, c.sy - 34, who.name, { fontFamily: FONT, fontSize: '9px', color: '#e8f4d8', stroke: '#10160c', strokeThickness: 3 }).setOrigin(0.5).setDepth(c.depth + 1).setAlpha(0.85);
+        villagers.push({ spr: spr, tag: tag, i: idx, hx: c.sx, hy: c.sy });
+        if (rosterPanel && rosterPanel.refresh) rosterPanel.refresh();
+      }
+
+      function canPlace(gx, gy) { return inGrid(gx, gy) && !grid[gx][gy]; }
+      function afford(key) { var st = STRUCTS[key]; if (!st) return false; var c = st.cost || {}; return res.timber >= (c.timber || 0) && res.food >= (c.food || 0); }
+      function place(key, gx, gy, silent) {
+        var st = STRUCTS[key];
+        if (!st || !canPlace(gx, gy) || !afford(key)) return false;
+        res.timber -= (st.cost.timber || 0); res.food -= (st.cost.food || 0);
+        var g = st.gives || {};
+        if (g.timberRate) rate.timber += g.timberRate;
+        if (g.foodRate) rate.food += g.foodRate;
+        if (g.popCap) popCap += g.popCap;
+        var c = cellAt(gx, gy), tex = 'bld_' + key;
+        var spr = scene.add.image(c.sx, c.sy, scene.textures.exists(tex) ? tex : 'tile_ghost').setDepth(c.depth);
+        spr.setScale((TH.structH || 74) / Math.max(1, spr.height) * c.sc); spr.setOrigin(0.5, 0.86);
+        grid[gx][gy] = { key: key }; placed.push({ key: key, gx: gx, gy: gy, spr: spr });
+        if (!silent) {
+          Studio.Audio.sfx('coin');
+          Studio.Juice.burst(scene, c.sx, c.sy - 14, { texture: 'spark', n: 12, tint: 0xffd166, life: 420, spMax: 130 });
+          Studio.Juice.ring(scene, c.sx, c.sy - 8, { tint: 0xffe8a0, r: 30, life: 260 });
+          scene.tweens.add({ targets: spr, scaleX: spr.scaleX * 1.12, scaleY: spr.scaleY * 0.9, yoyo: true, duration: 110 });
+        }
+        refreshHud();
+        return true;
+      }
+
+      function tickWorld(dt) {
+        res.timber += rate.timber * dt; res.food += rate.food * dt;
+        // rootlings join while there is shelter + food surplus (deterministic)
+        if (pop < popCap && rate.food >= (pop + 1) * 0.25) {
+          popT += dt;
+          if (popT >= (spec().popEvery || 4)) { popT = 0; pop++; addVillager(pop - 1); Studio.Audio.sfx('coin'); var cc = villagers[villagers.length - 1]; Studio.Juice.popText(scene, cc.hx, cc.hy - 40, '+1 rootling', { size: 12, color: '#ffe8a0' }); refreshHud(); }
+        } else popT = 0;
+        // wander (cosmetic, phase-deterministic)
+        for (var i = 0; i < villagers.length; i++) {
+          var v = villagers[i];
+          v.spr.x = v.hx + Math.sin(clock * 0.6 + i * 1.7) * 18;
+          v.spr.y = v.hy + Math.cos(clock * 0.45 + i * 2.3) * 6;
+          v.spr.setFlipX(Math.cos(clock * 0.6 + i * 1.7) < 0);
+          v.tag.setPosition(v.spr.x, v.spr.y - 34);
+        }
+        // AUTOPILOT: execute the level plan in order whenever affordable (the
+        // win-by-construction strategy the lint proves out).
+        if (auto && !won) {
+          var plan = spec().plan || [];
+          if (planIdx < plan.length) { var st = plan[planIdx]; if (afford(st.build) && canPlace(st.g[0], st.g[1])) { place(st.build, st.g[0], st.g[1], true); planIdx++; } }
+        }
+      }
+
+      function refreshHud(instant) {
+        if (!barT) return;
+        if (instant) { barT._shown = res.timber; barF._shown = res.food; barP._shown = pop; }
+        barT.set(Math.floor(res.timber)); barF.set(Math.floor(res.food)); barP.set(pop, '/' + popCap);
+        if (goalTx) goalTx.setText('★ ' + goalText());
+        for (var k in cards) cards[k].setAffordable(afford(k));
+      }
+
+      var Play = {
+        key: 'Play',
+        preload: function () {
+          for (var i = 0; i < LEVELS.length; i++) if (TH.backdrops) this.load.image('bg_' + i, TH.backdrops.replace('{i}', i + 1));
+          var imgs = TH.images || {}; for (var k in imgs) this.load.image(k, imgs[k]);
+          if (TH.menu && TH.menu.logo) this.load.image('menu_logo', TH.menu.logo);
+        },
+        create: function () {
+          scene = this;
+          Studio.Textures.bake(this, 'spark', 10, 10, function (g) { g.fillStyle(0xffd166, 1).fillCircle(5, 5, 5); g.fillStyle(0xffffff, 1).fillCircle(5, 5, 2); });
+          Studio.Textures.bake(this, 'tile_ghost', 40, 40, function (g) { g.fillStyle(0x6fae4e, 0.5).fillRoundedRect(2, 2, 36, 36, 6); });
+          this.add.rectangle(W / 2, H / 2, W, H, TH.sky != null ? TH.sky : 0x16210f).setDepth(-100);
+          bgImg = this.add.image(W / 2, H / 2, this.textures.exists('bg_0') ? 'bg_0' : 'spark').setDepth(-90);
+          if (this.textures.exists('bg_0')) { var k0 = Math.max(W / bgImg.width, H / bgImg.height); bgImg.setScale(k0); } else bgImg.setVisible(false);
+          // the buildable grid — subtle diamond outlines via the projector
+          gridG = this.add.graphics().setDepth(1).setAlpha(0.35);
+          for (var gx = 0; gx < GW; gx++) for (var gy = 0; gy < GH; gy++) {
+            var c = cellAt(gx, gy);
+            gridG.lineStyle(1, 0xeaf6d8, 0.16).strokeCircle(c.sx, c.sy, 3);
+          }
+          Studio.Juice.ambient(this, W, { texture: 'spark', y: -8, vyMin: 8, vyMax: 22, drift: 14, scale: 0.4, alpha: 0.25, frequency: 420, tint: 0xfff2b0, lifespan: 9000 });
+          if (TH.vignette) Studio.Juice.vignette(this, TH.vignette);
+
+          // ---------- THE UI (Studio.UI) ----------
+          var uth = TH.ui || {};
+          barT = Studio.UI.bar(this, 12, 46, { emoji: '🪵', label: 'timber', w: 124, theme: uth });
+          barF = Studio.UI.bar(this, 144, 46, { emoji: '🫐', label: 'food', w: 118, theme: uth });
+          barP = Studio.UI.bar(this, 270, 46, { emoji: '🌱', label: 'rootlings', w: 132, theme: uth });
+          var gp = Studio.UI.panel(this, W / 2 - 170, 8, 340, 26, { theme: uth, alpha: 0.78, depth: 299 });
+          goalTx = this.add.text(W / 2, 21, '', { fontFamily: FONT, fontSize: '13px', color: '#ffe8a0', stroke: '#10160c', strokeThickness: 3 }).setOrigin(0.5).setDepth(300);
+          tip = Studio.UI.tooltip(this, { theme: uth });
+          // the BUILD PALETTE
+          var keys = (TH.palette || ['hut', 'lumbercamp', 'garden', 'well', 'storehouse', 'campfire', 'shrine', 'hall']);
+          var pw = keys.length * 92 + 10;
+          Studio.UI.panel(this, W / 2 - pw / 2, H - 112, pw, 106, { theme: uth, alpha: 0.7, depth: 298 });
+          keys.forEach(function (k2, i2) {
+            var st = STRUCTS[k2], cost = '🪵' + (st.cost.timber || 0) + (st.cost.food ? ' 🫐' + st.cost.food : '');
+            cards[k2] = Studio.UI.card(scene, W / 2 - pw / 2 + 8 + i2 * 92, H - 106, {
+              theme: uth, icon: 'bld_' + k2, label: st.name, cost: cost,
+              onClick: function () { selectStruct(selKey === k2 ? null : k2); },
+              onHover: function (on) { on ? tip.show(st.name + ' — ' + st.tip + '\n' + cost, scene.input.activePointer) : tip.hide(); }
+            });
+          });
+          // ROSTER (the 20 rootlings) — a names-and-faces panel
+          var rosterBtn = Studio.UI.button(this, W - 124, 56, 112, 30, '🌿 ROOTLINGS', { theme: uth, onClick: function () { toggleRoster(); } });
+          buildRoster(uth);
+
+          // placement ghost + input
+          ghost = this.add.image(0, 0, 'tile_ghost').setDepth(250).setVisible(false).setAlpha(0.85);
+          this.input.on('pointermove', function (p) {
+            if (!selKey || mode !== 'play') { ghost.setVisible(false); return; }
+            var g = gridFromPointer(p.x, p.y), c = cellAt(g.gx, g.gy);
+            var tex = scene.textures.exists('bld_' + selKey) ? 'bld_' + selKey : 'tile_ghost';
+            if (ghost.texture.key !== tex) ghost.setTexture(tex);
+            ghost.setPosition(c.sx, c.sy).setVisible(p.y < H - 118 && p.y > 92);
+            ghost.setScale((TH.structH || 74) / Math.max(1, ghost.height) * c.sc); ghost.setOrigin(0.5, 0.86);
+            ghost.setTint(canPlace(g.gx, g.gy) && afford(selKey) ? 0xaaffaa : 0xff8888);
+            ghost._g = g;
+          });
+          this.input.on('pointerdown', function (p) {
+            if (mode !== 'play' || !selKey || p.y >= H - 118 || p.y <= 92) return;
+            var g = ghost._g || gridFromPointer(p.x, p.y);
+            if (place(selKey, g.gx, g.gy)) { if (!afford(selKey)) selectStruct(null); }
+            else { barT.flash(true); Studio.Audio.sfx('hurt'); }
+          });
+          this.input.keyboard.on('keydown', function (e) {
+            if (mode !== 'play') return;
+            var n = parseInt(e.key, 10);
+            if (n >= 1 && n <= keys.length) selectStruct(keys[n - 1]);
+            else if (e.key === 'Escape') selectStruct(null);
+            else if (e.key === 'r' || e.key === 'R') toggleRoster();
+          });
+
+          var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.5); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
+          this.input.once('pointerdown', startBed); if (this.input.keyboard) this.input.keyboard.once('keydown', startBed);
+
+          Studio.Shell.create(this, {
+            theme: TH.shell || null,
+            links: (function () { var L = [{ label: '📖 DIARY', href: '/diary.html' }]; if (cfg.repo) { L.push({ label: '🐙 REPO', href: 'https://github.com/' + cfg.repo }); L.push({ label: '🐛 NOTES → ISSUES', href: 'https://github.com/' + cfg.repo + '/issues' }); } return L; })(),
+            context: function () { var s = spec(); return { where: 'G' + (levelIndex + 1) + ' ' + (s.name || ''), level: levelIndex + 1, levelName: s.name || '', coins: Math.round(res.timber), deaths: 0, won: allWon, game: slug }; },
+            onRestart: function () { startGame(0); }
+          });
+          Studio.harness.install(root.game, {
+            snapshot: snapshot, setInput: function () {},
+            autopilot: function (on) { auto = !!on; },
+            reset: function () { clearMenu(); mode = 'play'; allWon = false; won = false; frame = 0; loadLevel(0); }
+          });
+
+          loadLevel(0);
+          if (!cfg.skipMenu) showMenu();
+        },
+        update: function (time, delta) {
+          if (!scene || mode !== 'play') return;
+          frame++; var dt = Math.min((delta || (1000 / 60)) / 1000, 1 / 30); clock += dt;
+          tickWorld(dt);
+          if (frame % 12 === 0) refreshHud();
+          if (!won && goalMet()) {
+            won = true;
+            Studio.Audio.sfx('win'); Studio.Juice.flash(scene, 220, 230, 255, 180);
+            for (var fb = 0; fb < 3; fb++) (function (k) { scene.time.delayedCall(k * 140, function () { var c = cellAt(2 + k * 3, 2); Studio.Juice.burst(scene, c.sx, c.sy - 20, { texture: 'spark', n: 16, tint: 0xffe8a0, life: 600, spMax: 170 }); }); })(fb);
+            if (levelIndex < LEVELS.length - 1) {
+              var stats = { score: Math.round(res.timber), timeMs: Math.round(((frame - levelStartFrame) / 60) * 1000) };
+              if (!auto) { save = Studio.Save.levelClear(slug, levelIndex, { coins: stats.score, timeMs: stats.timeMs }) || save; showCard(levelIndex, stats); }
+              else { loadLevel(levelIndex + 1); }
+            } else { allWon = true; if (!auto) showWin({ score: Math.round(res.timber) }); }
+          }
+        }
+      };
+
+      function toast(txt) { if (!txt || !scene || mode !== 'play') return; var t = scene.add.text(W / 2, 150, txt, { fontFamily: FONT, fontSize: '26px', color: '#e8f4d8', stroke: '#10160c', strokeThickness: 6 }).setOrigin(0.5).setDepth(520).setAlpha(0); scene.tweens.add({ targets: t, alpha: 1, y: 138, duration: 420, yoyo: true, hold: 1100, onComplete: function () { try { t.destroy(); } catch (e) {} } }); }
+      function selectStruct(k) {
+        selKey = k;
+        for (var kk in cards) cards[kk].select(kk === k);
+        if (!k && ghost) ghost.setVisible(false);
+      }
+      function buildRoster(uth) {
+        var roster = TH.roster || [];
+        var p = Studio.UI.panel(scene, W - 332, 92, 320, 392, { theme: uth, title: '🌿 The Rootlings of the Grove', depth: 400 });
+        p.setVisible(false);
+        var items = [];
+        roster.forEach(function (r, i) {
+          var col = i % 4, row = Math.floor(i / 4);
+          var x = 16 + col * 76, y = 32 + row * 70;
+          var ic = scene.textures.exists(r.key) ? scene.add.image(x + 28, y + 22, r.key) : scene.add.rectangle(x + 28, y + 22, 40, 40, 0x2a3a20);
+          if (ic.setScale && ic.height) ic.setScale(Math.min(44 / ic.width, 44 / ic.height));
+          var nm = scene.add.text(x + 28, y + 50, r.name, { fontFamily: FONT, fontSize: '9px', color: '#e8f4d8' }).setOrigin(0.5);
+          p.add(ic); p.add(nm); items.push({ ic: ic, nm: nm, i: i });
+        });
+        p.refresh = function () { items.forEach(function (it) { var joined = it.i < pop; it.ic.setAlpha(joined ? 1 : 0.22); it.nm.setAlpha(joined ? 1 : 0.3); it.nm.setColor(joined ? '#ffe8a0' : '#e8f4d8'); }); };
+        p.refresh();
+        rosterPanel = p;
+      }
+      function toggleRoster() { if (rosterPanel) { rosterPanel.setVisible(!rosterPanel.visible); if (rosterPanel.visible) rosterPanel.refresh(); } }
+
+      function clearMenu() { if (menuLayer) { try { menuLayer.destroy(true); } catch (e) {} menuLayer = null; } }
+      function mtext(c, x, y, str, size, it) { var t = scene.add.text(x, y, str, { fontFamily: FONT, fontSize: size + 'px', color: '#e8f4d8', stroke: '#10160c', strokeThickness: Math.max(3, size / 7), align: 'center' }).setOrigin(0.5); if (it) { t.setInteractive({ useHandCursor: true }); t.on('pointerover', function () { t.setScale(1.07); }); t.on('pointerout', function () { t.setScale(1); }); } c.add(t); return t; }
+      function showMenu() {
+        mode = 'menu'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600);
+        if (scene.textures.exists('bg_0')) { var b = scene.add.image(W / 2, H / 2, 'bg_0'); b.setScale(Math.max(W / b.width, H / b.height)); menuLayer.add(b); } else menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, TH.sky != null ? TH.sky : 0x16210f));
+        menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x0c1407, 0.55));
+        var hk = (TH.roster && TH.roster[0] && scene.textures.exists(TH.roster[0].key)) ? TH.roster[0].key : null;
+        if (hk) { var hs = scene.add.image(250, 320, hk); hs.setScale(170 / Math.max(1, hs.height)); scene.tweens.add({ targets: hs, y: 310, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }); menuLayer.add(hs); }
+        if (scene.textures.exists('menu_logo')) { var lg = scene.add.image(0, 0, 'menu_logo'); lg.setScale(Math.min(430 / lg.width, 150 / lg.height)); lg.setPosition(300, 40 + lg.displayHeight / 2); menuLayer.add(lg); if (cfg.tagline) mtext(menuLayer, 300, 56 + lg.displayHeight, cfg.tagline.toUpperCase(), 11); }
+        else { mtext(menuLayer, 300, 80, title.toUpperCase(), 42); if (cfg.tagline) mtext(menuLayer, 300, 122, cfg.tagline.toUpperCase(), 11); }
+        var unlocked = Math.max(1, save.unlocked || 1), y0 = 220 - 0;
+        LEVELS.forEach(function (L, i) {
+          var open = i < unlocked, cy = 150 + i * 62;
+          var card = scene.add.rectangle(740, cy, 320, 52, 0x1c2616, 0.94).setStrokeStyle(2, open ? 0x6fae4e : 0x333a2c, 1);
+          if (open) { card.setInteractive({ useHandCursor: true }); card.on('pointerdown', function () { startGame(i); }); } else card.setAlpha(0.4);
+          menuLayer.add(card); mtext(menuLayer, 740, cy, (open ? (i + 1) + '. ' : '🔒 ') + (L.name || 'GLADE ' + (i + 1)).toUpperCase(), 13);
+        });
+        mtext(menuLayer, 480, 505, '▶  CLICK A GLADE · OR PRESS SPACE', 14);
+        var go = function () { if (mode === 'menu') startGame(Math.min(unlocked - 1, LEVELS.length - 1)); };
+        scene.input.keyboard.once('keydown-SPACE', go); scene.input.keyboard.once('keydown-ENTER', go);
+      }
+      function startGame(i) { clearMenu(); mode = 'play'; won = false; loadLevel(i); }
+      function showCard(i, stats) { mode = 'card'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x0c1407, 0.7)); mtext(menuLayer, 480, 200, (spec().name || 'GLADE') + ' — FLOURISHING', 26); mtext(menuLayer, 480, 250, 'timber ' + stats.score + '  ·  ' + (stats.timeMs / 1000).toFixed(1) + 's', 16); var go = function () { if (mode === 'card') startGame(i + 1); }; mtext(menuLayer, 480, 320, '▶  NEXT GLADE', 22, true).on('pointerdown', go); scene.input.keyboard.once('keydown-SPACE', go); scene.time.delayedCall(2600, go); }
+      function showWin(st) { mode = 'win'; clearMenu(); menuLayer = scene.add.container(0, 0).setDepth(600); menuLayer.add(scene.add.rectangle(W / 2, H / 2, W, H, 0x0c1407, 0.78)); mtext(menuLayer, 480, 170, TH.toasts && TH.toasts.win || 'THE GROVE THRIVES', 34); mtext(menuLayer, 480, 230, 'final timber ' + st.score, 18); mtext(menuLayer, 480, 310, '↻  PLAY AGAIN', 22, true).on('pointerdown', function () { startGame(0); }); mtext(menuLayer, 480, 360, 'MENU', 15, true).on('pointerdown', function () { showMenu(); }); }
+
+      var config = { type: Phaser.AUTO, backgroundColor: TH.cssBg || '#16210f', seed: [cfg.seed || title], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H }, render: { preserveDrawingBuffer: true, pixelArt: true }, physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }, scene: [Play] };
       var rp = new URLSearchParams(location.search).get('r'); if (rp === 'canvas') config.type = Phaser.CANVAS; else if (rp === 'webgl') config.type = Phaser.WEBGL;
       root.game = new Phaser.Game(config);
       return root.game;

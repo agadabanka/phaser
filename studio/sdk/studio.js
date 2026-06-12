@@ -3237,11 +3237,11 @@
 
           // ---------- THE UI (Studio.UI) ----------
           var uth = TH.ui || {};
-          barT = Studio.UI.bar(this, 12, 10, { emoji: '🪵', label: 'timber', w: 124, theme: uth });
-          barF = Studio.UI.bar(this, 144, 10, { emoji: '🫐', label: 'food', w: 118, theme: uth });
-          barP = Studio.UI.bar(this, 270, 10, { emoji: '🌱', label: 'rootlings', w: 132, theme: uth });
-          var gp = Studio.UI.panel(this, W / 2 - 170, 44, 340, 26, { theme: uth, alpha: 0.78, depth: 299 });
-          goalTx = this.add.text(W / 2, 57, '', { fontFamily: FONT, fontSize: '13px', color: '#ffe8a0', stroke: '#10160c', strokeThickness: 3 }).setOrigin(0.5).setDepth(300);
+          barT = Studio.UI.bar(this, 12, 46, { emoji: '🪵', label: 'timber', w: 124, theme: uth });
+          barF = Studio.UI.bar(this, 144, 46, { emoji: '🫐', label: 'food', w: 118, theme: uth });
+          barP = Studio.UI.bar(this, 270, 46, { emoji: '🌱', label: 'rootlings', w: 132, theme: uth });
+          var gp = Studio.UI.panel(this, W / 2 - 170, 8, 340, 26, { theme: uth, alpha: 0.78, depth: 299 });
+          goalTx = this.add.text(W / 2, 21, '', { fontFamily: FONT, fontSize: '13px', color: '#ffe8a0', stroke: '#10160c', strokeThickness: 3 }).setOrigin(0.5).setDepth(300);
           tip = Studio.UI.tooltip(this, { theme: uth });
           // the BUILD PALETTE
           var keys = (TH.palette || ['hut', 'lumbercamp', 'garden', 'well', 'storehouse', 'campfire', 'shrine', 'hall']);
@@ -3256,7 +3256,7 @@
             });
           });
           // ROSTER (the 20 rootlings) — a names-and-faces panel
-          var rosterBtn = Studio.UI.button(this, W - 118, 10, 106, 30, '🌿 ROOTLINGS', { theme: uth, onClick: function () { toggleRoster(); } });
+          var rosterBtn = Studio.UI.button(this, W - 124, 56, 112, 30, '🌿 ROOTLINGS', { theme: uth, onClick: function () { toggleRoster(); } });
           buildRoster(uth);
 
           // placement ghost + input
@@ -3266,13 +3266,13 @@
             var g = gridFromPointer(p.x, p.y), c = cellAt(g.gx, g.gy);
             var tex = scene.textures.exists('bld_' + selKey) ? 'bld_' + selKey : 'tile_ghost';
             if (ghost.texture.key !== tex) ghost.setTexture(tex);
-            ghost.setPosition(c.sx, c.sy).setVisible(p.y < H - 118 && p.y > 70);
+            ghost.setPosition(c.sx, c.sy).setVisible(p.y < H - 118 && p.y > 92);
             ghost.setScale((TH.structH || 74) / Math.max(1, ghost.height) * c.sc); ghost.setOrigin(0.5, 0.86);
             ghost.setTint(canPlace(g.gx, g.gy) && afford(selKey) ? 0xaaffaa : 0xff8888);
             ghost._g = g;
           });
           this.input.on('pointerdown', function (p) {
-            if (mode !== 'play' || !selKey || p.y >= H - 118 || p.y <= 70) return;
+            if (mode !== 'play' || !selKey || p.y >= H - 118 || p.y <= 92) return;
             var g = ghost._g || gridFromPointer(p.x, p.y);
             if (place(selKey, g.gx, g.gy)) { if (!afford(selKey)) selectStruct(null); }
             else { barT.flash(true); Studio.Audio.sfx('hurt'); }
@@ -3282,6 +3282,7 @@
             var n = parseInt(e.key, 10);
             if (n >= 1 && n <= keys.length) selectStruct(keys[n - 1]);
             else if (e.key === 'Escape') selectStruct(null);
+            else if (e.key === 'r' || e.key === 'R') toggleRoster();
           });
 
           var startBed = function () { if (bedOn || !TH.music) return; bedOn = true; var a = Studio.Audio.music(Studio.levelMusic(TH, LEVELS, levelIndex) || TH.music.url, TH.music.vol != null ? TH.music.vol : 0.5); if (!a && TH.music.fallback) Studio.Audio.music(TH.music.fallback, 0.3); };
@@ -3328,7 +3329,7 @@
       }
       function buildRoster(uth) {
         var roster = TH.roster || [];
-        var p = Studio.UI.panel(scene, W - 332, 48, 320, 392, { theme: uth, title: '🌿 The Rootlings of the Grove', depth: 400 });
+        var p = Studio.UI.panel(scene, W - 332, 92, 320, 392, { theme: uth, title: '🌿 The Rootlings of the Grove', depth: 400 });
         p.setVisible(false);
         var items = [];
         roster.forEach(function (r, i) {

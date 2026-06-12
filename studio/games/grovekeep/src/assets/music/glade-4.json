@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/glade-4.mp3",
+  "prompt": "Looping instrumental TWILIGHT MUSHROOM GROVE theme: music box, soft pads, glassy bells, fireflies-at-dusk wonder, slightly magical, no vocals, seamless loop, slow tempo.",
+  "generatedAt": "2026-06-12T14:55:42.218Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0696,
+  "peak": 0.5222,
+  "crossfadeSec": 1.6
+}

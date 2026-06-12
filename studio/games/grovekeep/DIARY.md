@@ -1,24 +1,44 @@
-# Studio Phaser 4 Template — Diary
+# Grovekeep — build diary
 
-### Born on Phaser 4
-Scaffolded from `agadabanka/phaser-private` (Phaser **4.1.0**) on the Studio SDK —
-the first base in the family to run Phaser 4 instead of vendored Phaser 3.
+![the Grovekeep menu](src/diary-shots/menu.png)
 
-### What it ships
-- **Studio SDK**: deterministic stepper, observability bridge, generic autopilot,
-  Level DSL, procedural texture bakery, JuiceKit (tweens / particles / GPU filters),
-  procedural WebAudio SFX, follow camera with deadzone + bounds.
-- One level (**Green Run**) that passes the **0-death autopilot gate** on both
-  WebGL and Canvas, collecting coins and stomping a patroller along the way.
-- **AI eval harness** (`npm run eval`): determinism + 0-death gate + non-black
-  headless readback. Notably, headless **WebGL** readback works in Phaser 4
-  (Phaser 3 forced the Canvas renderer here).
+An isometric **pixel-art world-builder** — the engine's **5th genre**. A forest
+glade, an economy of **timber and berries**, and twenty named **rootlings** who
+join your village as you shelter and feed them. Five glades, each a settlement
+scenario: grow a population, stockpile timber, or raise a landmark (the Sun
+Shrine, the Great Oak Hall).
 
-### Shipped
-Live on Railway: https://studio-phaser4-demo-production.up.railway.app
-Deployed straight from this directory (`railway up`); `/health` + `/api/meta` verified,
-and the deployed build was confirmed to render headless.
+## Two engine investments this game funded
+**`Studio.UI`** — the engine's first real UI kit (canvas-native, pixel-friendly,
+themed): panels, buttons, **build-palette cards** (icon + cost + affordability
+greying + selection), **animated resource bars**, and a follow-the-pointer
+tooltip. Every future game inherits it.
 
-### Next (the vertical agents)
-story · game concept · art theme · characters · level design · feel · animation/FX ·
-texturing · sound → ship to Railway.
+**`Studio.Builder`** — the world-builder archetype on `Studio.Iso`: a glade
+grid, placement ghost (green/red validity), a deterministic economy tick,
+population growth gated by food, per-glade goals, and a **plan-driven autopilot**.
+
+![a working village — palette, goal banner, named rootlings](src/diary-shots/village.png)
+
+## Pixel art, systematically
+Phaser's Pixel Studio is an interactive web app (no headless API), so the engine
+got **`pixelize`** instead — a post-processor that turns any Gemini render into
+genuine chunky pixel art (coarse-grid downscale → palette posterize → hard alpha
+→ nearest-neighbour upscale). All 36 assets — **20 characters**, 10 structures,
+5 glade backdrops, the wordmark — went through it for one cohesive 16-bit look.
+
+![the twenty rootlings — joined villagers light up](src/diary-shots/roster.png)
+
+## Win-by-construction, for a builder
+No deaths here — the gate proves the **plan**: each glade's autopilot build order
+must be *placeable* (in-grid, no overlaps), *affordable* (simulated under income,
+built structures compounding their rates), and *goal-covering* (shelter + food
+support the population target; the landmark is actually in the plan). That's the
+`builder` contract in `rules.json` — checked statically by the lint in
+milliseconds, then replayed bit-identically by the browser gate.
+
+## Scorecard
+- **Gate:** GREEN — deterministic, frame-identical **10100**, webgl + canvas.
+- **Lint:** `builder` contract **29/29**.
+- **Music:** five Lyria woodland themes, one per glade (per-level validator ✓).
+- **Characters:** 20 named rootlings, all generated + pixelized, all in the roster.

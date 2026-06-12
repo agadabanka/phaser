@@ -1,0 +1,17 @@
+{
+  "capability": "music",
+  "kind": "lyria",
+  "model": "lyria-002",
+  "provider": "vertex-ai",
+  "file": "assets/music/glade-5.mp3",
+  "prompt": "Looping instrumental ANCIENT HEARTWOOD theme: warm strings swell, French horn, golden and gently triumphant finale, no vocals, seamless loop, stately tempo.",
+  "generatedAt": "2026-06-12T14:56:34.591Z",
+  "duration": 31.17,
+  "sampleRate": 48000,
+  "channels": 1,
+  "bitrateKbps": 128,
+  "bytes": 499200,
+  "rms": 0.0696,
+  "peak": 0.3251,
+  "crossfadeSec": 1.6
+}
