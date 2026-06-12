@@ -43,5 +43,9 @@
   },
   "slug": "grovekeep",
   "repo": "agadabanka/grovekeep",
-  "archetype": "builder"
+  "archetype": "builder",
+  "railway": {
+    "projectId": "6b4ba87c-0bd1-4f87-a674-eb51e4010bfd",
+    "serviceId": "c2756c8e-9331-4353-84e7-897278d329bd"
+  }
 }
