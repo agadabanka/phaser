@@ -22,7 +22,12 @@ before you move on. Change ONE thing, re-eval, keep or revert.
    - edits only its vertical's files (e.g. Level Design → `src/game/levels.js`),
    - re-runs the eval and iterates with `diag.mjs` until its gate passes.
 4. **Re-measure** with the conductor; mark the stage done in `GAME_META.stages`; commit.
-5. Repeat until all verticals are ✅, then **ship** (`cd studio/games/<name> && railway up`).
+5. Repeat until all verticals are ✅, then **ship** (`node studio.mjs publish <game>` → GitHub-connected Railway deploy).
+6. **Film + publish to YouTube** (standard final step, every game): `node studio.mjs film games/<name> --upload`
+   — records a `.webm` per level (real-time autopilot via the standard `window.__game.gotoLevel(i)` hook)
+   plus a packed **montage** (`window.__game.showcase()`), then uploads them all (unlisted) via the
+   refresh-token (no prompts). One-time: `node studio.mjs auth youtube` to mint `YT_REFRESH_TOKEN`
+   (needs a TV/Limited-Input OAuth client in `YT_CLIENT_ID`/`YT_CLIENT_SECRET`). Writes `video/youtube.json`.
 
 ## Gotchas (learned porting PH3→PH4 + Arcade)
 - Static groups: use `getChildren()` (not `children.iterate`).

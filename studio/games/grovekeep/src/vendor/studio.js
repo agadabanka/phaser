@@ -2290,7 +2290,8 @@
             snapshot: snapshot,
             setInput: function (o) { input = Object.assign({ left: false, right: false }, o || {}); },
             autopilot: function (on) { auto = !!on; input = { left: false, right: false }; },
-            reset: function () { clearMenu(); mode = 'play'; try { scene.physics.world.resume(); } catch (e) {} deaths = 0; won = false; score = 0; frame = 0; loadLevel(0); hud(); }
+            reset: function () { clearMenu(); mode = 'play'; try { scene.physics.world.resume(); } catch (e) {} deaths = 0; won = false; score = 0; frame = 0; loadLevel(0); hud(); },
+            gotoLevel: function (i) { clearMenu(); mode = 'play'; try { scene.physics.world.resume(); } catch (e) {} won = false; loadLevel(i); hud(); }
           });
           root.__sense = function () { return { x: ship.x, gap: gapCenter(clock), hp: hp, wave: waveIdx }; };
 
@@ -2711,7 +2712,8 @@
             snapshot: snapshot,
             setInput: function () {},
             autopilot: function (on) { auto = !!on; },
-            reset: function () { clearMenu(); mode = 'play'; try { scene.physics.world.resume(); } catch (e) {} deaths = 0; won = false; frame = 0; loadLevel(0); hud(); }
+            reset: function () { clearMenu(); mode = 'play'; try { scene.physics.world.resume(); } catch (e) {} deaths = 0; won = false; frame = 0; loadLevel(0); hud(); },
+            gotoLevel: function (i) { clearMenu(); mode = 'play'; won = false; loadLevel(i); hud(); }
           });
           root.__sense = function () { return { scrap: Math.round(scrap), fortressHp: Math.round(fortressHp), garageHp: Math.round(garageHp), rally: spec().rally != null ? spec().rally : 1 }; };
 
@@ -2988,7 +2990,8 @@
           Studio.harness.install(root.game, {
             snapshot: snapshot, setInput: function () {},
             autopilot: function (on) { auto = !!on; },
-            reset: function () { clearMenu(); mode = 'play'; deaths = 0; won = false; frame = 0; loadLevel(0); hud(); }
+            reset: function () { clearMenu(); mode = 'play'; deaths = 0; won = false; frame = 0; loadLevel(0); hud(); },
+            gotoLevel: function (i) { clearMenu(); mode = 'play'; won = false; loadLevel(i); hud(); }
           });
 
           loadLevel(0);
@@ -3297,8 +3300,28 @@
           Studio.harness.install(root.game, {
             snapshot: snapshot, setInput: function () {},
             autopilot: function (on) { auto = !!on; },
-            reset: function () { clearMenu(); mode = 'play'; allWon = false; won = false; frame = 0; loadLevel(0); }
+            reset: function () { clearMenu(); mode = 'play'; allWon = false; won = false; frame = 0; loadLevel(0); },
+            gotoLevel: function (i) { clearMenu(); mode = 'play'; won = false; loadLevel(i); },
+            showcase: function () { if (root.__grove) root.__grove.fill(); }   // builder montage: a packed glade
           });
+
+          // dev/capture hook (inert in the gate, which uses __game/__rec) — drive a
+          // specific glade, place a structure, or pack a glade for a montage shot.
+          root.__grove = {
+            goto: function (i) { clearMenu(); mode = 'play'; won = false; loadLevel(i); },
+            place: function (k, gx, gy) { return place(k, gx, gy, false); },
+            fill: function () {
+              res.timber = 9999; res.food = 9999;
+              var layout = [
+                ['hut', 2, 2], ['garden', 4, 2], ['hut', 6, 2], ['lumbercamp', 8, 2], ['well', 10, 2],
+                ['campfire', 3, 3], ['hall', 5, 3], ['garden', 7, 3], ['storehouse', 9, 3],
+                ['hut', 2, 4], ['lumbercamp', 4, 4], ['shrine', 6, 4], ['hut', 8, 4], ['hut', 10, 4],
+                ['garden', 3, 5], ['well', 5, 5], ['hut', 7, 5], ['campfire', 9, 5]
+              ];
+              for (var i = 0; i < layout.length; i++) place(layout[i][0], layout[i][1], layout[i][2], false);
+              popCap += 30; res.timber = 400; res.food = 200; refreshHud(true);
+            }
+          };
 
           loadLevel(0);
           if (!cfg.skipMenu) showMenu();
@@ -3395,7 +3418,9 @@
         snapshot: hooks.snapshot,
         setInput: hooks.setInput || function () {},
         autopilot: hooks.autopilot || function () {},
-        reset: hooks.reset || function () {}
+        reset: hooks.reset || function () {},
+        gotoLevel: hooks.gotoLevel || function () {},   // jump to a level in real-time (for capture/film)
+        showcase: hooks.showcase || function () {}       // an archetype's "look full + alive" state for montages
       };
       root.__run = function (n) { root.__game.reset(); root.__game.autopilot(true); root.__rec.begin(); root.__rec.step(n); return root.__game.snapshot(); };
       root.__gate = function (maxF) {

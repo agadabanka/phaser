@@ -4,7 +4,7 @@
 
 **Stack:** Foundations → Platform → Engine → Content → Evaluation → Feedback → Publish
 
-**40 entries** across 20 phases · **81 systems** · **179 edges** in the graph.
+**41 entries** across 20 phases · **82 systems** · **181 edges** in the graph.
 
 ---
 
@@ -396,6 +396,15 @@
 - **Validator:** e2e: real browser tap → issue with embedded dot-screenshot (roadwar-iso#5, then cleaned); /diary.html images load on all 5 live games; gate 9005 unchanged; ci --fast green; studio issues correctly RED (20 open)
 - **Artifacts:** `sdk/studio.js (Shell tap-to-annotate)`, `game-template/server.js (shot upload + /diary.html)`, `tools/eval/issues.mjs`
 
+### Capture pipeline: studio film — record per-level clips + a montage, upload to YouTube, baked into the engine
+`2026-06-12` · 🚀 shipped
+
+- **What:** Turned a one-off into an engine capability. A standard harness hook — window.__game.gotoLevel(i) (jump to a level in real time) + showcase() (an archetype's 'look full + alive' state) — added to ALL five archetypes (platformer already had goto; wired shooter/rts/isorts/builder). tools/video/film.mjs (studio film <game>) drives those hooks to record a Playwright-native .webm per level (real-time autopilot) plus a packed MONTAGE (showcase() — e.g. the builder fills a glade with ~18 structures), no ffmpeg needed. tools/video/upload.mjs uploads a clip folder to YouTube (Data API v3 resumable), auth via a REFRESH TOKEN (YT_CLIENT_ID/SECRET/REFRESH_TOKEN from env, fallback .studio-secrets/youtube.json) so it's hands-free every run — proven: refresh→access exchange works. tools/video/auth.mjs (studio auth youtube) mints the refresh token once via the OAuth DEVICE flow (the platformer-tv client is TV/Limited-Input). Wired studio film + studio auth into the CLI, and added Film as the standard final build step in the studio-build skill. Grovekeep was filmed + UPLOADED: 5 glade clips + the montage are live on YouTube (unlisted).
+- **Why:** Playtest feedback wanted every game to be played, recorded (levels + montage) and posted to YouTube automatically, with the refresh token as the only manual bit. Making gotoLevel/showcase part of the harness contract means the capture tool is GENERIC (any current/future archetype), and the refresh-token auth means uploads need no human in the loop after a one-time authorize — so 'film + publish' is now just another engine verb like gate/lint/ship.
+- **Systems:** Studio.Game.boot, game-engine hub
+- **Validator:** refresh→access token exchange OK; gotoLevel+showcase present on all archetypes (probe: goto(3)→L3, showcase→22 built); 6 grovekeep clips uploaded (youtu.be ids recorded)
+- **Artifacts:** `tools/video/film.mjs`, `tools/video/upload.mjs`, `tools/video/auth.mjs`, `sdk/studio.js (gotoLevel/showcase hooks)`, `games/grovekeep/video/youtube.json`
+
 ## Feedback
 
 ### Cleared the playtest backlog (19/20) — engine-level fixes + a CI-ratchet save of nimbus
@@ -579,4 +588,5 @@ interactive visualizer (`../tools/sysmap/`) renders. Summary:
 | **Ember Depths** | game | gate | games/ember/ — a 5-level lava-cave platformer showing off the PH4 GPU FX + particles; mean FUN 91.6, gate green. Live on Railway. |
 | **Ember campaign (levels.js)** | game | feel | games/ember/src/game/levels.js — the 5-level descent authored to Studio.Feel (introduce -> develop -> twist -> master). |
 | **game-engine hub** | orchestrator | — | agadabanka/game-engine — the family hub: hub/games.json registers every shipped game (repo/url/meta/stages); notes→issues convention; the studio's games are registered there too. |
+| **Film + YouTube** | tool | 6 clips uploaded | studio film: records a .webm per level + a montage (via the standard gotoLevel/showcase harness hooks) and uploads to YouTube (refresh-token, hands-free). |
 

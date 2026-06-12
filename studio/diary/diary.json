@@ -976,6 +976,28 @@
     "https://grovekeep-production.up.railway.app"
    ],
    "commit": null
+  },
+  {
+   "id": "e41",
+   "date": "2026-06-12",
+   "phase": "Platform",
+   "title": "Capture pipeline: studio film — record per-level clips + a montage, upload to YouTube, baked into the engine",
+   "what": "Turned a one-off into an engine capability. A standard harness hook — window.__game.gotoLevel(i) (jump to a level in real time) + showcase() (an archetype's 'look full + alive' state) — added to ALL five archetypes (platformer already had goto; wired shooter/rts/isorts/builder). tools/video/film.mjs (studio film <game>) drives those hooks to record a Playwright-native .webm per level (real-time autopilot) plus a packed MONTAGE (showcase() — e.g. the builder fills a glade with ~18 structures), no ffmpeg needed. tools/video/upload.mjs uploads a clip folder to YouTube (Data API v3 resumable), auth via a REFRESH TOKEN (YT_CLIENT_ID/SECRET/REFRESH_TOKEN from env, fallback .studio-secrets/youtube.json) so it's hands-free every run — proven: refresh→access exchange works. tools/video/auth.mjs (studio auth youtube) mints the refresh token once via the OAuth DEVICE flow (the platformer-tv client is TV/Limited-Input). Wired studio film + studio auth into the CLI, and added Film as the standard final build step in the studio-build skill. Grovekeep was filmed + UPLOADED: 5 glade clips + the montage are live on YouTube (unlisted).",
+   "why": "Playtest feedback wanted every game to be played, recorded (levels + montage) and posted to YouTube automatically, with the refresh token as the only manual bit. Making gotoLevel/showcase part of the harness contract means the capture tool is GENERIC (any current/future archetype), and the refresh-token auth means uploads need no human in the loop after a one-time authorize — so 'film + publish' is now just another engine verb like gate/lint/ship.",
+   "systems": [
+    "game-runtime",
+    "hub"
+   ],
+   "validator": "refresh→access token exchange OK; gotoLevel+showcase present on all archetypes (probe: goto(3)→L3, showcase→22 built); 6 grovekeep clips uploaded (youtu.be ids recorded)",
+   "status": "shipped",
+   "artifacts": [
+    "tools/video/film.mjs",
+    "tools/video/upload.mjs",
+    "tools/video/auth.mjs",
+    "sdk/studio.js (gotoLevel/showcase hooks)",
+    "games/grovekeep/video/youtube.json"
+   ],
+   "commit": null
   }
  ],
  "graph": {
@@ -1614,6 +1636,14 @@
     "tier": "games",
     "validator": "gate det 10100 + builder lint 29/29",
     "desc": "Pixel-art forest world-builder — 20 named rootlings, 5 glades, the Studio.UI showcase."
+   },
+   {
+    "id": "film",
+    "kind": "tool",
+    "label": "Film + YouTube",
+    "tier": "publish",
+    "validator": "6 clips uploaded",
+    "desc": "studio film: records a .webm per level + a montage (via the standard gotoLevel/showcase harness hooks) and uploads to YouTube (refresh-token, hands-free)."
    }
   ],
   "edges": [
@@ -2512,6 +2542,16 @@
     "from": "grovekeep",
     "to": "pixelize",
     "rel": "depends-on"
+   },
+   {
+    "from": "film",
+    "to": "game-runtime",
+    "rel": "builds-on"
+   },
+   {
+    "from": "grovekeep",
+    "to": "film",
+    "rel": "produces"
    }
   ]
  },

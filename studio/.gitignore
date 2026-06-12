@@ -10,3 +10,4 @@ tools/sprite-studio/phaser.min.js
 # per-game runtime data (playtest notes written by server.js)
 games/*/data/
 game-template/data/
+.studio-secrets/
