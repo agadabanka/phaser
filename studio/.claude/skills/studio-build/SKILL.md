@@ -25,9 +25,14 @@ before you move on. Change ONE thing, re-eval, keep or revert.
 5. Repeat until all verticals are ✅, then **ship** (`node studio.mjs publish <game>` → GitHub-connected Railway deploy).
 6. **Film + publish to YouTube** (standard final step, every game): `node studio.mjs film games/<name> --upload`
    — records a `.webm` per level (real-time autopilot via the standard `window.__game.gotoLevel(i)` hook)
-   plus a packed **montage** (`window.__game.showcase()`), then uploads them all (unlisted) via the
-   refresh-token (no prompts). One-time: `node studio.mjs auth youtube` to mint `YT_REFRESH_TOKEN`
-   (needs a TV/Limited-Input OAuth client in `YT_CLIENT_ID`/`YT_CLIENT_SECRET`). Writes `video/youtube.json`.
+   plus a packed **montage** (`window.__game.showcase()`). Clips carry the level's **MUSIC**: an in-page
+   MediaRecorder captures the canvas + the game's WebAudio (a generic AudioContext tap), so the uploads
+   aren't silent. Then it uploads them all (unlisted) via the refresh-token (no prompts) and builds a
+   **YouTube playlist** link — a real channel playlist if the token has the `youtube` scope, else a
+   watch-all link — writing `GAME_META.videos` + `GAME_META.playlist` (the hub surfaces both as a
+   Play-Store-style page). One-time: `node studio.mjs auth youtube` to mint `YT_REFRESH_TOKEN` (needs a
+   TV/Limited-Input OAuth client in `YT_CLIENT_ID`/`YT_CLIENT_SECRET`; the scope now includes playlist
+   management). Writes `video/youtube.json`.
 
 ## Gotchas (learned porting PH3→PH4 + Arcade)
 - Static groups: use `getChildren()` (not `children.iterate`).
