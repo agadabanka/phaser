@@ -14,7 +14,9 @@ import { fileURLToPath } from 'node:url';
 const STUDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CID = process.env.YT_CLIENT_ID, CSEC = process.env.YT_CLIENT_SECRET;
 if (!CID || !CSEC) { console.error('set YT_CLIENT_ID and YT_CLIENT_SECRET (a TV/Limited-Input OAuth client)'); process.exit(2); }
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
+// upload + manage playlists (the latter lets the engine make a real channel
+// playlist per game; with an upload-only token it falls back to a watch-all link).
+const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube';
 
 const dc = await (await fetch('https://oauth2.googleapis.com/device/code', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: CID, scope: SCOPE }) })).json();
 if (!dc.device_code) { console.error('device flow rejected (is the client "TV and Limited Input"?):', JSON.stringify(dc)); process.exit(1); }
